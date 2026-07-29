@@ -1,0 +1,625 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                    String                  @id @default(cuid())
+  name                  String?
+  email                 String                  @unique
+  emailVerified         DateTime?
+  image                 String?
+  password              String?
+  role                  Role                    @default(EMPLOYEE)
+  isSuperAdmin          Boolean                 @default(false)
+  organizationId        String?
+  departmentId          String?
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
+  subscriptionId        String?
+  permissions           Json?
+  managerId             String?
+  ActivityLog           ActivityLog[]
+  AnnouncementDismissal AnnouncementDismissal[]
+  AutomationRule        AutomationRule[]
+  createdChannels       Channel[]               @relation("ChannelCreator")
+  channelMembers        ChannelMember[]
+  EmailLog              EmailLog[]
+  receivedMessages      Message[]               @relation("ReceivedMessages")
+  sentMessages          Message[]               @relation("SentMessages")
+  notifications         Notification[]
+  Payment               Payment[]
+  createdRecords        Record[]                @relation("RecordCreator")
+  assignedReminders     Reminder[]              @relation("ReminderAssignee")
+  createdReminders      Reminder[]              @relation("ReminderCreator")
+  sessions              Session[]
+  createdTasks          Task[]                  @relation("TaskCreator")
+  TaskActivity          TaskActivity[]
+  assignedTasks         TaskAssignment[]
+  TaskClient            TaskClient[]
+  taskComments          TaskComment[]
+  TaskInvitation        TaskInvitation[]
+  department            Department?             @relation(fields: [departmentId], references: [id])
+  manager               User?                   @relation("ManagerTeam", fields: [managerId], references: [id])
+  subordinates          User[]                  @relation("ManagerTeam")
+  organization          Organization?           @relation(fields: [organizationId], references: [id])
+  Subscription          Subscription?           @relation(fields: [subscriptionId], references: [id])
+
+  @@index([organizationId, role])
+  @@index([email])
+  @@index([departmentId], map: "User_departmentId_fkey")
+  @@index([managerId], map: "User_managerId_fkey")
+  @@index([subscriptionId], map: "User_subscriptionId_fkey")
+}
+
+model Organization {
+  id             String         @id @default(cuid())
+  name           String
+  slug           String?        @unique
+  industry       String?
+  employeesCount Int?
+  primaryEmail   String         @unique
+  phone          String?
+  address        String?
+  logoUrl        String?
+  themeColor     String?
+  trialStart     DateTime
+  trialEnd       DateTime
+  trialStatus    TrialStatus    @default(ACTIVE)
+  suspended      Boolean        @default(false)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  activityLogs   ActivityLog[]
+  announcements  Announcement[]
+  Channel        Channel[]
+  EmailLog       EmailLog[]
+  Message        Message[]
+  notifications  Notification[]
+  invites        OrgInvite[]
+  Payment        Payment[]
+  subscription   Subscription?
+  Task           Task[]
+  users          User[]
+}
+
+model OrgInvite {
+  id             String       @id @default(cuid())
+  organizationId String
+  email          String
+  role           Role         @default(EMPLOYEE)
+  token          String       @unique
+  accepted       Boolean      @default(false)
+  expires        DateTime
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([email])
+  @@index([token])
+}
+
+model ActivityLog {
+  id             String       @id @default(cuid())
+  organizationId String
+  userId         String?
+  action         String
+  details        Json?
+  reason         String?
+  impersonation  Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User?        @relation(fields: [userId], references: [id])
+
+  @@index([organizationId])
+  @@index([userId])
+  @@index([action])
+}
+
+model Announcement {
+  id                    String                  @id @default(cuid())
+  organizationId        String?
+  scope                 String                  @default("GLOBAL")
+  title                 String
+  message               String                  @db.Text
+  createdAt             DateTime                @default(now())
+  published             Boolean                 @default(true)
+  organization          Organization?           @relation(fields: [organizationId], references: [id])
+  AnnouncementDismissal AnnouncementDismissal[]
+  Notification          Notification[]
+
+  @@index([organizationId])
+  @@index([scope])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId], map: "Session_userId_fkey")
+}
+
+model Department {
+  id        String    @id @default(cuid())
+  name      String    @unique
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  channels  Channel[]
+  users     User[]
+}
+
+model Channel {
+  id              String          @id @default(cuid())
+  name            String
+  description     String?
+  isPublic        Boolean         @default(true)
+  isDepartment    Boolean         @default(false)
+  isTaskThread    Boolean         @default(false)
+  organizationId  String?
+  taskId          String?         @unique
+  taskReferenceId String?
+  creatorId       String
+  type            String?         @default("GENERAL")
+  departmentId    String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  creator         User            @relation("ChannelCreator", fields: [creatorId], references: [id])
+  department      Department?     @relation(fields: [departmentId], references: [id])
+  organization    Organization?   @relation(fields: [organizationId], references: [id])
+  task            Task?           @relation(fields: [taskId], references: [id])
+  members         ChannelMember[]
+  messages        Message[]
+
+  @@index([creatorId], map: "Channel_creatorId_fkey")
+  @@index([departmentId], map: "Channel_departmentId_fkey")
+  @@index([organizationId], map: "Channel_organizationId_fkey")
+}
+
+model ChannelMember {
+  id        String   @id @default(cuid())
+  userId    String
+  channelId String
+  isAdmin   Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  channel   Channel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, channelId])
+  @@index([channelId], map: "ChannelMember_channelId_fkey")
+}
+
+model Message {
+  id              String        @id @default(cuid())
+  content         String        @db.Text
+  senderId        String
+  receiverId      String?
+  channelId       String?
+  organizationId  String?
+  isPinned        Boolean       @default(false)
+  attachments     Json?
+  fileUrl         String?
+  fileName        String?
+  fileType        String?
+  seenBy          Json?
+ // readAt          DateTime?   // ✅ ADD THIS
+  reactions       Json?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  pinnedMessageId String?
+  channel         Channel?      @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  organization    Organization? @relation(fields: [organizationId], references: [id])
+  pinnedMessage   Message?      @relation("PinnedRef", fields: [pinnedMessageId], references: [id])
+  pinnedBy        Message[]     @relation("PinnedRef")
+  receiver        User?         @relation("ReceivedMessages", fields: [receiverId], references: [id])
+  sender          User          @relation("SentMessages", fields: [senderId], references: [id])
+
+  @@index([channelId, createdAt])
+  @@index([senderId, createdAt])
+  @@index([receiverId, createdAt])
+  @@index([organizationId])
+  @@index([pinnedMessageId], map: "Message_pinnedMessageId_fkey")
+}
+
+model Task {
+  id              String            @id @default(cuid())
+  title           String
+  description     String?           @db.Text
+  priority        TaskPriority      @default(MEDIUM)
+  status          TaskStatus        @default(TODO)
+  deadline        DateTime?
+  organizationId  String?
+  creatorId       String
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  deadlineEnd     DateTime?
+  deadlineStart   DateTime?
+  AutomationRule  AutomationRule[]
+  channel         Channel?
+  InvitationToken InvitationToken[]
+  reminders       Reminder[]        @relation("TaskReminders")
+  Stage           Stage[]
+  creator         User              @relation("TaskCreator", fields: [creatorId], references: [id])
+  organization    Organization?     @relation(fields: [organizationId], references: [id])
+  TaskActivity    TaskActivity[]
+  assignments     TaskAssignment[]
+  TaskClient      TaskClient[]
+  comments        TaskComment[]
+  TaskInvitation  TaskInvitation[]
+
+  @@index([organizationId, status, deadline])
+  @@index([creatorId])
+  @@index([status, priority])
+}
+
+model Stage {
+  id             String           @id @default(cuid())
+  name           String
+  taskId         String
+  color          String
+  assignedTeam   String?
+  order          Int
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  AutomationRule AutomationRule[]
+  Record         Record[]
+  task           Task             @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId], map: "Stage_taskId_fkey")
+}
+
+model TaskActivity {
+  id          String   @id @default(uuid())
+  taskId      String
+  userId      String
+  type        String
+  description String
+  timestamp   DateTime @default(now())
+  tag         String?
+  recordId    String?
+  record      Record?  @relation("RecordActivities", fields: [recordId], references: [id])
+  task        Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+  @@index([userId])
+  @@index([type])
+  @@index([recordId], map: "TaskActivity_recordId_fkey")
+}
+
+model Record {
+  id            String           @id @default(cuid())
+  title         String
+  description   String?
+  dueDate       DateTime?
+  startDate     DateTime?
+  endDate       DateTime?
+  createdBy     String
+  priority      String
+  status        String?
+  parentTaskId  String?
+  stageId       String?
+  isComplete    Boolean          @default(false)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  createdByUser User             @relation("RecordCreator", fields: [createdBy], references: [id])
+  stage         Stage?           @relation(fields: [stageId], references: [id])
+  activities    TaskActivity[]   @relation("RecordActivities")
+  assignees     TaskAssignment[]
+  tags          Tag[]            @relation("RecordTags")
+
+  @@index([createdBy], map: "Record_createdBy_fkey")
+  @@index([stageId], map: "Record_stageId_fkey")
+}
+
+model Tag {
+  id      String   @id @default(cuid())
+  name    String
+  records Record[] @relation("RecordTags")
+}
+
+model AutomationRule {
+  id            String    @id @default(cuid())
+  name          String
+  description   String?
+  trigger       String?
+  conditions    Json
+  actions       Json
+  enabled       Boolean   @default(true)
+  applyToAll    Boolean   @default(false)
+  stopOnFirst   Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  lastTriggered DateTime?
+  userId        String
+  projectId     String
+  taskId        String?
+  stageId       String?
+  stage         Stage?    @relation(fields: [stageId], references: [id])
+  task          Task?     @relation(fields: [taskId], references: [id])
+  user          User      @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([projectId])
+  @@index([trigger])
+  @@index([stageId], map: "AutomationRule_stageId_fkey")
+  @@index([taskId], map: "AutomationRule_taskId_fkey")
+}
+
+model TaskAssignment {
+  id        String   @id @default(cuid())
+  taskId    String
+  userId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  recordId  String?
+  Record    Record?  @relation(fields: [recordId], references: [id])
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, userId, recordId])
+  @@index([recordId], map: "TaskAssignment_recordId_fkey")
+  @@index([userId], map: "TaskAssignment_userId_fkey")
+}
+
+model TaskComment {
+  id        String   @id @default(cuid())
+  content   String   @db.Text
+  taskId    String
+  userId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@index([taskId], map: "TaskComment_taskId_fkey")
+  @@index([userId], map: "TaskComment_userId_fkey")
+}
+
+model Notification {
+  id             String           @id @default(cuid())
+  type           NotificationType
+  messageId      String?
+  channelId      String?
+  taskId         String?
+  reminderId     String?
+  announcementId String?
+  organizationId String?
+  content        String           @db.Text
+  read           Boolean          @default(false)
+  userId         String
+  createdAt      DateTime         @default(now())
+  announcement   Announcement?    @relation(fields: [announcementId], references: [id])
+  organization   Organization?    @relation(fields: [organizationId], references: [id])
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read, createdAt])
+  @@index([taskId])
+  @@index([announcementId])
+  @@index([organizationId])
+}
+
+model AnnouncementDismissal {
+  id             String       @id @default(cuid())
+  announcementId String
+  userId         String
+  createdAt      DateTime     @default(now())
+  announcement   Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([announcementId, userId])
+  @@index([userId])
+}
+
+model Reminder {
+  id          String           @id @default(cuid())
+  title       String
+  description String?          @db.Text
+  remindAt    DateTime
+  isMuted     Boolean          @default(false)
+  isSent      Boolean          @default(false)
+  isAutomatic Boolean          @default(false)
+  priority    ReminderPriority @default(MEDIUM)
+  type        ReminderType     @default(GENERAL)
+  creatorId   String
+  assigneeId  String
+  taskId      String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  sentAt      DateTime?
+  assignee    User             @relation("ReminderAssignee", fields: [assigneeId], references: [id])
+  creator     User             @relation("ReminderCreator", fields: [creatorId], references: [id])
+  task        Task?            @relation("TaskReminders", fields: [taskId], references: [id])
+
+  @@index([remindAt, isSent, isMuted])
+  @@index([assigneeId])
+  @@index([creatorId])
+  @@index([taskId])
+}
+
+model TaskClient {
+  id          String   @id @default(cuid())
+  taskId      String
+  userId      String
+  role        String   @default("CLIENT")
+  accessLevel String   @default("VIEW")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  task        Task     @relation(fields: [taskId], references: [id])
+  user        User     @relation(fields: [userId], references: [id])
+
+  @@unique([taskId, userId])
+  @@index([userId], map: "TaskClient_userId_fkey")
+}
+
+model TaskInvitation {
+  id          String   @id @default(cuid())
+  taskId      String
+  email       String
+  role        String   @default("CLIENT")
+  accessLevel String   @default("VIEW")
+  invitedById String
+  accepted    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  invitedBy   User     @relation(fields: [invitedById], references: [id])
+  task        Task     @relation(fields: [taskId], references: [id])
+
+  @@unique([taskId, email])
+  @@index([invitedById], map: "TaskInvitation_invitedById_fkey")
+}
+
+model InvitationToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  email     String
+  taskId    String
+  expires   DateTime
+  createdAt DateTime @default(now())
+  task      Task     @relation(fields: [taskId], references: [id])
+
+  @@index([token])
+  @@index([email])
+  @@index([taskId], map: "InvitationToken_taskId_fkey")
+}
+
+model Subscription {
+  id               String             @id @default(cuid())
+  organizationId   String             @unique
+  status           SubscriptionStatus @default(TRIAL)
+  trialStart       DateTime
+  trialEnd         DateTime
+  trialUsed        Boolean            @default(true)
+  currentPeriodEnd DateTime?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  emailLogs        EmailLog[]
+  payments         Payment[]
+  organization     Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  User             User[]
+}
+
+model Payment {
+  id             String        @id @default(cuid())
+  userId         String
+  organizationId String?
+  orderId        String        @unique
+  paymentId      String?
+  signature      String?
+  amount         Int
+  currency       String        @default("INR")
+  status         PaymentStatus @default(CREATED)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  subscriptionId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+  subscription   Subscription? @relation(fields: [subscriptionId], references: [id])
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@index([organizationId], map: "Payment_organizationId_fkey")
+  @@index([subscriptionId], map: "Payment_subscriptionId_fkey")
+}
+
+model EmailLog {
+  id             String        @id @default(cuid())
+  userId         String
+  organizationId String?
+  type           EmailType
+  subject        String
+  to             String
+  scheduledFor   DateTime?
+  sentAt         DateTime?
+  metadata       Json?
+  createdAt      DateTime      @default(now())
+  subscriptionId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+  subscription   Subscription? @relation(fields: [subscriptionId], references: [id])
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, type, scheduledFor])
+  @@index([userId])
+  @@index([type])
+  @@index([organizationId], map: "EmailLog_organizationId_fkey")
+  @@index([subscriptionId], map: "EmailLog_subscriptionId_fkey")
+}
+
+enum Role {
+  SUPER_ADMIN
+  ORG_ADMIN
+  MANAGER
+  EMPLOYEE
+  ORG_MEMBER
+  CLIENT
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+  BLOCKED
+}
+
+enum NotificationType {
+  TASK_ASSIGNED
+  TASK_UPDATED
+  TASK_COMMENT
+  CHANNEL_INVITE
+  DIRECT_MESSAGE
+  CHANNEL_MESSAGE
+  REMINDER
+  ANNOUNCEMENT
+}
+
+enum ReminderPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum ReminderType {
+  GENERAL
+  TASK_DEADLINE
+  MEETING
+  FOLLOW_UP
+  PERSONAL
+}
+
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  EXPIRED
+  CANCELED
+}
+
+enum PaymentStatus {
+  CREATED
+  PAID
+  FAILED
+}
+
+enum EmailType {
+  TRIAL_REMINDER
+  TRIAL_EXPIRED
+  PAYMENT_RECEIPT
+}
+
+enum TrialStatus {
+  ACTIVE
+  EXPIRED
+}

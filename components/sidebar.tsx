@@ -1,0 +1,794 @@
+"use client";
+
+//
+import { useState, useEffect, useRef } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useAuth } from "@/contexts/auth-context";
+import { useResizableSidebar } from "@/hooks/useResizableSidebar";
+import { Button } from "@/components/ui/button";
+import {
+  MessageSquare,
+  CheckSquare,
+  Users,
+  Settings,
+  PlusCircle,
+  Hash,
+  Search,
+  Calendar,
+  Bell,
+  CalendarCheck,
+  LucideLayoutDashboard,
+  ChevronDown,
+  Building,
+  Briefcase,
+  Bot,
+  Sparkles,
+} from "lucide-react";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useSocket } from "@/lib/socket-client";
+import { usePermissions } from "@/lib/rbac-utils";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { useSession } from "next-auth/react";
+import { useLoadingStore } from "@/app/stores/useLoadingStore";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./ui/select";
+import { cn } from "@/lib/utils";
+
+type Channel = {
+  id: string;
+  name: string;
+  isPublic: boolean;
+  isDepartment: boolean;
+};
+
+export default function Sidebar({
+  isCollapsed,
+  setIsCollapsed,
+  sidebarWidth,
+  setSidebarWidth,
+}: {
+  isCollapsed: boolean;
+  setIsCollapsed: (value: boolean) => void;
+  sidebarWidth?: number;
+  setSidebarWidth?: (value: number) => void;
+}) {
+  const { data: session } = useSession();
+  const pathname = usePathname();
+  const { user } = useAuth();
+  const [channels, setChannels] = useState<Channel[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [workspaceSearchQuery, setWorkspaceSearchQuery] = useState("");
+  const [recentTasks, setRecentTasks] = useState<any[]>([]);
+  const [recentChats, setRecentChats] = useState<any[]>([]);
+  const [localSidebarWidth, setLocalSidebarWidth] = useState(256); // Fallback if no props
+  const { onlineUsers } = useSocket();
+  const [isTasksLoading, setIsTasksLoading] = useState([]);
+  const [navigatingTo, setNavigatingTo] = useState<string | null>(null);
+  const [channelPrefetched, setChannelPrefetched] = useState<Set<string>>(
+    new Set(),
+  );
+  const [lastPathname, setLastPathname] = useState(pathname);
+
+  // Use passed props or fallback to local state
+  const width = sidebarWidth ?? localSidebarWidth;
+  const setWidth = setSidebarWidth ?? setLocalSidebarWidth;
+
+  // Initialize resizable sidebar hook
+  const { sidebarRef, handleResizeStart } = useResizableSidebar({
+    minWidth: 200,
+    maxWidth: 400,
+    storageKey: "sidebarWidth",
+    onWidthChange: (newWidth) => {
+      setWidth(newWidth);
+    },
+  });
+
+  const isAdmin = session?.user?.role == "ORG_ADMIN";
+  const isClient = session?.user.role == "CLIENT";
+  const departments = session?.user?.departmentId;
+  const [boardType, setBoardType] = useState("recent-chats");
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [orgName, setOrgName] = useState<string | null>(null);
+
+  // Permission-based check for creating projects/channels
+  const perms = usePermissions() as any;
+  const canCreateTask = perms.canCreateTasks;
+  const canCreateChannel = perms.canManageChannels || perms.canCreateChannels;
+
+  // Monitor route changes - auto-hide loading state when page actually loads
+  useEffect(() => {
+    if (pathname !== lastPathname) {
+      setLastPathname(pathname);
+      setNavigatingTo(null);
+    }
+  }, [pathname, lastPathname]);
+
+  // Prefetch channel data when hovering over a channel link
+  const prefetchChannel = (channelId: string) => {
+    if (!channelPrefetched.has(channelId)) {
+      // Prefetch the channel details
+      fetch(`/api/channels/${channelId}`).catch(() => {
+        // Silent fail for prefetch
+      });
+      setChannelPrefetched((prev) => new Set(prev).add(channelId));
+    }
+  };
+
+  // Smart loader: Only show sidebar icon spinner without global overlay
+  const handleChannelNavigation = (channelId: string) => {
+    setNavigatingTo(channelId);
+
+    // Auto-clear the navigating state after 3 seconds
+    const cleanupTimer = setTimeout(() => {
+      setNavigatingTo(null);
+    }, 3000);
+
+    return () => {
+      clearTimeout(cleanupTimer);
+    };
+  };
+
+  const fetchRecentTasks = async () => {
+    try {
+      const res = await fetch("/api/tasks/client");
+      if (res.ok) {
+        const data = await res.json();
+        setRecentTasks(data?.recentTasks);
+      }
+    } catch (error) {
+      console.error("Failed to fetch tasks", error);
+    }
+  };
+
+  const fetchRecentChats = async () => {
+    try {
+      const res = await fetch("/api/messages/recent-contacts");
+      if (res.ok) {
+        const data = await res.json();
+        // console.log("Recent chats fetched:", data?.recentContacts);
+        setRecentChats(data?.recentContacts || []);
+      }
+    } catch (error) {
+      console.error("Failed to fetch recent chats", error);
+    }
+  };
+
+  useEffect(() => {
+    const fetchChannels = async () => {
+      try {
+        const response = await fetch("/api/channels");
+        if (response.ok) {
+          const data = await response.json();
+
+          setChannels(data);
+        }
+      } catch (error) {
+        console.error("Error fetching channels:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchChannels();
+    fetchRecentTasks();
+    fetchRecentChats();
+
+    // Listen for creation events to refresh without full page reload
+    const onChannelCreated = () => {
+      // Re-fetch to stay consistent with server filters
+      fetchChannels();
+    };
+    const onTaskCreated = () => {
+      fetchRecentTasks();
+    };
+
+    const onChatCreated = () => {
+      fetchRecentChats();
+    };
+
+    // Listen for assignment events (when user is assigned to channel/task)
+    const onChannelAssigned = () => {
+      // console.log("📡 Channel assigned - refreshing sidebar");
+      fetchChannels();
+    };
+    const onTaskAssigned = () => {
+      // console.log("📡 Task assigned - refreshing sidebar");
+      fetchRecentTasks();
+    };
+
+    const onMessageCreated = () => {
+      fetchRecentChats();
+    };
+
+    window.addEventListener(
+      "channel:created",
+      onChannelCreated as EventListener,
+    );
+    window.addEventListener("task:created", onTaskCreated as EventListener);
+    window.addEventListener("project:created", onTaskCreated as EventListener);
+    window.addEventListener(
+      "channel:assigned",
+      onChannelAssigned as EventListener,
+    );
+    window.addEventListener("task:assigned", onTaskAssigned as EventListener);
+    window.addEventListener(
+      "message:created",
+      onMessageCreated as EventListener,
+    );
+
+    return () => {
+      window.removeEventListener(
+        "channel:created",
+        onChannelCreated as EventListener,
+      );
+      window.removeEventListener(
+        "task:created",
+        onTaskCreated as EventListener,
+      );
+      window.removeEventListener(
+        "project:created",
+        onTaskCreated as EventListener,
+      );
+      window.removeEventListener(
+        "channel:assigned",
+        onChannelAssigned as EventListener,
+      );
+      window.removeEventListener(
+        "task:assigned",
+        onTaskAssigned as EventListener,
+      );
+      window.removeEventListener(
+        "message:created",
+        onMessageCreated as EventListener,
+      );
+    };
+  }, []);
+
+  // fetch organization details (name) for display in header
+  useEffect(() => {
+    const fetchOrg = async () => {
+      try {
+        const res = await fetch("/api/organization/me");
+        if (!res.ok) return;
+        const payload = await res.json();
+        const name = payload?.organization?.name || null;
+        setOrgName(name);
+      } catch (err) {
+        console.error("Failed to fetch organization:", err);
+      }
+    };
+
+    fetchOrg();
+  }, []);
+  let navItems = [];
+  // Initialize sidebar width from localStorage on mount
+  useEffect(() => {
+    const savedWidth = localStorage.getItem("sidebarWidth");
+    if (savedWidth && sidebarRef.current) {
+      const parsedWidth = parseInt(savedWidth, 10);
+      sidebarRef.current.style.width = `${parsedWidth}px`;
+      setWidth(parsedWidth);
+    }
+  }, [sidebarRef, setWidth]);
+
+  if (isClient) {
+    navItems = [
+      {
+        title: "Dashboard",
+        href: "/dashboard",
+        icon: <LucideLayoutDashboard className="h-5 w-5" />,
+      },
+      // {
+      //   title: "AI Assistant",
+      //   href: "/dashboard/ai-assistant",
+      //   icon: <Bot className="h-5 w-5" />,
+      //   badge: <Sparkles className="h-3 w-3 text-yellow-500" />,
+      // },
+      {
+        title: "Calendar",
+        href: "/dashboard/calendar",
+        icon: <Calendar className="h-5 w-5" />,
+      },
+      {
+        title: "Notifications",
+        href: "/dashboard/notification",
+        icon: <Bell className="h-5 w-5" />,
+      },
+      {
+        title: "Reminders",
+        href: "/dashboard/reminders",
+        icon: <CalendarCheck className="h-5 w-5" />,
+      },
+    ];
+  } else {
+    navItems = [
+      {
+        title: "Dashboard",
+        href: "/dashboard",
+        icon: <LucideLayoutDashboard className="h-5 w-5" />,
+      },
+      // {
+      //   title: "AI Assistant",
+      //   href: "/dashboard/ai-assistant",
+      //   icon: <Bot className="h-5 w-5" />,
+      //   badge: <Sparkles className="h-3 w-3 text-yellow-500" />,
+      // },
+      {
+        title: "Calendar",
+        href: "/dashboard/calendar",
+        icon: <Calendar className="h-5 w-5" />,
+      },
+      {
+        title: "Notifications",
+        href: "/dashboard/notification",
+        icon: <Bell className="h-5 w-5" />,
+      },
+      {
+        title: "Reminders",
+        href: "/dashboard/reminders",
+        icon: <CalendarCheck className="h-5 w-5" />,
+      },
+    ];
+  }
+
+  //
+
+  const filteredChannels = channels.filter((channel) => {
+    const name = channel.name.toLowerCase();
+    const query = searchQuery.toLowerCase();
+
+    return (
+      !name.startsWith("task") &&
+      !name.includes("internal") &&
+      name.includes(query)
+    );
+  });
+
+  // Filter for workspace view
+  const filteredWorkspaceChats = recentChats.filter((contact) =>
+    contact.name?.toLowerCase().includes(workspaceSearchQuery.toLowerCase()),
+  );
+
+  const filteredWorkspaceProjects = recentTasks.filter((task) =>
+    task.title?.toLowerCase().includes(workspaceSearchQuery.toLowerCase()),
+  );
+
+  const filteredWorkspaceChannels = channels.filter((channel) => {
+    const name = channel.name.toLowerCase();
+    const query = workspaceSearchQuery.toLowerCase();
+
+    return (
+      !name.startsWith("task") &&
+      !name.includes("internal") &&
+      name.includes(query)
+    );
+  });
+
+  return (
+    <div
+      ref={sidebarRef}
+      className={cn(
+        "fixed left-0 top-0 h-full bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 flex flex-col z-40 overflow-hidden transition-[width] duration-200",
+      )}
+      style={{
+        width: isCollapsed ? 80 : width,
+      }}
+    >
+      {/* Header */}
+      <div className="p-6 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
+        {!isCollapsed && (
+          <div className="flex items-center space-x-3">
+            <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
+              {/* <Building className="h-5 w-5 text-white" /> */}
+            </div>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+              {orgName ||
+                (session as any)?.user?.organizationName ||
+                "3D Power"}
+            </h2>
+          </div>
+        )}
+        {isCollapsed && (
+          <div className="flex justify-center w-full">
+            <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
+              <Building className="h-5 w-5 text-white" />
+            </div>
+          </div>
+        )}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          className="h-8 w-8 p-0"
+        >
+          <ChevronDown
+            className={cn(
+              "h-4 w-4 transition-transform",
+              isCollapsed && "-rotate-90",
+            )}
+          />
+        </Button>
+      </div>
+
+      <ScrollArea className="flex-1">
+        <div className="p-4">
+          {/* Main Navigation */}
+          <nav className="space-y-1 mb-6">
+            {navItems.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                prefetch={true}
+                className={cn(
+                  "flex items-center px-3 py-3 rounded-lg text-sm font-medium transition-all duration-200 group",
+                  pathname === item.href
+                    ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800"
+                    : "text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100",
+                )}
+              >
+                <div
+                  className={cn(
+                    "transition-colors",
+                    pathname === item.href
+                      ? "text-blue-600 dark:text-blue-400"
+                      : "text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300",
+                  )}
+                >
+                  {item.icon}
+                </div>
+                {!isCollapsed && <span className="ml-3">{item.title}</span>}
+              </Link>
+            ))}
+          </nav>
+
+          {/* Projects/Board Section */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              {!isCollapsed && (
+                <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  {isClient ? "Projects" : "Workspace"}
+                </h3>
+              )}
+
+              <div className="relative flex items-center space-x-1">
+                {!isCollapsed &&
+                  !isClient &&
+                  (canCreateTask || canCreateChannel) && (
+                    <>
+                      <div className="relative">
+                        {(canCreateTask || canCreateChannel) && (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-9 w-9 rounded-full bg-gradient-to-r from-green-50 to-emerald-50 hover:from-green-100 hover:to-emerald-100 transition-all duration-300 shadow-sm hover:shadow-md border border-green-100 group"
+                              onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                            >
+                              <PlusCircle className="h-4 w-4 text-green-600 group-hover:scale-110 transition-transform" />
+                            </Button>
+
+                            {isDropdownOpen && (
+                              <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-10 overflow-hidden animate-fadeIn">
+                                {canCreateTask && (
+                                  <Link
+                                    href="/dashboard/tasks/new"
+                                    className="flex items-center px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-600 dark:hover:text-blue-400 transition-colors duration-200 border-b border-gray-100 dark:border-gray-700"
+                                    onClick={() => setIsDropdownOpen(false)}
+                                  >
+                                    <svg
+                                      className="w-4 h-4 mr-2 text-blue-500"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      viewBox="0 0 24 24"
+                                    >
+                                      <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                                      />
+                                    </svg>
+                                    Create Project
+                                  </Link>
+                                )}
+
+                                {canCreateChannel && (
+                                  <Link
+                                    href="/dashboard/new-channel"
+                                    className="flex items-center px-4 py-3 text-sm font-medium text-gray-700
+                                     dark:text-gray-200 hover:bg-purple-50 dark:hover:bg-purple-900/20
+                                      hover:text-purple-600 dark:hover:text-purple-400 transition-colors duration-200 break-all"
+                                    onClick={() => setIsDropdownOpen(false)}
+                                  >
+                                    <svg
+                                      className="w-4 h-4 mr-2 text-purple-500"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      viewBox="0 0 24 24"
+                                    >
+                                      <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"
+                                      />
+                                    </svg>
+                                    Create Channel
+                                  </Link>
+                                )}
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    </>
+                  )}
+              </div>
+            </div>
+
+            {isClient ? (
+              <div className="space-y-3">
+                {!isCollapsed && (
+                  <Input
+                    placeholder="Search projects..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="h-8 text-sm bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700"
+                  />
+                )}
+                <div className="space-y-1">
+                  {isLoading
+                    ? Array.from({ length: 3 }).map((_, i) => (
+                      <Skeleton
+                        key={i}
+                        className="h-8 w-full bg-gray-200 dark:bg-gray-700 rounded-lg"
+                      />
+                    ))
+                    : recentTasks.length > 0
+                      ? recentTasks.map((task) => (
+                        <Link
+                          key={task.id}
+                          href={`/dashboard/tasks/${task.id}/record`}
+                          prefetch={true}
+                          onMouseEnter={() => prefetchChannel(task.id)}
+                          onClick={() => handleChannelNavigation(task.id)}
+                          className={cn(
+                            "flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 group",
+                            navigatingTo === task.id
+                              ? "bg-blue-100 dark:bg-blue-800/40 opacity-70"
+                              : pathname === `/dashboard/tasks/${task.id}`
+                                ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
+                                : "text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800",
+                          )}
+                        >
+                          {navigatingTo === task.id ? (
+                            <div className="w-4 h-4 mr-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                          ) : (
+                            <Briefcase className="h-4 w-4 mr-3 text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300" />
+                          )}
+                          {!isCollapsed && (
+                            <span className="truncate flex-1">
+                              {task.title}
+                            </span>
+                          )}
+                        </Link>
+                      ))
+                      : !isCollapsed && (
+                        <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-2">
+                          No projects
+                        </p>
+                      )}
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {!isCollapsed && (
+                  <Select value={boardType} onValueChange={setBoardType}>
+                    <SelectTrigger className="h-8 text-sm bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+                      <SelectValue placeholder="Select view" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="recent-chats">Recent Chats</SelectItem>
+                      <SelectItem value="projects">Projects</SelectItem>
+                      <SelectItem value="channels">Channels</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+
+                {!isCollapsed && (
+                  <Input
+                    placeholder={
+                      boardType === "recent-chats"
+                        ? "Search contacts..."
+                        : boardType === "projects"
+                          ? "Search projects..."
+                          : "Search channels..."
+                    }
+                    value={workspaceSearchQuery}
+                    onChange={(e) => setWorkspaceSearchQuery(e.target.value)}
+                    className="h-8 text-sm bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700"
+                  />
+                )}
+
+                <div className="space-y-1">
+                  {isLoading
+                    ? Array.from({ length: 3 }).map((_, i) => (
+                      <Skeleton
+                        key={i}
+                        className="h-8 w-full bg-gray-200 dark:bg-gray-700 rounded-lg break-all"
+                      />
+                    ))
+                    : boardType === "recent-chats"
+                      ? filteredWorkspaceChats.length > 0
+                        ? filteredWorkspaceChats.map((contact) => (
+                          <Link
+                            key={contact.id}
+                            href={`/dashboard/messages/${contact.id}`}
+                            prefetch={true}
+                            onMouseEnter={() => prefetchChannel(contact.id)}
+                            onClick={() =>
+                              handleChannelNavigation(contact.id)
+                            }
+                            className={cn(
+                              "flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 group",
+                              navigatingTo === contact.id
+                                ? "bg-blue-100 dark:bg-blue-800/40 opacity-70"
+                                : pathname ===
+                                  `/dashboard/messages/${contact.id}`
+                                  ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
+                                  : "text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800",
+                            )}
+                          >
+                            <div className="relative flex-shrink-0">
+                              {navigatingTo === contact.id ? (
+                                <div className="w-5 h-5 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center">
+                                  <div className="w-2 h-2 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                                </div>
+                              ) : (
+                                <>
+                                  <div className="w-5 h-5 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-xs text-white font-medium">
+                                    {contact.name?.charAt(0)?.toUpperCase() ||
+                                      "U"}
+                                  </div>
+                                  {onlineUsers?.includes(contact.id) && (
+                                    <div className="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-green-500 border border-white dark:border-gray-700"></div>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                            {!isCollapsed && (
+                              <span className="ml-3 truncate flex-1 text-gray-700 dark:text-gray-300">
+                                {contact.name || "Unknown User"}
+                              </span>
+                            )}
+                          </Link>
+                        ))
+                        : !isCollapsed && (
+                          <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-2">
+                            No recent chats
+                          </p>
+                        )
+                      : boardType === "projects"
+                        ? filteredWorkspaceProjects.length > 0
+                          ? filteredWorkspaceProjects.map((task) => (
+                            <Link
+                              key={task.id}
+                              href={`/dashboard/tasks/${task.id}/record`}
+                              prefetch={true}
+                              onMouseEnter={() => prefetchChannel(task.id)}
+                              onClick={() => handleChannelNavigation(task.id)}
+                              className={cn(
+                                "flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 group",
+                                navigatingTo === task.id
+                                  ? "bg-blue-100 dark:bg-blue-800/40 opacity-70"
+                                  : pathname === `/dashboard/tasks/${task.id}`
+                                    ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
+                                    : "text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800",
+                              )}
+                            >
+                              {navigatingTo === task.id ? (
+                                <div className="w-4 h-4 mr-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                              ) : (
+                                <Briefcase className="h-4 w-4 mr-3 text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300" />
+                              )}
+                              {!isCollapsed && (
+                                <span className="truncate flex-1">
+                                  {task.title}
+                                </span>
+                              )}
+                            </Link>
+                          ))
+                          : !isCollapsed && (
+                            <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-2">
+                              No projects
+                            </p>
+                          )
+                        : filteredWorkspaceChannels.length > 0
+                          ? filteredWorkspaceChannels.map((channel) => (
+                            <Link
+                              key={channel.id}
+                              href={`/dashboard/channels/${channel.id}`}
+                              prefetch={true}
+                              onMouseEnter={() => prefetchChannel(channel.id)}
+                              onClick={() =>
+                                handleChannelNavigation(channel.id)
+                              }
+                              className={cn(
+                                "flex items-start px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 group break-words relative",
+                                navigatingTo === channel.id
+                                  ? "bg-blue-100 dark:bg-blue-800/40 text-blue-700 dark:text-blue-300 opacity-70"
+                                  : pathname ===
+                                    `/dashboard/channels/${channel.id}`
+                                    ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
+                                    : "text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800",
+                              )}
+                            >
+                              {navigatingTo === channel.id ? (
+                                <div className="inline-block mr-3 mt-0.5 shrink-0">
+                                  <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                                </div>
+                              ) : (
+                                <Hash className="h-4 w-4 mt-0.5 mr-3 shrink-0 text-gray-400" />
+                              )}
+
+                              {!isCollapsed && (
+                                <span className="flex-1 min-w-0 whitespace-normal break-words leading-tight">
+                                  {channel.name.charAt(0).toUpperCase() +
+                                    channel.name.slice(1)}
+                                </span>
+                              )}
+                            </Link>
+                          ))
+                          : !isCollapsed && (
+                            <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-2">
+                              No channels
+                            </p>
+                          )}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </ScrollArea>
+
+      {/* User Profile */}
+      <div className="p-4 border-t border-gray-200 dark:border-gray-800">
+        <div className="flex items-center space-x-3">
+          <div className="relative">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-sm font-medium text-white">
+              {user?.name?.charAt(0)?.toUpperCase() || "U"}
+            </div>
+            <div className="absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white dark:border-gray-900 bg-green-500"></div>
+          </div>
+          {!isCollapsed && (
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+                {user?.name || "User"}
+              </p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                {user?.email || ""}
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Resize Handle */}
+      {!isCollapsed && (
+        <div
+          onMouseDown={handleResizeStart}
+          className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-transparent hover:bg-blue-500 transition-colors"
+        />
+      )}
+    </div>
+  );
+}

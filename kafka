@@ -1,0 +1,96 @@
+Agar 3 consumers aur 2 partitions hain → kaun idle rahega?
+Agar consumer crash ho gaya → kaise resume karega?
+Same event ko 2 alag services kaise read karti hain bina conflict ke?
+
+
+
+
+1-answer:
+1. 3 consumers hai or 2 partitions to start k do partitions idle reh sakte hai.
+ya bhi ho sakat hai ki
+2. 2 consumers start ki first wali partition per jaey or baki ek 1 partition per.
+3. ager 3 consumer hai to 3 partitios bane padege. is se load baraber distribute honga.
+
+
+
+2- answer:
+ager consumer crash ho gaya to offset ki help se jo ki topic hosta hai.or her ek topic ko different id k through store karta hai us ki help se 
+resume kar sakte hai. kyu ki kafka ye koi que nhi hai balki ye load distribution ki tarha work karta hai.
+
+
+
+3-answer:
+same event 2 consumers read kar sakte hai bina kisi conflict k topics k ander stor offset id ki help se.
+
+
+
+<!-- ///-------------------------------------------------------------------------------------------------------------------------- -->
+
+kafka k do topic core or main hai.abhi tk jo samhja.
+
+
+1- Consumer group. 
+2- Rebalancing .
+
+
+Consumer Group:
+1- consumer group matlab hota hai ki topic k logical group (logical group of consumer ) jo milke partitions consume karte hai.
+jaise order server -
+Example: C1, C2  - ye logical Groups hai. Topic k
+partitions jaise ,1,2,3
+ C1- 1,2
+ C2- 3
+ Rule:
+   1-ek consumer  group multiple's partitions consume kar sakta hai.
+   2- single partitions bhi consume kar sakta hai.
+
+
+2- Rebalancing : 
+   jab consumer group me partitions ko Redistribute  kiya hai.
+   or ye 3 main case me hota hai.
+   1- jab new consumer join kare.
+   2- jab koi consumer crash ho jaey.
+   3- partition change ho. (Rare case)  
+
+   Example me : Consumers: C1, C2
+   Partitions : 1,2
+    to C1:1,
+     C2: 2
+
+     per ager new COnsumer Aeey jaise C3 - to ye idle rahega,  or Redistribution honga.
+     jise se sysytem lag kar skata hai . sare consumer temporally  stop hote hai.
+     partitions reassign hote hai.
+
+
+ 3- Offset Commit strategies
+  ye track karta hai k consumer ne kaha th read kiya.
+   or ager commit on hai to ye itan sahi nhi hai kyu hai ager example 
+   ager Order process me hai. or commit hua to Kafka lo lage ka ki order ho gai or us k baad app cars hua to us k aage se start karega.
+   jab ki ager manual hai to order complete hone k baad commit karega. jis se wo aage ka process start karega.
+   jaise ager 1,2,3,4 tk karke commi hua or app crash hua to us k aage se resume honaga.
+   or ye manual flow bhi hai.     
+   
+
+
+
+
+
+   <!-- //-------------------------------------------------------------------------------------------------------------------------------------------- -->
+
+
+Question:
+1-Same group में duplicate क्यों नहीं आए?
+2-Different group में same messages क्यों आए?
+3-Third consumer idle क्यों हुआ?
+
+
+
+
+
+
+
+
+
+
+
+
