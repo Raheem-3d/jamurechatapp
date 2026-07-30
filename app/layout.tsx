@@ -3,7 +3,7 @@
 import type React from "react"
 import "./globals.css"
 import type { Metadata, Viewport } from "next" // ✅ Add Viewport
-import { Inter } from "next/font/google"
+import { Plus_Jakarta_Sans } from "next/font/google"
 import { ThemeProvider } from "@/components/theme-provider"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
@@ -12,12 +12,12 @@ import { AuthProvider } from "@/contexts/auth-context"
 import { Toaster } from "sonner"
 import SWRegistrar from "@/components/sw-registrar"
 import GlobalLoader from "@/components/GlobalLoader"
-
 import { BuzzOverlay } from "@/components/buzz-overlay"
 
-const inter = Inter({ 
+const fontSans = Plus_Jakarta_Sans({
   subsets: ["latin"],
-  display: 'swap', // ✅ Better font loading
+  weight: ["300", "400", "500", "600", "700", "800"],
+  display: "swap",
 })
 
 export const metadata: Metadata = {
@@ -54,7 +54,7 @@ export default async function RootLayout({
 
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={inter.className}>
+      <body className={fontSans.className}>
         <SessionProvider session={session}>
           <AuthProvider>
             <ThemeProvider
@@ -64,13 +64,13 @@ export default async function RootLayout({
               disableTransitionOnChange // ✅ Smoother theme switching
             >
               <SWRegistrar />
-              <GlobalLoader /> 
+              <GlobalLoader />
               <BuzzOverlay />
               {children}
-              <Toaster 
-                position="top-center" 
-                richColors 
-                closeButton 
+              <Toaster
+                position="top-center"
+                richColors
+                closeButton
                 duration={4000} // ✅ Custom duration
               />
             </ThemeProvider>

@@ -503,33 +503,17 @@ export default function RealTimeMessages({ initialMessages, channelId, receiverI
 
   return (
     <div className="flex flex-col h-full">
-      {/* Connection Status */}
-      {connectionAttempted && (
-        <div
-          className={`flex justify-between items-center p-2 text-sm ${isConnected
-              ? "bg-green-50 text-green-800 dark:bg-green-900/20 dark:text-green-700"
-              : "bg-amber-50 text-amber-800 dark:bg-amber-900/20 dark:text-amber-700"
-            }`}
-        >
+      {/* Connection Status - Only show when disconnected */}
+      {connectionAttempted && !isConnected && (
+        <div className="flex justify-between items-center p-2 text-xs bg-amber-50 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border-b border-amber-200 dark:border-amber-900/40">
           <div className="flex items-center gap-2">
-            {isConnected ? (
-              <>
-                <Wifi className="h-4 w-4" />
-                <span>Real-time updates active</span>
-              </>
-            ) : (
-              <>
-                <WifiOff className="h-4 w-4" />
-                <span>Offline mode - Last updated: {new Date(lastRefresh).toLocaleTimeString()}</span>
-              </>
-            )}
+            <WifiOff className="h-3.5 w-3.5 text-amber-600" />
+            <span>Offline mode - Last updated: {new Date(lastRefresh).toLocaleTimeString()}</span>
           </div>
-          {!isConnected && (
-            <Button variant="outline" size="sm" onClick={refreshMessages} disabled={isLoading} className="h-7 text-xs">
-              <RefreshCw className={`h-3 w-3 mr-1 ${isLoading ? "animate-spin" : ""}`} />
-              Refresh
-            </Button>
-          )}
+          <Button variant="outline" size="sm" onClick={refreshMessages} disabled={isLoading} className="h-6 text-[11px] px-2">
+            <RefreshCw className={`h-3 w-3 mr-1 ${isLoading ? "animate-spin" : ""}`} />
+            Refresh
+          </Button>
         </div>
       )}
 

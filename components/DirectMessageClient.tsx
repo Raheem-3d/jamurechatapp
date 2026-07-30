@@ -139,45 +139,51 @@ export default function DirectMessageClient({
     : null;
 
   return (
-    <div className="flex flex-col h-full bg-white dark:bg-gray-900 rounded-lg overflow-hidden">
-      {/* Header - WhatsApp Style */}
-      <div className="px-4 py-3 bg-green-600 dark:bg-gray-800 flex items-center justify-between shadow-sm">
-        <div className="flex items-center space-x-3">
-          <Avatar className="h-10 w-10 border-2 border-white/20">
+    <div className="flex flex-col h-full bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 overflow-hidden shadow-xs">
+      {/* Header - Sleek Enterprise Bar */}
+      <div className="px-5 py-3.5 bg-white dark:bg-slate-900 border-b border-slate-200/80 dark:border-slate-800 flex items-center justify-between shadow-xs">
+        <div className="flex items-center gap-3">
+          <Avatar className="h-10 w-10 ring-2 ring-indigo-500/20 shrink-0">
             <AvatarImage
               src={recipient.image || ""}
               alt={recipient.name || ""}
             />
-            <AvatarFallback className="bg-white/20 text-white">
-              {recipient.name?.charAt(0) || "U"}
+            <AvatarFallback className="bg-gradient-to-br from-indigo-600 to-purple-600 text-white font-bold text-sm">
+              {recipient.name?.charAt(0)?.toUpperCase() || "U"}
             </AvatarFallback>
           </Avatar>
           <div className="flex flex-col">
-            <h2 className="font-semibold text-white text-lg">
-              {recipient.name}
-            </h2>
-            <div className="flex items-center space-x-2">
-              <span className="text-white/90 text-xs">
-                {isOnline ? "Online" : lastSeenText ? `Last seen ${lastSeenText}` : "Offline"}
-              </span>
+            <div className="flex items-center gap-2">
+              <h2 className="font-bold text-slate-900 dark:text-white text-base leading-tight">
+                {recipient.name}
+              </h2>
               {recipient.department && (
                 <Badge
-                  variant="outline"
-                  className="bg-white/20 text-white border-white/30 text-xs"
+                  variant="secondary"
+                  className="bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-extrabold text-[10px] px-2 py-0.5"
                 >
                   {recipient.department.name}
                 </Badge>
               )}
             </div>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <span
+                className={`h-2 w-2 rounded-full ${
+                  isOnline ? "bg-emerald-500" : "bg-slate-400"
+                }`}
+              />
+              <span className="text-slate-500 dark:text-slate-400 text-[11px] font-medium">
+                {isOnline ? "Online" : lastSeenText ? `Last seen ${lastSeenText}` : "Offline"}
+              </span>
+            </div>
           </div>
         </div>
-        
+
         {/* Header Actions */}
-       
       </div>
 
       {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto bg-gray-100 dark:bg-gray-800">
+      <div className="flex-1 overflow-y-auto bg-slate-50/50 dark:bg-slate-950/40">
         <RealTimeMessages
           initialMessages={messages}
           receiverId={recipient.id}
@@ -186,21 +192,12 @@ export default function DirectMessageClient({
       </div>
 
       {/* Input Area - WhatsApp Style */}
-      <div className="bg-gray-100 dark:bg-gray-800 p-3 border-t border-gray-300 dark:border-gray-600">
-        <div className="flex items-center space-x-2">
-   
-          
-          {/* Message Input */}
-          <div className="flex-1">
-            <MessageInput
-              channelId={undefined}
-              receiverId={recipient.id}
-              mentionables={mentionables}
-            />
-          </div>
-          
-        
-        </div>
+      <div className="bg-[#f0f2f5] dark:bg-[#111b21] p-3 border-t border-slate-200/80 dark:border-slate-800">
+        <MessageInput
+          channelId={undefined}
+          receiverId={recipient.id}
+          mentionables={mentionables}
+        />
       </div>
     </div>
   );

@@ -1,25 +1,32 @@
-
-
-
 "use client";
 
 import { useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
 import { useToast } from "./ui/use-toast";
-import { PlusCircle, Loader2, Filter, CheckCircle2, Clock, AlertCircle, Play, BarChart3, Grid3X3, List, Calendar, Users, Search } from "lucide-react";
+import {
+  PlusCircle,
+  Loader2,
+  Filter,
+  Grid3X3,
+  List,
+  Search,
+  Briefcase,
+  Layers,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 import TaskCard from "@/components/task-card";
 import { Button } from "./ui/button";
 import { usePermissions } from "@/lib/rbac-utils";
 import Link from "next/link";
-import { Input } from "./ui/input";
 import { Badge } from "./ui/badge";
 import { cn } from "@/lib/utils";
 
-const TaskFilter = ({ onFilterChange }) => {
+const TaskFilter = ({ onFilterChange }: { onFilterChange: (filters: any) => void }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [filters, setFilters] = useState({});
+  const [filters, setFilters] = useState<Record<string, string>>({});
 
-  const handleFilterUpdate = (key, value) => {
+  const handleFilterUpdate = (key: string, value: string) => {
     const newFilters = { ...filters };
     if (value === "all" || !value) {
       delete newFilters[key];
@@ -34,46 +41,44 @@ const TaskFilter = ({ onFilterChange }) => {
     <div className="relative">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center space-x-2 px-4 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors shadow-sm"
+        className="flex items-center space-x-2 px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors shadow-xs text-xs font-semibold text-slate-700 dark:text-slate-200"
       >
-        <Filter className="h-4 w-4 text-gray-500 dark:text-gray-400" />
-        <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Filters</span>
+        <Filter className="h-3.5 w-3.5 text-slate-500" />
+        <span>Filters</span>
         {Object.keys(filters).length > 0 && (
-          <span className="bg-blue-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+          <span className="bg-indigo-600 text-white text-[10px] rounded-full h-4 w-4 flex items-center justify-center font-bold">
             {Object.keys(filters).length}
           </span>
         )}
       </button>
 
       {isOpen && (
-        <div className="absolute top-full left-0 mt-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg z-10 p-4 min-w-64">
-          <div className="space-y-4">
-            <div>
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-2 block">Status</label>
-              <select
-                onChange={(e) => handleFilterUpdate("status", e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:text-gray-200 text-sm"
-              >
-                <option value="all">All Statuses</option>
-                <option value="TODO">To Do</option>
-                <option value="IN_PROGRESS">In Progress</option>
-                <option value="BLOCKED">Blocked</option>
-                <option value="DONE">Done</option>
-              </select>
-            </div>
+        <div className="absolute top-full right-0 mt-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl z-30 p-4 min-w-56 space-y-3">
+          <div>
+            <label className="text-xs font-bold text-slate-600 dark:text-slate-400 mb-1.5 block">Status</label>
+            <select
+              onChange={(e) => handleFilterUpdate("status", e.target.value)}
+              className="w-full px-3 py-1.5 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 text-xs text-slate-800 dark:text-slate-200"
+            >
+              <option value="all">All Statuses</option>
+              <option value="TODO">To Do</option>
+              <option value="IN_PROGRESS">In Progress</option>
+              <option value="BLOCKED">Blocked</option>
+              <option value="DONE">Done</option>
+            </select>
+          </div>
 
-            <div>
-              <label className="text-sm font-medium text-gray-700 dark:text-gray-200 mb-2 block">Priority</label>
-              <select
-                onChange={(e) => handleFilterUpdate("priority", e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:text-gray-200 text-sm"
-              >
-                <option value="all">All Priorities</option>
-                <option value="HIGH">High</option>
-                <option value="MEDIUM">Medium</option>
-                <option value="LOW">Low</option>
-              </select>
-            </div>
+          <div>
+            <label className="text-xs font-bold text-slate-600 dark:text-slate-400 mb-1.5 block">Priority</label>
+            <select
+              onChange={(e) => handleFilterUpdate("priority", e.target.value)}
+              className="w-full px-3 py-1.5 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-indigo-500 dark:bg-slate-800 text-xs text-slate-800 dark:text-slate-200"
+            >
+              <option value="all">All Priorities</option>
+              <option value="HIGH">High</option>
+              <option value="MEDIUM">Medium</option>
+              <option value="LOW">Low</option>
+            </select>
           </div>
         </div>
       )}
@@ -83,80 +88,66 @@ const TaskFilter = ({ onFilterChange }) => {
 
 export default function TasksPage() {
   const { data: session } = useSession();
-  const [assignedTasks, setAssignedTasks] = useState([]);
-  const [createdTasks, setCreatedTasks] = useState([]);
-  const [filteredAssignedTasks, setFilteredAssignedTasks] = useState([]);
-  const [filteredCreatedTasks, setFilteredCreatedTasks] = useState([]);
+  const [assignedTasks, setAssignedTasks] = useState<any[]>([]);
+  const [createdTasks, setCreatedTasks] = useState<any[]>([]);
+  const [filteredAssignedTasks, setFilteredAssignedTasks] = useState<any[]>([]);
+  const [filteredCreatedTasks, setFilteredCreatedTasks] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeFilters, setActiveFilters] = useState({});
+  const [activeFilters, setActiveFilters] = useState<Record<string, string>>({});
   const [activeTab, setActiveTab] = useState("assigned");
   const [searchQuery, setSearchQuery] = useState("");
-  const [viewMode, setViewMode] = useState("grid"); // "grid" or "list"
-  const { toast } = useToast();
-  const perms = usePermissions();
-  // Check if user can create tasks (either TASK_CREATE or PROJECT_MANAGE)
-  const canCreateProjects = perms.canCreateTasks
-  const isAdmin = session?.user?.role === "ORG_ADMIN"
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [currentPage, setCurrentPage] = useState(1);
+
+  const perms = usePermissions() as any;
+  const canCreateProjects = perms?.canCreateTasks;
+  const isAdmin = session?.user?.role === "ORG_ADMIN";
+
+  const itemsPerPage = viewMode === "grid" ? 6 : 8;
 
   useEffect(() => {
     const fetchTasks = async () => {
-      if (!session?.user?.id) return;
-
       try {
-        const [assignedResponse, createdResponse] = await Promise.all([
-          fetch(`/api/tasks?assignedTo=${session.user.id}`),
-          fetch(`/api/tasks?createdBy=${session.user.id}`)
-        ]);
+        setIsLoading(true);
+        const res = await fetch("/api/tasks/client");
+        if (res.ok) {
+          const data = await res.json();
+          const assigned = data?.assignedTasks || [];
+          const created = data?.createdTasks || [];
+          setAssignedTasks(assigned);
+          setCreatedTasks(created);
+          setFilteredAssignedTasks(assigned);
+          setFilteredCreatedTasks(created);
 
-        if (assignedResponse.ok && createdResponse.ok) {
-          const assignedData = await assignedResponse.json();
-          const createdData = await createdResponse.json();
-
-          setAssignedTasks(assignedData);
-          setFilteredAssignedTasks(assignedData);
-          setCreatedTasks(createdData);
-          setFilteredCreatedTasks(createdData);
+          if (assigned.length === 0 && created.length > 0) {
+            setActiveTab("created");
+          }
         }
       } catch (error) {
-        console.error("Error fetching tasks:", error);
-        toast({
-          title: "Error",
-          description: "Failed to load tasks",
-          variant: "destructive",
-        });
+        console.error("Failed to fetch projects", error);
       } finally {
         setIsLoading(false);
       }
     };
 
     fetchTasks();
-
-    // Listen for real-time task assignments
-    const handleTaskAssigned = () => {
-      fetchTasks();
-    };
-
-    window.addEventListener("task:assigned", handleTaskAssigned);
-    return () => {
-      window.removeEventListener("task:assigned", handleTaskAssigned);
-    };
-  }, [session, toast]);
+  }, []);
 
   useEffect(() => {
-    const filterTasks = (tasks) => {
+    const filterTasks = (tasks: any[]) => {
       return tasks.filter((task) => {
-        // Search filter
-        if (searchQuery && !task.title.toLowerCase().includes(searchQuery.toLowerCase()) && 
-            !task.description?.toLowerCase().includes(searchQuery.toLowerCase())) {
+        if (
+          searchQuery &&
+          !task.title?.toLowerCase().includes(searchQuery.toLowerCase()) &&
+          !task.description?.toLowerCase().includes(searchQuery.toLowerCase())
+        ) {
           return false;
         }
 
-        // Status filter
         if (activeFilters.status && task.status !== activeFilters.status) {
           return false;
         }
 
-        // Priority filter
         if (activeFilters.priority && task.priority !== activeFilters.priority) {
           return false;
         }
@@ -169,9 +160,13 @@ export default function TasksPage() {
     setFilteredCreatedTasks(filterTasks(createdTasks));
   }, [activeFilters, assignedTasks, createdTasks, searchQuery]);
 
-  // Group tasks by status for kanban view
-  const groupTasksByStatus = (tasks) => {
-    const grouped = {
+  // Reset pagination on state changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab, searchQuery, activeFilters, viewMode]);
+
+  const groupTasksByStatus = (tasks: any[]) => {
+    const grouped: Record<string, any[]> = {
       TODO: [],
       IN_PROGRESS: [],
       BLOCKED: [],
@@ -191,311 +186,312 @@ export default function TasksPage() {
 
   const groupedAssignedTasks = groupTasksByStatus(filteredAssignedTasks);
 
-  const handleFilterChange = (filters) => {
-    setActiveFilters(filters);
-  };
-
-  // Stats calculation
-  const totalTasks = filteredAssignedTasks.length;
-  const completedTasks = filteredAssignedTasks.filter(t => t.status === "DONE").length;
-  const inProgressTasks = filteredAssignedTasks.filter(t => t.status === "IN_PROGRESS").length;
-  const todoTasks = filteredAssignedTasks.filter(t => t.status === "TODO").length;
-
-  const StatCard = ({ title, value, icon: Icon, color, description }) => (
-    <div className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-all duration-300">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">{title}</p>
-          <p className={cn("text-3xl font-bold", color)}>{value}</p>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{description}</p>
-        </div>
-        <div className={cn("p-3 rounded-xl", color.replace('text', 'bg').replace('-600', '-100 dark:bg-gray-700'))}>
-          <Icon className="h-6 w-6" />
-        </div>
-      </div>
-    </div>
+  const currentList = activeTab === "assigned" ? filteredAssignedTasks : filteredCreatedTasks;
+  const totalPages = Math.ceil(currentList.length / itemsPerPage);
+  const paginatedProjects = currentList.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
   );
 
   const ViewToggle = () => (
-    <div className="flex bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+    <div className="flex bg-slate-100 dark:bg-slate-800/80 rounded-xl p-1 border border-slate-200/80 dark:border-slate-700">
       <button
         onClick={() => setViewMode("grid")}
         className={cn(
-          "p-2 rounded-md transition-colors",
-          viewMode === "grid" 
-            ? "bg-white dark:bg-gray-700 shadow-sm" 
-            : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+          "p-1.5 rounded-lg text-xs transition-all",
+          viewMode === "grid"
+            ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs font-bold"
+            : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
         )}
+        title="Grid View"
       >
-        <Grid3X3 className="h-4 w-4" />
+        <Grid3X3 className="h-3.5 w-3.5" />
       </button>
       <button
         onClick={() => setViewMode("list")}
         className={cn(
-          "p-2 rounded-md transition-colors",
-          viewMode === "list" 
-            ? "bg-white dark:bg-gray-700 shadow-sm" 
-            : "text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+          "p-1.5 rounded-lg text-xs transition-all",
+          viewMode === "list"
+            ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs font-bold"
+            : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
         )}
+        title="List View"
       >
-        <List className="h-4 w-4" />
+        <List className="h-3.5 w-3.5" />
       </button>
     </div>
   );
 
-  // if (isLoading) {
-  //   return (
-  //     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
-  //       <div className="text-center">
-  //         <Loader2 className="h-12 w-12 animate-spin text-blue-500 mx-auto mb-4" />
-  //         <p className="text-gray-600 dark:text-gray-400">Loading your projects...</p>
-  //       </div>
-  //     </div>
-  //   );
-  // }
-
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-[#1F2937]">
-      <div className="max-w-8xl mx-auto p-6 dark:bg-[#1F2937]">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Projects</h1>
-              <p className="text-gray-600 dark:text-gray-400 mt-2">
-                Manage and track all your projects in one place
-              </p>
-            </div>
-            {canCreateProjects && (
-              <Button asChild className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm">
-                <Link href="/dashboard/tasks/new" className="flex items-center gap-2">
-                  <PlusCircle className="h-4 w-4" />
-                  New Project
-                </Link>
-              </Button>
+    <div className="w-full space-y-4">
+      {/* Control Strip & Tab Switchers */}
+      <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 bg-white dark:bg-slate-900 p-3.5 px-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
+        {/* Navigation Tabs */}
+        <div className="flex items-center gap-1 bg-slate-100/80 dark:bg-slate-800/80 p-1 rounded-xl">
+          <button
+            onClick={() => setActiveTab("assigned")}
+            className={cn(
+              "px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-150 flex items-center gap-1.5",
+              activeTab === "assigned"
+                ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs"
+                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
             )}
-          </div>
+          >
+            <Briefcase className="h-3.5 w-3.5" />
+            Assigned to Me
+            <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-slate-200/60 dark:bg-slate-700">
+              {filteredAssignedTasks.length}
+            </Badge>
+          </button>
 
-          {/* Stats Overview */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-            <StatCard
-              title="Total Projects"
-              value={totalTasks}
-              icon={BarChart3}
-              color="text-blue-600 dark:text-blue-400"
-              description="All assigned projects"
-            />
-            <StatCard
-              title="To Do"
-              value={todoTasks}
-              icon={Clock}
-              color="text-gray-600 dark:text-gray-400"
-              description="Waiting to start"
-            />
-            <StatCard
-              title="In Progress"
-              value={inProgressTasks}
-              icon={Play}
-              color="text-orange-600 dark:text-orange-400"
-              description="Active work"
-            />
-            <StatCard
-              title="Completed"
-              value={completedTasks}
-              icon={CheckCircle2}
-              color="text-green-600 dark:text-green-400"
-              description="Finished projects"
-            />
-          </div>
+          {canCreateProjects && (
+            <button
+              onClick={() => setActiveTab("created")}
+              className={cn(
+                "px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-150 flex items-center gap-1.5",
+                activeTab === "created"
+                  ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+              )}
+            >
+              <Layers className="h-3.5 w-3.5" />
+              Created by Me
+              <Badge variant="secondary" className="text-[10px] px-1.5 py-0 bg-slate-200/60 dark:bg-slate-700">
+                {filteredCreatedTasks.length}
+              </Badge>
+            </button>
+          )}
+
+          <button
+            onClick={() => setActiveTab("kanban")}
+            className={cn(
+              "px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-150 flex items-center gap-1.5",
+              activeTab === "kanban"
+                ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs"
+                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+            )}
+          >
+            <Grid3X3 className="h-3.5 w-3.5" />
+            Kanban View
+          </button>
         </div>
 
-        {/* Controls Bar */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-200 dark:border-gray-700 mb-6">
-          <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
-            {/* Tabs */}
-            <div className="flex flex-wrap gap-1">
-              <button
-                onClick={() => setActiveTab("assigned")}
-                className={cn(
-                  "px-4 py-2 rounded-lg font-medium transition-all duration-200",
-                  activeTab === "assigned"
-                    ? "bg-blue-600 text-white shadow-sm"
-                    : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                )}
-              >
-                Assigned to Me
-              </button>
-              {canCreateProjects && (
-                <button
-                  onClick={() => setActiveTab("created")}
-                  className={cn(
-                    "px-4 py-2 rounded-lg font-medium transition-all duration-200",
-                    activeTab === "created"
-                      ? "bg-blue-600 text-white shadow-sm"
-                      : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                  )}
-                >
-                  Created by Me
-                </button>
-              )}
-              <button
-                onClick={() => setActiveTab("kanban")}
-                className={cn(
-                  "px-4 py-2 rounded-lg font-medium transition-all duration-200",
-                  activeTab === "kanban"
-                    ? "bg-blue-600 text-white shadow-sm"
-                    : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                )}
-              >
-                Kanban View
-              </button>
-            </div>
-
-            {/* Search and Controls */}
-            <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
-              <div className="relative flex-1 lg:w-64">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input
-                  placeholder="Search projects..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 pr-4 py-2 bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700"
-                />
-              </div>
-              <div className="flex gap-2">
-                <TaskFilter onFilterChange={handleFilterChange} />
-                <ViewToggle />
-              </div>
-            </div>
+        {/* Search & Actions */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="relative flex-1 lg:w-52 min-w-40">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search projects..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full h-8.5 pl-9 pr-3 text-xs rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+            />
           </div>
+
+          <TaskFilter onFilterChange={setActiveFilters} />
+          <ViewToggle />
+
+          {canCreateProjects && (
+            <Button asChild size="sm" className="h-8.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl px-3 py-2 shadow-xs">
+              <Link href="/dashboard/tasks/new" className="flex items-center gap-1">
+                <PlusCircle className="h-3.5 w-3.5" />
+                New Project
+              </Link>
+            </Button>
+          )}
         </div>
+      </div>
 
-        {/* Content */}
-        {activeTab === "assigned" && (
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-            <div className="border-b border-gray-200 dark:border-gray-700 px-6 py-4">
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Projects Assigned to Me</h2>
-              <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">
-                {filteredAssignedTasks.length} project{filteredAssignedTasks.length !== 1 ? 's' : ''} assigned to you
-              </p>
+      {/* Main Content Area */}
+      {isLoading ? (
+        <div className="py-12 text-center bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800">
+          <Loader2 className="h-7 w-7 animate-spin text-indigo-600 mx-auto mb-2" />
+          <p className="text-xs font-medium text-slate-500">Loading workspace projects...</p>
+        </div>
+      ) : activeTab === "assigned" ? (
+        filteredAssignedTasks.length === 0 ? (
+          <div className="text-center py-12 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-6 space-y-2.5">
+            <div className="w-11 h-11 mx-auto bg-indigo-50 dark:bg-indigo-950/50 rounded-2xl flex items-center justify-center text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/40">
+              <Briefcase className="h-5 w-5" />
             </div>
-            <div className="p-6">
-              {filteredAssignedTasks.length === 0 ? (
-                <div className="text-center py-12">
-                  <div className="bg-gray-100 dark:bg-gray-700 rounded-2xl h-16 w-16 flex items-center justify-center mx-auto mb-4">
-                    <BarChart3 className="h-8 w-8 text-gray-400" />
-                  </div>
-                  <p className="text-gray-500 dark:text-gray-400 text-lg mb-2">No projects assigned to you</p>
-                  <p className="text-gray-400 dark:text-gray-500 text-sm mb-6">
-                    {searchQuery || Object.keys(activeFilters).length > 0 
-                      ? "Try adjusting your search or filters" 
-                      : "You'll see projects here once they're assigned to you"
-                    }
-                  </p>
-                  {canCreateProjects && (
-                    <Button asChild className="bg-blue-600 hover:bg-blue-700 text-white">
-                      <Link href="/dashboard/tasks/new">
-                        Create New Project
-                      </Link>
-                    </Button>
-                  )}
-                </div>
-              ) : (
-                <div className={cn(
-                  "gap-6",
-                  viewMode === "grid" ? "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3" : "space-y-4"
-                )}>
-                  {filteredAssignedTasks.map((task) => (
-                    <TaskCard 
-                      key={task.id} 
-                      task={task} 
-                      admin={isAdmin} 
-                      viewMode={viewMode}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
+            <p className="text-slate-800 dark:text-slate-200 font-bold text-sm">No assigned projects found</p>
+            <p className="text-slate-500 dark:text-slate-400 text-xs max-w-xs mx-auto">
+              Projects assigned to you will automatically appear here.
+            </p>
           </div>
-        )}
-
-        {activeTab === "created" && canCreateProjects && (
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-            <div className="border-b border-gray-200 dark:border-gray-700 px-6 py-4">
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Projects Created by Me</h2>
-              <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">
-                {filteredCreatedTasks.length} project{filteredCreatedTasks.length !== 1 ? 's' : ''} created by you
-              </p>
+        ) : (
+          <div className="space-y-4">
+            <div
+              className={cn(
+                viewMode === "grid"
+                  ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-3"
+                  : "space-y-2"
+              )}
+            >
+              {paginatedProjects.map((task) => (
+                <TaskCard key={task.id} task={task} admin={isAdmin} viewMode={viewMode} />
+              ))}
             </div>
-            <div className="p-6">
-              {filteredCreatedTasks.length === 0 ? (
-                <div className="text-center py-12">
-                  <div className="bg-gray-100 dark:bg-gray-700 rounded-2xl h-16 w-16 flex items-center justify-center mx-auto mb-4">
-                    <PlusCircle className="h-8 w-8 text-gray-400" />
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 text-xs text-slate-500 font-medium">
+                <div>
+                  Showing {Math.min((currentPage - 1) * itemsPerPage + 1, currentList.length)} - {Math.min(currentPage * itemsPerPage, currentList.length)} of {currentList.length} projects
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                    className="h-7 text-xs font-semibold rounded-xl border-slate-200 dark:border-slate-700 px-2.5"
+                  >
+                    <ChevronLeft className="h-3.5 w-3.5 mr-1" />
+                    Previous
+                  </Button>
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
+                      <Button
+                        key={pageNum}
+                        variant={pageNum === currentPage ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setCurrentPage(pageNum)}
+                        className={cn(
+                          "h-7 w-7 p-0 text-xs font-bold rounded-lg",
+                          pageNum === currentPage
+                            ? "bg-indigo-600 text-white hover:bg-indigo-700"
+                            : "border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200"
+                        )}
+                      >
+                        {pageNum}
+                      </Button>
+                    ))}
                   </div>
-                  <p className="text-gray-500 dark:text-gray-400 text-lg mb-6">No projects created by you</p>
-                  <Button asChild className="bg-blue-600 hover:bg-blue-700 text-white">
-                    <Link href="/dashboard/tasks/new">
-                      Create New Project
-                    </Link>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={currentPage === totalPages}
+                    onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                    className="h-7 text-xs font-semibold rounded-xl border-slate-200 dark:border-slate-700 px-2.5"
+                  >
+                    Next
+                    <ChevronRight className="h-3.5 w-3.5 ml-1" />
                   </Button>
                 </div>
-              ) : (
-                <div className={cn(
-                  "gap-6",
-                  viewMode === "grid" ? "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3" : "space-y-4"
-                )}>
-                  {filteredCreatedTasks.map((task) => (
-                    <TaskCard 
-                      key={task.id} 
-                      task={task} 
-                      viewMode={viewMode}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
+              </div>
+            )}
           </div>
-        )}
-
-        {activeTab === "kanban" && (
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-            <div className="border-b border-gray-200 dark:border-gray-700 px-6 py-4">
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Kanban Board</h2>
-              <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">
-                Visualize your project progress
-              </p>
+        )
+      ) : activeTab === "created" ? (
+        filteredCreatedTasks.length === 0 ? (
+          <div className="text-center py-12 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-6 space-y-2.5">
+            <div className="w-11 h-11 mx-auto bg-purple-50 dark:bg-purple-950/50 rounded-2xl flex items-center justify-center text-purple-600 dark:text-purple-400 border border-purple-100 dark:border-purple-900/40">
+              <Layers className="h-5 w-5" />
             </div>
-            <div className="p-6">
-              <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-                {[
-                  { status: "TODO", title: "To Do", color: "bg-gray-400", count: groupedAssignedTasks.TODO.length },
-                  { status: "IN_PROGRESS", title: "In Progress", color: "bg-blue-400", count: groupedAssignedTasks.IN_PROGRESS.length },
-                  { status: "BLOCKED", title: "Blocked", color: "bg-red-400", count: groupedAssignedTasks.BLOCKED.length },
-                  { status: "DONE", title: "Done", color: "bg-green-400", count: groupedAssignedTasks.DONE.length },
-                ].map((column) => (
-                  <div key={column.status} className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4 border border-gray-200 dark:border-gray-600">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center gap-2">
-                        <div className={`h-3 w-3 rounded-full ${column.color}`}></div>
-                        <h3 className="font-semibold text-gray-700 dark:text-gray-200">{column.title}</h3>
-                      </div>
-                      <Badge variant="secondary" className="bg-white dark:bg-gray-600 text-gray-700 dark:text-gray-200">
-                        {column.count}
-                      </Badge>
-                    </div>
-                    <div className="space-y-3">
-                      {groupedAssignedTasks[column.status].map((task) => (
-                        <TaskCard key={task.id} task={task} showActions={false} compact={true} />
-                      ))}
-                    </div>
+            <p className="text-slate-800 dark:text-slate-200 font-bold text-sm">No projects created yet</p>
+            <p className="text-slate-500 dark:text-slate-400 text-xs max-w-xs mx-auto">
+              Get started by creating your first project using the button above.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div
+              className={cn(
+                viewMode === "grid"
+                  ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-3"
+                  : "space-y-2"
+              )}
+            >
+              {paginatedProjects.map((task) => (
+                <TaskCard key={task.id} task={task} admin={isAdmin} viewMode={viewMode} />
+              ))}
+            </div>
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 text-xs text-slate-500 font-medium">
+                <div>
+                  Showing {Math.min((currentPage - 1) * itemsPerPage + 1, currentList.length)} - {Math.min(currentPage * itemsPerPage, currentList.length)} of {currentList.length} projects
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                    className="h-7 text-xs font-semibold rounded-xl border-slate-200 dark:border-slate-700 px-2.5"
+                  >
+                    <ChevronLeft className="h-3.5 w-3.5 mr-1" />
+                    Previous
+                  </Button>
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
+                      <Button
+                        key={pageNum}
+                        variant={pageNum === currentPage ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setCurrentPage(pageNum)}
+                        className={cn(
+                          "h-7 w-7 p-0 text-xs font-bold rounded-lg",
+                          pageNum === currentPage
+                            ? "bg-indigo-600 text-white hover:bg-indigo-700"
+                            : "border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200"
+                        )}
+                      >
+                        {pageNum}
+                      </Button>
+                    ))}
                   </div>
-                ))}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={currentPage === totalPages}
+                    onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                    className="h-7 text-xs font-semibold rounded-xl border-slate-200 dark:border-slate-700 px-2.5"
+                  >
+                    Next
+                    <ChevronRight className="h-3.5 w-3.5 ml-1" />
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        )
+      ) : (
+        /* Kanban View Matrix */
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3.5 items-start">
+          {[
+            { title: "To Do", status: "TODO", color: "bg-slate-400", count: groupedAssignedTasks["TODO"]?.length || 0 },
+            { title: "In Progress", status: "IN_PROGRESS", color: "bg-indigo-500", count: groupedAssignedTasks["IN_PROGRESS"]?.length || 0 },
+            { title: "Blocked", status: "BLOCKED", color: "bg-rose-500", count: groupedAssignedTasks["BLOCKED"]?.length || 0 },
+            { title: "Completed", status: "DONE", color: "bg-emerald-500", count: groupedAssignedTasks["DONE"]?.length || 0 },
+          ].map((column) => (
+            <div key={column.status} className="bg-slate-100/60 dark:bg-slate-900/60 rounded-2xl p-3.5 border border-slate-200/60 dark:border-slate-800 space-y-2.5">
+              <div className="flex items-center justify-between pb-1 border-b border-slate-200/50 dark:border-slate-800">
+                <div className="flex items-center gap-2">
+                  <div className={cn("h-2.5 w-2.5 rounded-full", column.color)} />
+                  <span className="text-xs font-bold text-slate-800 dark:text-slate-200">{column.title}</span>
+                </div>
+                <Badge variant="secondary" className="text-[10px] font-extrabold px-2 py-0.5 bg-white dark:bg-slate-800 shadow-2xs">
+                  {column.count}
+                </Badge>
+              </div>
+
+              <div className="space-y-2.5">
+                {groupedAssignedTasks[column.status]?.length === 0 ? (
+                  <p className="text-[11px] text-slate-400 italic text-center py-4">Empty column</p>
+                ) : (
+                  groupedAssignedTasks[column.status]?.map((task: any) => (
+                    <TaskCard key={task.id} task={task} showActions={false} compact={true} />
+                  ))
+                )}
               </div>
             </div>
-          </div>
-        )}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

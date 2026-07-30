@@ -1,17 +1,11 @@
-
-
 "use client";
 
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { formatDate } from "@/lib/utils";
-import {
-  Card,
-  CardContent,
-  CardFooter,
-} from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import {
   Clock,
@@ -19,261 +13,402 @@ import {
   AlertCircle,
   CheckCircle2,
   MessageSquare,
+  FileText,
+  ArrowUpRight,
 } from "lucide-react";
 import { differenceInDays } from "date-fns";
-// Priority dot colors
-const getPriorityColor = (priority: string) => {
+import { cn } from "@/lib/utils";
+
+export type TaskCardProps = {
+  task: any;
+  showActions?: boolean;
+  client?: boolean;
+  admin?: boolean;
+  viewMode?: "grid" | "list";
+  compact?: boolean;
+};
+
+const getPriorityBadge = (priority: string) => {
   switch (priority) {
     case "HIGH":
-      return "bg-red-500";
+      return (
+        <Badge className="bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800/80 text-[10px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1 shrink-0">
+          <span className="h-1.5 w-1.5 rounded-full bg-rose-500 animate-pulse" />
+          High
+        </Badge>
+      );
     case "MEDIUM":
-      return "bg-yellow-500";
+      return (
+        <Badge className="bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800/80 text-[10px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1 shrink-0">
+          <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+          Medium
+        </Badge>
+      );
     case "LOW":
-      return "bg-green-500";
+      return (
+        <Badge className="bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/80 text-[10px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1 shrink-0">
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+          Low
+        </Badge>
+      );
     default:
-      return "bg-gray-500";
+      return (
+        <Badge className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 text-[10px] font-bold px-2 py-0.5 rounded-md shrink-0">
+          Normal
+        </Badge>
+      );
   }
 };
 
-// Status badge colors - light mode
-const getStatusColorLight = (status: string) => {
+const getStatusBadge = (status: string) => {
   switch (status) {
     case "TODO":
-      return "bg-slate-100 text-slate-700 border-slate-200";
+      return (
+        <Badge variant="outline" className="bg-slate-50 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 text-[10px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1 shrink-0">
+          <Clock className="h-3 w-3 text-slate-500" />
+          To Do
+        </Badge>
+      );
     case "IN_PROGRESS":
-      return "bg-blue-100 text-blue-700 border-blue-200";
+      return (
+        <Badge variant="outline" className="bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800/80 text-[10px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1 shrink-0">
+          <Play className="h-3 w-3 text-indigo-500 fill-indigo-500" />
+          In Progress
+        </Badge>
+      );
     case "BLOCKED":
-      return "bg-red-100 text-red-700 border-red-200";
+      return (
+        <Badge variant="outline" className="bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800/80 text-[10px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1 shrink-0">
+          <AlertCircle className="h-3 w-3 text-rose-500" />
+          Blocked
+        </Badge>
+      );
     case "DONE":
-      return "bg-emerald-100 text-emerald-700 border-emerald-200";
+      return (
+        <Badge variant="outline" className="bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/80 text-[10px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1 shrink-0">
+          <CheckCircle2 className="h-3 w-3 text-emerald-500" />
+          Done
+        </Badge>
+      );
     default:
-      return "bg-gray-100 text-gray-700 border-gray-200";
+      return (
+        <Badge variant="outline" className="text-[10px] font-bold px-2 py-0.5 rounded-md shrink-0">
+          {status}
+        </Badge>
+      );
   }
 };
-
-// Status badge colors - dark mode
-const getStatusColorDark = (status: string) => {
-  switch (status) {
-    case "TODO":
-      return "bg-slate-700 text-slate-200 border-slate-600 dark:text-white";
-    case "IN_PROGRESS":
-      return "bg-blue-800 text-blue-200 border-blue-700";
-    case "BLOCKED":
-      return "bg-red-800 text-red-200 border-red-700";
-    case "DONE":
-      return "bg-emerald-800 text-emerald-200 border-emerald-700";
-    default:
-      return "bg-gray-800 text-gray-200 border-gray-700";
-  }
-};
-
-// Status icons
-const getStatusIcon = (status: string) => {
-  switch (status) {
-    case "TODO":
-      return <Clock className="h-4 w-4" />;
-    case "IN_PROGRESS":
-      return <Play className="h-4 w-4" />;
-    case "BLOCKED":
-      return <AlertCircle className="h-4 w-4" />;
-    case "DONE":
-      return <CheckCircle2 className="h-4 w-4" />;
-    default:
-      return <Clock className="h-4 w-4" />;
-  }
-};
-
-
-//   // Calculate days until deadline
-
 
 export default function TaskCard({
   task,
   showActions = true,
-  client,
-  admin,
+  client = false,
+  admin = false,
+  viewMode = "grid",
+  compact = false,
 }: TaskCardProps) {
   const [isHovered, setIsHovered] = useState(false);
-
-
 
   const daysUntilDeadline = task.deadline
     ? differenceInDays(new Date(task.deadline), new Date())
     : null;
 
-  // Determine urgency
   const isUrgent =
     daysUntilDeadline !== null &&
     daysUntilDeadline <= 1 &&
+    daysUntilDeadline >= 0 &&
     task.status !== "DONE";
   const isOverdue =
     daysUntilDeadline !== null &&
     daysUntilDeadline < 0 &&
     task.status !== "DONE";
 
-  type TaskCardProps = {
-    task: any;
-    showActions?: boolean;
-    client?: boolean;
-    admin?: boolean;
-  };
-
-
-
-
-
-  //  console.log(task,'taskcardtask')
-  return (
-    <motion.div
-      whileHover={{ scale: 1.02 }}
-      transition={{ duration: 0.2 }}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      className="w-full"
-    >
-      <Card
-        className={`rounded-xl transition-all duration-300 ${isHovered
-            ? "shadow-lg border-gray-200 dark:border-gray-700 -translate-y-1"
-            : "shadow-sm border-gray-100 dark:border-gray-800"
-          } bg-white dark:bg-[#15171c]`}
+  // LIST VIEW RENDERING (Compact Row)
+  if (viewMode === "list" && !compact) {
+    return (
+      <motion.div
+        whileHover={{ scale: 1.002 }}
+        transition={{ duration: 0.15 }}
+        className="w-full"
       >
-        <CardContent className="p-6">
-          {/* Top row: Priority + Status */}
-          <div className="flex items-start justify-between mb-4">
-            <div className="flex items-center space-x-2">
-              <div
-                className={`h-2 w-2 rounded-full ${getPriorityColor(
-                  task.priority
-                )}`}
-              ></div>
-              <span className="text-xs font-medium text-gray-500 dark:text-white uppercase tracking-wide">
-                {task.priority} Priority
-              </span>
-            </div>
-            <div
-              className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusColorLight(
-                task.status
-              )} dark:${getStatusColorDark(task.status)} flex items-center space-x-1`}
-            >
-              {getStatusIcon(task.status)}
-              <span>{task.status.replace("_", " ")}</span>
+        <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-xl p-2.5 px-3.5 shadow-2xs hover:border-indigo-300 dark:hover:border-indigo-700 transition-all duration-150 flex flex-col md:flex-row md:items-center justify-between gap-2.5 group">
+          {/* Left Portion: Priority, Status, Title, Description */}
+          <div className="flex items-center gap-2.5 flex-1 min-w-0">
+            {getPriorityBadge(task.priority)}
+            {getStatusBadge(task.status)}
+
+            <div className="flex-1 min-w-0">
+              <Link
+                href={`/dashboard/tasks/${task.id}`}
+                className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors truncate block"
+              >
+                {task.title}
+              </Link>
+              {task.description && (
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5 hidden sm:block">
+                  {task.description}
+                </p>
+              )}
             </div>
           </div>
 
-          {/* Title */}
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-            {task.title}
-          </h3>
-
-          {/* Description */}
-          <p className="text-gray-600 dark:text-white text-sm mb-4 line-clamp-2">
-            {task.description || "No description"}
-          </p>
-
-          {/* Creator + Deadline */}
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 text-sm text-gray-500 dark:text-white mb-4">
-            <div className="flex items-center">
-              <Avatar className="h-6 w-6 mr-2">
-                <AvatarImage src={task.creator?.image || ""} />
-                <AvatarFallback className="text-xs bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white">
-                  {task.creator?.name?.charAt(0) || "U"}
-                </AvatarFallback>
-              </Avatar>
-              <span className="truncate">Created by: {task.creator?.name}</span>
-            </div>
-
-
-
-
-          </div>
-
-          <div>
+          {/* Right Portion: Deadline, Assignees, Actions */}
+          <div className="flex items-center gap-2.5 shrink-0 flex-wrap justify-between md:justify-end">
             {task.deadline && (
               <div
-                className={`flex items-center  ${isOverdue
-                  ? "  text-red-600 font-medium"
-                  : isUrgent
-                    ? "text-orange-600 font-medium"
-                    : "text-gray-500"
-                  }`}
+                className={cn(
+                  "text-[10px] font-semibold px-2 py-0.5 rounded-md flex items-center gap-1",
+                  isOverdue
+                    ? "bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900"
+                    : isUrgent
+                    ? "bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-900"
+                    : "text-slate-500 dark:text-slate-400"
+                )}
               >
-                <Clock className="h-4 w-4 mr-1 flex-shrink-0" />
-                <span className="truncate">
-                  {isOverdue ? "Overdue: " : "Due: "}
-                  {formatDate(task.deadline)}
-                </span>
+                <Clock className="h-3 w-3" />
+                <span>{formatDate(task.deadline)}</span>
               </div>
             )}
-          </div>
 
-          {/* Assignments */}
-          {task.assignments && task.assignments.length > 0 && (
-            <div className="mt-2">
-              <p className="text-xs text-gray-500 dark:text-white mb-2">Assigned to:</p>
-              <div className="flex -space-x-2 overflow-hidden">
-                {task.assignments.map((assignment: any) => (
+            {/* Assignees */}
+            {task.assignments && task.assignments.length > 0 && (
+              <div className="flex -space-x-1.5 overflow-hidden shrink-0">
+                {task.assignments.slice(0, 3).map((assignment: any) => (
                   <Avatar
                     key={assignment.id}
-                    className="h-6 w-6 border-2 border-white dark:border-gray-800"
+                    className="h-5.5 w-5.5 border-2 border-white dark:border-slate-900 ring-1 ring-slate-200/50 dark:ring-slate-800"
                   >
-                    <AvatarImage
-                      src={assignment.user?.image || ""}
-                      alt={assignment.user?.name || ""}
-                    />
-                    <AvatarFallback className="text-xs bg-blue-100 dark:bg-blue-800 text-blue-800 dark:text-blue-200">
+                    <AvatarImage src={assignment.user?.image || ""} />
+                    <AvatarFallback className="text-[8px] bg-indigo-600 text-white font-bold">
                       {assignment.user?.name?.charAt(0) || "U"}
                     </AvatarFallback>
                   </Avatar>
                 ))}
               </div>
-            </div>
-          )}
-        </CardContent>
+            )}
 
-        {/* Actions */}
-        {!client && showActions && (
-          <CardFooter className="px-4 py-3 bg-gray-50 dark:bg-gray-900 border-t dark:border-gray-800 flex flex-col sm:flex-row gap-2 sm:justify-between">
-            <Button
-              variant="outline"
-              size="sm"
-              className="w-full sm:w-auto border-gray-300 dark:border-gray-700 text-gray-700 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-800"
-              asChild
+            {/* Actions */}
+            {!client && showActions && (
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  asChild
+                  className="h-6.5 text-[11px] font-bold rounded-lg border-slate-200 dark:border-slate-700 px-2"
+                >
+                  <Link href={`/dashboard/tasks/${task.id}`}>
+                    Details
+                  </Link>
+                </Button>
+
+                {task.channel && (
+                  <>
+                    {admin && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        asChild
+                        className="h-6.5 w-6.5 p-0 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                        title="Records"
+                      >
+                        <Link href={`/dashboard/tasks/${task.id}/record`}>
+                          <FileText className="h-3.5 w-3.5" />
+                        </Link>
+                      </Button>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      asChild
+                      className="h-6.5 w-6.5 p-0 rounded-lg text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40"
+                      title="Discussion Channel"
+                    >
+                      <Link href={`/dashboard/channels/${task.channel.id}`}>
+                        <MessageSquare className="h-3.5 w-3.5" />
+                      </Link>
+                    </Button>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </motion.div>
+    );
+  }
+
+  // KANBAN COMPACT CARD
+  if (compact) {
+    return (
+      <div className="p-2.5 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-xl shadow-2xs space-y-1.5 group hover:border-indigo-300 dark:hover:border-indigo-700 transition-all">
+        <div className="flex items-center justify-between gap-2">
+          {getPriorityBadge(task.priority)}
+          {task.deadline && (
+            <span
+              className={cn(
+                "text-[10px] font-semibold flex items-center gap-1",
+                isOverdue ? "text-rose-600" : isUrgent ? "text-amber-600" : "text-slate-400"
+              )}
             >
-              <Link href={`/dashboard/tasks/${task.id}`}>View Details</Link>
-            </Button>
+              <Clock className="h-3 w-3" />
+              {formatDate(task.deadline)}
+            </span>
+          )}
+        </div>
 
-            <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+        <Link
+          href={`/dashboard/tasks/${task.id}`}
+          className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors line-clamp-2 block leading-tight"
+        >
+          {task.title}
+        </Link>
+
+        {task.assignments && task.assignments.length > 0 && (
+          <div className="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-slate-800/80">
+            <div className="flex -space-x-1 overflow-hidden">
+              {task.assignments.slice(0, 3).map((assignment: any) => (
+                <Avatar key={assignment.id} className="h-5 w-5 border border-white dark:border-slate-900">
+                  <AvatarImage src={assignment.user?.image || ""} />
+                  <AvatarFallback className="text-[8px] bg-indigo-600 text-white font-bold">
+                    {assignment.user?.name?.charAt(0) || "U"}
+                  </AvatarFallback>
+                </Avatar>
+              ))}
+            </div>
+            {task.channel && (
+              <Link
+                href={`/dashboard/channels/${task.channel.id}`}
+                className="text-[10px] text-indigo-600 dark:text-indigo-400 font-bold hover:underline flex items-center"
+              >
+                Chat
+                <ArrowUpRight className="h-3 w-3 ml-0.5" />
+              </Link>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // STANDARD MEDIUM GRID CARD
+  return (
+    <motion.div
+      whileHover={{ y: -1 }}
+      transition={{ duration: 0.15 }}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      className="w-full flex"
+    >
+      <div
+        className={cn(
+          "w-full bg-white dark:bg-slate-900 border rounded-xl p-3.5 shadow-2xs transition-all duration-200 flex flex-col justify-between group relative",
+          isHovered
+            ? "border-indigo-300 dark:border-indigo-700/80 shadow-xs"
+            : "border-slate-200/80 dark:border-slate-800"
+        )}
+      >
+        {/* Top Header Row: Priority & Status */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            {getPriorityBadge(task.priority)}
+            {getStatusBadge(task.status)}
+          </div>
+
+          {/* Title & Description */}
+          <div>
+            <Link
+              href={`/dashboard/tasks/${task.id}`}
+              className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors line-clamp-1 block"
+            >
+              {task.title}
+            </Link>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-1 mt-0.5 leading-snug">
+              {task.description || "No project description provided."}
+            </p>
+          </div>
+        </div>
+
+        {/* Bottom Section: Single Compact Meta Row */}
+        <div className="mt-3 pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-2">
+          {/* Left: Deadline / Assignees */}
+          <div className="flex items-center gap-2 text-[10px] text-slate-500 dark:text-slate-400 min-w-0">
+            {task.deadline ? (
+              <div
+                className={cn(
+                  "flex items-center gap-1 font-semibold truncate",
+                  isOverdue ? "text-rose-600" : isUrgent ? "text-amber-600" : ""
+                )}
+              >
+                <Clock className="h-3 w-3 shrink-0" />
+                <span className="truncate">{formatDate(task.deadline)}</span>
+              </div>
+            ) : (
+              <div className="flex -space-x-1.5 overflow-hidden shrink-0">
+                {task.assignments && task.assignments.length > 0 ? (
+                  task.assignments.slice(0, 3).map((assignment: any) => (
+                    <Avatar
+                      key={assignment.id}
+                      className="h-5 w-5 border border-white dark:border-slate-900"
+                    >
+                      <AvatarImage src={assignment.user?.image || ""} />
+                      <AvatarFallback className="text-[8px] bg-indigo-600 text-white font-bold">
+                        {assignment.user?.name?.charAt(0) || "U"}
+                      </AvatarFallback>
+                    </Avatar>
+                  ))
+                ) : (
+                  <span className="text-slate-400 italic">No deadline</span>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Right: Actions */}
+          {!client && showActions && (
+            <div className="flex items-center gap-1 shrink-0">
+              <Button
+                variant="outline"
+                size="sm"
+                asChild
+                className="h-6.5 text-[10px] font-bold rounded-lg border-slate-200 dark:border-slate-700 px-2 shadow-2xs hover:bg-slate-50 dark:hover:bg-slate-800"
+              >
+                <Link href={`/dashboard/tasks/${task.id}`}>
+                  Details
+                </Link>
+              </Button>
+
               {task.channel && (
                 <>
                   {admin && (
                     <Button
-                      variant="outline"
+                      variant="ghost"
                       size="sm"
-                      className="w-full sm:w-auto border-gray-300 dark:border-gray-700 text-gray-700 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-800"
                       asChild
+                      className="h-6.5 w-6.5 p-0 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                      title="Records"
                     >
                       <Link href={`/dashboard/tasks/${task.id}/record`}>
-                        <MessageSquare className="h-4 w-4 mr-1" />
-                        Records
+                        <FileText className="h-3 w-3" />
                       </Link>
                     </Button>
                   )}
                   <Button
-                    variant="outline"
+                    variant="ghost"
                     size="sm"
-                    className="w-full sm:w-auto border-gray-300 dark:border-gray-700 text-gray-700 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-800"
                     asChild
+                    className="h-6.5 w-6.5 p-0 rounded-lg text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40"
+                    title="Discussion Channel"
                   >
                     <Link href={`/dashboard/channels/${task.channel.id}`}>
-                      Discussion
+                      <MessageSquare className="h-3 w-3" />
                     </Link>
                   </Button>
                 </>
               )}
             </div>
-          </CardFooter>
-        )}
-      </Card>
+          )}
+        </div>
+      </div>
     </motion.div>
   );
 }
