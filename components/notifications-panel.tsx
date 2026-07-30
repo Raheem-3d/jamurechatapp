@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNotifications } from "@/contexts/notifications-context";
 import { formatDistanceToNow } from "date-fns";
 import {
@@ -15,6 +15,8 @@ import {
   AlertCircle,
   Calendar,
   Filter,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -47,6 +49,12 @@ export function NotificationsPanel({
 
   const notifications = propNotifications || contextNotifications;
   const [activeTab, setActiveTab] = useState<string>("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 5;
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab]);
 
   const filteredNotifications = notifications.filter((notification) => {
     if (activeTab === "all") return true;
@@ -55,6 +63,12 @@ export function NotificationsPanel({
     if (activeTab === "reminder") return notification.type.includes("REMINDER");
     return true;
   });
+
+  const totalPages = Math.ceil(filteredNotifications.length / itemsPerPage);
+  const paginatedNotifications = filteredNotifications.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
   const getNotificationIcon = (type: string) => {
     if (type.includes('ANNOUNCEMENT')) {
@@ -265,93 +279,125 @@ export function NotificationsPanel({
                   </p>
                 </div>
               ) : (
-                <div className="divide-y divide-gray-100 dark:divide-gray-800">
-                  {filteredNotifications.map((notification) => {
-                    const taskStatus = notification.type.includes("TASK")
-                      ? getTaskStatus(notification.type)
-                      : null;
-                    const isAnnouncement = notification.type.includes('ANNOUNCEMENT')
+                <>
+                  <div className="divide-y divide-gray-100 dark:divide-gray-800">
+                    {paginatedNotifications.map((notification) => {
+                      const taskStatus = notification.type.includes("TASK")
+                        ? getTaskStatus(notification.type)
+                        : null;
+                      const isAnnouncement = notification.type.includes('ANNOUNCEMENT')
 
-                    return (
-                      <Link
-                        key={notification.id}
-                        href={getNotificationLink(notification)}
-                        onClick={() => markAsRead(notification.id)}
-                        className={cn(
-                          "flex items-start gap-4 p-4 transition-colors group",
-                          !notification.read
-                            ? "bg-blue-50/50 dark:bg-blue-900/10 hover:bg-blue-100/50 dark:hover:bg-blue-900/20"
-                            : "hover:bg-gray-50 dark:hover:bg-gray-800/50"
-                        )}
-                      >
-                        <div
+                      return (
+                        <Link
+                          key={notification.id}
+                          href={getNotificationLink(notification)}
+                          onClick={() => markAsRead(notification.id)}
                           className={cn(
-                            "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border-2",
+                            "flex items-start gap-4 p-4 transition-colors group",
                             !notification.read
-                              ? "border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-900/20"
-                              : "border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800"
+                              ? "bg-blue-50/50 dark:bg-blue-900/10 hover:bg-blue-100/50 dark:hover:bg-blue-900/20"
+                              : "hover:bg-gray-50 dark:hover:bg-gray-800/50"
                           )}
                         >
-                          {getNotificationIcon(notification.type)}
-                        </div>
-
-                        <div className="flex-1 min-w-0 space-y-2">
-                          <div className="flex items-start justify-between gap-2">
-                            <p
-                              className={cn(
-                                "text-sm leading-relaxed",
-                                !notification.read
-                                  ? "text-gray-900 dark:text-white font-medium"
-                                  : "text-gray-700 dark:text-gray-300"
-                              )}
-                            >
-                              {notification.content}
-                            </p>
-                            {!notification.read && (
-                              <Badge
-                                variant="default"
-                                className="bg-blue-600 text-white flex-shrink-0"
-                              >
-                                New
-                              </Badge>
+                          <div
+                            className={cn(
+                              "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border-2",
+                              !notification.read
+                                ? "border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-900/20"
+                                : "border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800"
                             )}
+                          >
+                            {getNotificationIcon(notification.type)}
                           </div>
 
-                          <div className="flex items-center gap-3">
-                            <Badge
-                              variant="outline"
-                              className={cn(
-                                "text-xs",
-                                getNotificationTypeColor(notification.type),
-                                isAnnouncement && 'ring-1 ring-amber-300 dark:ring-amber-700'
+                          <div className="flex-1 min-w-0 space-y-2">
+                            <div className="flex items-start justify-between gap-2">
+                              <p
+                                className={cn(
+                                  "text-sm leading-relaxed",
+                                  !notification.read
+                                    ? "text-gray-900 dark:text-white font-medium"
+                                    : "text-gray-700 dark:text-gray-300"
+                                )}
+                              >
+                                {notification.content}
+                              </p>
+                              {!notification.read && (
+                                <Badge
+                                  variant="default"
+                                  className="bg-blue-600 text-white flex-shrink-0"
+                                >
+                                  New
+                                </Badge>
                               )}
-                            >
-                              {notification.type
-                                .replace(/_/g, " ")
-                                .toLowerCase()}
-                            </Badge>
+                            </div>
 
-                            {taskStatus && (
+                            <div className="flex items-center gap-3">
                               <Badge
                                 variant="outline"
-                                className={cn("text-xs", taskStatus.class)}
+                                className={cn(
+                                  "text-xs",
+                                  getNotificationTypeColor(notification.type),
+                                  isAnnouncement && 'ring-1 ring-amber-300 dark:ring-amber-700'
+                                )}
                               >
-                                {taskStatus.text}
+                                {notification.type
+                                  .replace(/_/g, " ")
+                                  .toLowerCase()}
                               </Badge>
-                            )}
 
-                            <span className="text-xs text-gray-500 dark:text-gray-400">
-                              {formatDistanceToNow(
-                                new Date(notification.createdAt),
-                                { addSuffix: true }
+                              {taskStatus && (
+                                <Badge
+                                  variant="outline"
+                                  className={cn("text-xs", taskStatus.class)}
+                                >
+                                  {taskStatus.text}
+                                </Badge>
                               )}
-                            </span>
+
+                              <span className="text-xs text-gray-500 dark:text-gray-400">
+                                {formatDistanceToNow(
+                                  new Date(notification.createdAt),
+                                  { addSuffix: true }
+                                )}
+                              </span>
+                            </div>
                           </div>
-                        </div>
-                      </Link>
-                    );
-                  })}
-                </div>
+                        </Link>
+                      );
+                    })}
+                  </div>
+
+                  {totalPages > 1 && (
+                    <div className="flex items-center justify-between p-3 border-t border-gray-100 dark:border-gray-800 text-xs text-gray-500">
+                      <span>
+                        Page {currentPage} of {totalPages}
+                      </span>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={currentPage === 1}
+                          onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                          className="h-7 px-2 text-xs"
+                        >
+                          <ChevronLeft className="h-3.5 w-3.5 mr-1" />
+                          Prev
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={currentPage === totalPages}
+                          onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+                          className="h-7 px-2 text-xs"
+                        >
+                          Next
+                          <ChevronRight className="h-3.5 w-3.5 ml-1" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
             </ScrollArea>
           </TabsContent>

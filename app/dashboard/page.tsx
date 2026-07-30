@@ -39,7 +39,7 @@ import TaskCard from "@/components/task-card";
 import ProjectPage from "@/components/ProjectPage";
 import { cn } from "@/lib/utils";
 import SubscriptionBanner from "@/components/subscription-banner";
-import DashboardCharts from "@/components/dashboard-charts";
+import DashboardCharts, { PerformanceRadarChart } from "@/components/dashboard-charts";
 
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions);
@@ -302,11 +302,8 @@ export default async function DashboardPage() {
   };
 
   return (
-
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50/20 dark:from-gray-900 dark:to-gray-800 p-4 md:p-6">
-      <div className="max-w-8xl mx-auto space-y-8">
-        {/* Subscription / Trial Banner */}
-        <SubscriptionBanner />
+    <div className="w-full">
+      <SubscriptionBanner />
 
         {isClient ? (
           <>
@@ -428,378 +425,258 @@ export default async function DashboardPage() {
           </>
         ) : (
           <>
-            {/* Admin/Employee Dashboard - Modern Redesign */}
-            <div className="flex flex-col gap-8">
+            {/* Admin/Employee Dashboard - Compact Master Grid */}
+            <div className="flex flex-col gap-5">
               {/* Header Section */}
-              <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-xl">
-                      <LayoutDashboard className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+              <div className="bg-white dark:bg-slate-900 rounded-2xl p-3.5 px-5 border border-slate-200/80 dark:border-slate-800 shadow-xs">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="p-1.5 bg-indigo-50 dark:bg-indigo-950/60 rounded-lg text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-800/80 shrink-0">
+                      <Sun className="h-4 w-4" />
                     </div>
-                    <h1 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white">
-                      Dashboard
-                    </h1>
-                  </div>
-                  <p className="text-gray-600 dark:text-gray-400 text-lg max-w-2xl">
-                    Welcome back, {session.user.name}. Here's your workspace overview.
-                  </p>
-                </div>
-
-                <div className="flex flex-wrap gap-3">
-                  {isAdmin && (
-                    <>
-                      <Button asChild className="bg-gradient-to-r from-gray-700 to-gray-900 hover:from-gray-800 hover:to-gray-950 text-white shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl px-6">
-                        <Link href="/dashboard/new-channel" className="flex items-center gap-2 font-semibold">
-                          <PlusCircle className="h-4 w-4" />
-                          New Channel
-                        </Link>
-                      </Button>
-                      <Button asChild className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl px-6">
-                        <Link href="/dashboard/tasks/new" className="flex items-center gap-2 font-semibold">
-                          <PlusCircle className="h-4 w-4" />
-                          New Project
-                        </Link>
-                      </Button>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              {/* Stats Grid - Enhanced */}
-              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                <Card className="rounded-2xl border-0 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300 group overflow-hidden">
-                  <CardContent className="p-6 relative">
-                    <div className="absolute inset-0 bg-gradient-to-br from-blue-500 to-cyan-500 opacity-0 group-hover:opacity-5 transition-opacity duration-300" />
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
-                          Active Channels
-                        </p>
-                        <p className="text-3xl font-bold text-gray-900 dark:text-white">
-                          {recentChannels.length}
-                        </p>
-                      </div>
-                      <div className="h-14 w-14 rounded-2xl bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                        <MessageSquare className="h-7 w-7 text-blue-600 dark:text-blue-400" />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-
-                <Card className="rounded-2xl border-0 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300 group overflow-hidden">
-                  <CardContent className="p-6 relative">
-                    <div className="absolute inset-0 bg-gradient-to-br from-green-500 to-emerald-500 opacity-0 group-hover:opacity-5 transition-opacity duration-300" />
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
-                          Assign To Me Tasks
-                        </p>
-                        <p className="text-3xl font-bold text-gray-900 dark:text-white">
-                          {assignedTasksCount}
-                        </p>
-                      </div>
-
-                      <div className="h-14 w-14 rounded-2xl bg-green-50 dark:bg-green-900/20 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                        <CheckCircle className="h-7 w-7 text-green-600 dark:text-green-400" />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-
-
-                <Card className="rounded-2xl border-0 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300 group overflow-hidden">
-                  <CardContent className="p-6 relative">
-                    <div className="absolute inset-0 bg-gradient-to-br from-green-500 to-emerald-500 opacity-0 group-hover:opacity-5 transition-opacity duration-300" />
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
-                          Total Completed Tasks
-                        </p>
-                        <p className="text-3xl font-bold text-gray-900 dark:text-white">
-                          {completedTasksCount}
-                        </p>
-                      </div>
-
-                      <div className="h-14 w-14 rounded-2xl bg-green-50 dark:bg-green-900/20 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                        <CheckCircle className="h-7 w-7 text-green-600 dark:text-green-400" />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-
-
-
-
-
-                <Card className="rounded-2xl border-0 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300 group overflow-hidden">
-                  <CardContent className="p-6 relative">
-                    <div className="absolute inset-0 bg-gradient-to-br from-orange-500 to-amber-500 opacity-0 group-hover:opacity-5 transition-opacity duration-300" />
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
-                          In Progress
-                        </p>
-                        <p className="text-3xl font-bold text-gray-900 dark:text-white">
-                          {inProgressTasksCount}
-                        </p>
-                      </div>
-                      <div className="h-14 w-14 rounded-2xl bg-orange-50 dark:bg-orange-900/20 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                        <Activity className="h-7 w-7 text-orange-600 dark:text-orange-400" />
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* <Card className="rounded-2xl border-0 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300 group overflow-hidden">
-              <CardContent className="p-6 relative">
-                <div className="absolute inset-0 bg-gradient-to-br from-purple-500 to-violet-500 opacity-0 group-hover:opacity-5 transition-opacity duration-300" />
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-2">
-                      Recent Contacts
-                    </p>
-                    <p className="text-3xl font-bold text-gray-900 dark:text-white">
-                      {recentContacts.length}
-                    </p>
-                  </div>
-                  <div className="h-14 w-14 rounded-2xl bg-purple-50 dark:bg-purple-900/20 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                    <Users className="h-7 w-7 text-purple-600 dark:text-purple-400" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card> */}
-              </div>
-
-              {/* Projects Section */}
-              <Card className="rounded-2xl border-0 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm shadow-xl overflow-hidden">
-                <CardHeader className="pb-6 border-b border-gray-100 dark:border-gray-700 bg-gradient-to-r from-gray-50 to-blue-50/50 dark:from-gray-800 dark:to-gray-700/50">
-                  <div className="flex items-center justify-between">
                     <div>
-                      <CardTitle className="text-gray-900 dark:text-white text-xl flex items-center gap-3">
-                        <Briefcase className="h-6 w-6 text-blue-600" />
-                        Recent Projects
-                      </CardTitle>
-                      <CardDescription className="text-gray-600 dark:text-gray-400">
-                        Projects you created or are assigned to
-                      </CardDescription>
-                    </div>
-                    <Button variant="outline" size="sm" asChild className="rounded-xl border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-300">
-                      <Link href="/dashboard/tasks" className="flex items-center gap-1 font-medium">
-                        View All
-                        <ChevronRight className="h-4 w-4 group-hover:translate-x-0.5 transition-transform" />
-                      </Link>
-                    </Button>
-                  </div>
-                </CardHeader>
-                <CardContent className="p-6">
-                  <ProjectPage />
-                </CardContent>
-              </Card>
-
-              {/* Analytics Charts */}
-              <div className="grid gap-6 lg:grid-cols-2">
-                <DashboardCharts
-                  taskTrendData={taskTrendData}
-                  taskStatusData={taskStatusData}
-                  performanceData={performanceData}
-                />
-              </div>
-
-              {/* Channels & Contacts Grid */}
-              <div className="grid gap-6 lg:grid-cols-2">
-                {/* Channels Section */}
-                <Card className="rounded-2xl border-0 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm shadow-xl overflow-hidden">
-                  <CardHeader className="pb-6 border-b border-gray-100 dark:border-gray-700 bg-gradient-to-r from-gray-50 to-blue-50/50 dark:from-gray-800 dark:to-gray-700/50">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <CardTitle className="text-gray-900 dark:text-white text-xl flex items-center gap-3">
-                          <Hash className="h-6 w-6 text-blue-600" />
-                          Recent Channels
-                        </CardTitle>
-                        <CardDescription className="text-gray-600 dark:text-gray-400">
-                          Your recently active channels
-                        </CardDescription>
-                      </div>
-                      <Button variant="outline" size="sm" asChild className="rounded-xl border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-300">
-                        <Link href="/dashboard/channels/all" className="flex items-center gap-1 font-medium">
-                          View All
-                          <ChevronRight className="h-4 w-4 group-hover:translate-x-0.5 transition-transform" />
-                        </Link>
-                      </Button>
-                    </div>
-                  </CardHeader>
-
-                  <CardContent className="p-6 space-y-4">
-                    {recentChannels.length > 0 ? (
-                      recentChannels.map((channel) => (
-                        <Link
-                          key={channel.id}
-                          href={`/dashboard/channels/${channel.id}`}
-                          className="flex items-center justify-between p-4 rounded-xl border border-gray-100 dark:border-gray-700 hover:border-blue-200 dark:hover:border-blue-800 bg-white/50 dark:bg-gray-700/50 hover:bg-blue-50/30 dark:hover:bg-blue-900/20 transition-all duration-300 group"
-                        >
-                          <div className="flex items-center gap-4">
-                            <div className="h-12 w-12 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center group-hover:bg-blue-200 dark:group-hover:bg-blue-800/40 transition-colors">
-                              <Hash className="h-6 w-6 text-blue-600 dark:text-blue-400" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="font-semibold text-gray-900 dark:text-white truncate">{channel.name || "Unnamed Channel"}</p>
-                              <div className="flex items-center gap-2 mt-1">
-                                {channel.department && (
-                                  <Badge variant="secondary" className="text-xs bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-300">
-                                    {channel.department.name}
-                                  </Badge>
-                                )}
-                                <span className="text-xs text-gray-500 dark:text-gray-400">
-                                  {channel._count?.messages || 0} messages
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                          <Clock className="h-4 w-4 text-gray-400 group-hover:text-blue-500 transition-colors" />
-                        </Link>
-                      ))
-                    ) : (
-                      <div className="text-center py-12">
-                        <div className="w-20 h-20 mx-auto bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-900/20 dark:to-purple-900/20 rounded-2xl flex items-center justify-center shadow-lg mb-4">
-                          <Hash className="h-8 w-8 text-blue-600 dark:text-blue-400" />
-                        </div>
-                        <p className="text-gray-500 dark:text-gray-400 font-semibold text-lg">No channels yet</p>
-                        <p className="text-gray-400 dark:text-gray-500 text-sm mt-1">
-                          Start by joining or creating a channel
-                        </p>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                {/* Contacts Section */}
-                <Card className="rounded-2xl border-0 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm shadow-xl overflow-hidden">
-                  <CardHeader className="pb-6 border-b border-gray-100 dark:border-gray-700 bg-gradient-to-r from-gray-50 to-purple-50/50 dark:from-gray-800 dark:to-gray-700/50">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <CardTitle className="text-gray-900 dark:text-white text-xl flex items-center gap-3">
-                          <Users className="h-6 w-6 text-purple-600" />
-                          Recent Contacts
-                        </CardTitle>
-                        <CardDescription className="text-gray-600 dark:text-gray-400">
-                          People you've recently messaged
-                        </CardDescription>
-                      </div>
-                      <Button variant="outline" size="sm" asChild className="rounded-xl border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-300">
-                        <Link href="/dashboard/people" className="flex items-center gap-1 font-medium">
-                          View All
-                          <ChevronRight className="h-4 w-4 group-hover:translate-x-0.5 transition-transform" />
-                        </Link>
-                      </Button>
-                    </div>
-                  </CardHeader>
-
-                  <CardContent className="p-6 space-y-4">
-                    {recentContacts.length > 0 ? (
-                      recentContacts.map((contact: any) => (
-                        <Link
-                          key={contact.id}
-                          href={`/dashboard/messages/${contact.id}`}
-                          className="flex items-center justify-between p-4 rounded-xl border border-gray-100 dark:border-gray-700 hover:border-purple-200 dark:hover:border-purple-800 bg-white/50 dark:bg-gray-700/50 hover:bg-purple-50/30 dark:hover:bg-purple-900/20 transition-all duration-300 group"
-                        >
-                          <div className="flex items-center gap-4">
-                            <Avatar className="h-12 w-12 ring-2 ring-white dark:ring-gray-800 shadow-lg group-hover:ring-purple-100 dark:group-hover:ring-purple-900 transition-all">
-                              <AvatarImage
-                                src={contact.image || ""}
-                                alt={contact.name}
-                              />
-                              <AvatarFallback className="bg-gradient-to-br from-purple-600 to-blue-600 text-white font-semibold text-sm">
-                                {contact.name?.charAt(0)?.toUpperCase() || "U"}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div className="flex-1 min-w-0">
-                              <p className="font-semibold text-gray-900 dark:text-white truncate">{contact.name}</p>
-                              <p className="text-sm text-gray-500 dark:text-gray-400 truncate mt-1">
-                                {contact.lastMessage.content}
-                              </p>
-                            </div>
-                          </div>
-                          <Clock className="h-4 w-4 text-gray-400 group-hover:text-purple-500 transition-colors" />
-                        </Link>
-                      ))
-                    ) : (
-                      <div className="text-center py-12">
-                        <div className="w-20 h-20 mx-auto bg-gradient-to-br from-purple-100 to-pink-100 dark:from-purple-900/20 dark:to-pink-900/20 rounded-2xl flex items-center justify-center shadow-lg mb-4">
-                          <Users className="h-8 w-8 text-purple-600 dark:text-purple-400" />
-                        </div>
-                        <p className="text-gray-500 dark:text-gray-400 font-semibold text-lg">No recent contacts</p>
-                        <p className="text-gray-400 dark:text-gray-500 text-sm mt-1">
-                          Start a conversation with your team members
-                        </p>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                {/* Department Users Section - Direct Messages */}
-                {/* {!isClient && (
-              <Card className="rounded-2xl border-0 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm shadow-xl overflow-hidden">
-                <CardHeader className="pb-6 border-b border-gray-100 dark:border-gray-700 bg-gradient-to-r from-gray-50 to-emerald-50/50 dark:from-gray-800 dark:to-gray-700/50">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle className="text-gray-900 dark:text-white text-xl flex items-center gap-3">
-                        <Users className="h-6 w-6 text-emerald-600" />
-                        Department Members
-                      </CardTitle>
-                      <CardDescription className="text-gray-600 dark:text-gray-400">
-                        Team members in your department
-                      </CardDescription>
-                    </div>
-                  </div>
-                </CardHeader>
-                
-                <CardContent className="p-6 space-y-4">
-                  {departmentUsersData.length > 0 ? (
-                    departmentUsersData.map((member: any) => (
-                      <Link
-                        key={member.id}
-                        href={`/dashboard/messages/${member.id}`}
-                        className="flex items-center justify-between p-4 rounded-xl border border-gray-100 dark:border-gray-700 hover:border-emerald-200 dark:hover:border-emerald-800 bg-white/50 dark:bg-gray-700/50 hover:bg-emerald-50/30 dark:hover:bg-emerald-900/20 transition-all duration-300 group"
-                      >
-                        <div className="flex items-center gap-4">
-                          <Avatar className="h-12 w-12 ring-2 ring-white dark:ring-gray-800 shadow-lg group-hover:ring-emerald-100 dark:group-hover:ring-emerald-900 transition-all">
-                            <AvatarFallback className="bg-gradient-to-br from-emerald-600 to-teal-600 text-white font-semibold text-sm">
-                              {member.name?.charAt(0)?.toUpperCase() || "U"}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="flex-1 min-w-0">
-                            <p className="font-semibold text-gray-900 dark:text-white truncate">{member.name}</p>
-                            <p className="text-sm text-gray-500 dark:text-gray-400 truncate mt-1">
-                              {member.email}
-                            </p>
-                          </div>
-                        </div>
-                        <MessageSquare className="h-4 w-4 text-gray-400 group-hover:text-emerald-500 transition-colors" />
-                      </Link>
-                    ))
-                  ) : (
-                    <div className="text-center py-12">
-                      <div className="w-20 h-20 mx-auto bg-gradient-to-br from-emerald-100 to-teal-100 dark:from-emerald-900/20 dark:to-teal-900/20 rounded-2xl flex items-center justify-center shadow-lg mb-4">
-                        <Users className="h-8 w-8 text-emerald-600 dark:text-emerald-400" />
-                      </div>
-                      <p className="text-gray-500 dark:text-gray-400 font-semibold text-lg">No department members</p>
-                      <p className="text-gray-400 dark:text-gray-500 text-sm mt-1">
-                        You're not assigned to a department yet
+                      <h1 className="text-base font-bold text-slate-900 dark:text-white leading-tight">
+                        {greetingMessage()}, {session.user.name}!
+                      </h1>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+                        Workspace Performance Overview
                       </p>
                     </div>
-                  )}
-                </CardContent>
-              </Card>
-            )} */}
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {isAdmin && (
+                      <>
+                        <Button asChild variant="outline" size="sm" className="h-8 rounded-xl border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 px-3">
+                          <Link href="/dashboard/new-channel" className="flex items-center gap-1">
+                            <PlusCircle className="h-3.5 w-3.5 text-indigo-500" />
+                            New Channel
+                          </Link>
+                        </Button>
+                        <Button asChild size="sm" className="h-8 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl text-xs px-3 shadow-xs">
+                          <Link href="/dashboard/tasks/new" className="flex items-center gap-1">
+                            <PlusCircle className="h-3.5 w-3.5" />
+                            New Project
+                          </Link>
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Master 2-Column Grid (Eliminating Unnecessary Scroll) */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+                
+                {/* Left Column (8 cols): Projects & Analytics */}
+                <div className="lg:col-span-8 space-y-5 min-w-0">
+                  {/* Projects Section */}
+                  <div className="w-full">
+                    <ProjectPage />
+                  </div>
+
+                  {/* Analytics Charts */}
+                  <div className="w-full">
+                    <DashboardCharts
+                      taskTrendData={taskTrendData}
+                      taskStatusData={taskStatusData}
+                      performanceData={performanceData}
+                    />
+                  </div>
+                </div>
+
+                {/* Right Column (4 cols): Quick Stats + Communication Side Panel */}
+                <div className="lg:col-span-4 space-y-5 min-w-0">
+                  
+                  {/* Stats Cards (2x2 Grid) */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs p-3.5">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                            Channels
+                          </p>
+                          <p className="text-2xl font-black text-slate-900 dark:text-white mt-0.5">
+                            {recentChannels.length}
+                          </p>
+                        </div>
+                        <div className="h-9 w-9 rounded-xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 flex items-center justify-center border border-blue-100 dark:border-blue-900/40 shrink-0">
+                          <MessageSquare className="h-4 w-4" />
+                        </div>
+                      </div>
+                    </Card>
+
+                    <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs p-3.5">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                            Assigned
+                          </p>
+                          <p className="text-2xl font-black text-slate-900 dark:text-white mt-0.5">
+                            {assignedTasksCount}
+                          </p>
+                        </div>
+                        <div className="h-9 w-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center border border-indigo-100 dark:border-indigo-900/40 shrink-0">
+                          <CheckCircle className="h-4 w-4" />
+                        </div>
+                      </div>
+                    </Card>
+
+                    <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs p-3.5">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                            Completed
+                          </p>
+                          <p className="text-2xl font-black text-slate-900 dark:text-white mt-0.5">
+                            {completedTasksCount}
+                          </p>
+                        </div>
+                        <div className="h-9 w-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center border border-emerald-100 dark:border-emerald-900/40 shrink-0">
+                          <CheckCircle className="h-4 w-4" />
+                        </div>
+                      </div>
+                    </Card>
+
+                    <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs p-3.5">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                            In Progress
+                          </p>
+                          <p className="text-2xl font-black text-slate-900 dark:text-white mt-0.5">
+                            {inProgressTasksCount}
+                          </p>
+                        </div>
+                        <div className="h-9 w-9 rounded-xl bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 flex items-center justify-center border border-amber-100 dark:border-amber-900/40 shrink-0">
+                          <Activity className="h-4 w-4" />
+                        </div>
+                      </div>
+                    </Card>
+                  </div>
+
+                  {/* Channels Section */}
+                  <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs overflow-hidden">
+                    <CardHeader className="pb-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 p-4">
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-slate-900 dark:text-white text-sm font-bold flex items-center gap-2">
+                          <div className="p-1 bg-blue-50 dark:bg-blue-950/50 rounded-md text-blue-600 dark:text-blue-400">
+                            <Hash className="h-3.5 w-3.5" />
+                          </div>
+                          Recent Channels
+                          <Badge variant="secondary" className="bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 text-[9px] px-1.5 py-0 font-bold">
+                            {recentChannels.length}
+                          </Badge>
+                        </CardTitle>
+                        <Button variant="ghost" size="sm" asChild className="h-7 text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 px-2">
+                          <Link href="/dashboard/channels/all">
+                            View All
+                          </Link>
+                        </Button>
+                      </div>
+                    </CardHeader>
+
+                    <CardContent className="p-3.5 space-y-2">
+                      {recentChannels.length > 0 ? (
+                        recentChannels.map((channel) => (
+                          <Link
+                            key={channel.id}
+                            href={`/dashboard/channels/${channel.id}`}
+                            className="flex items-center justify-between p-2.5 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-800/30 hover:bg-blue-50/50 dark:hover:bg-blue-900/20 hover:border-blue-200 dark:hover:border-blue-800 transition-all duration-150 group"
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div className="h-8 w-8 rounded-lg bg-blue-100/80 dark:bg-blue-900/40 flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold shrink-0">
+                                <Hash className="h-3.5 w-3.5" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-bold text-slate-900 dark:text-white text-xs truncate group-hover:text-blue-600 dark:group-hover:text-blue-400">
+                                  {channel.name || "Unnamed Channel"}
+                                </p>
+                                <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                                  {channel._count?.messages || 0} messages
+                                </p>
+                              </div>
+                            </div>
+                            <ChevronRight className="h-3.5 w-3.5 text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400" />
+                          </Link>
+                        ))
+                      ) : (
+                        <div className="text-center py-6">
+                          <p className="text-slate-500 dark:text-slate-400 font-medium text-xs">No channels joined</p>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  {/* Contacts Section */}
+                  <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs overflow-hidden">
+                    <CardHeader className="pb-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 p-4">
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-slate-900 dark:text-white text-sm font-bold flex items-center gap-2">
+                          <div className="p-1 bg-purple-50 dark:bg-purple-950/50 rounded-md text-purple-600 dark:text-purple-400">
+                            <Users className="h-3.5 w-3.5" />
+                          </div>
+                          Recent Contacts
+                          <Badge variant="secondary" className="bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 text-[9px] px-1.5 py-0 font-bold">
+                            {recentContacts.length}
+                          </Badge>
+                        </CardTitle>
+                        <Button variant="ghost" size="sm" asChild className="h-7 text-[11px] font-bold text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 px-2">
+                          <Link href="/dashboard/people">
+                            View All
+                          </Link>
+                        </Button>
+                      </div>
+                    </CardHeader>
+
+                    <CardContent className="p-3.5 space-y-2">
+                      {recentContacts.length > 0 ? (
+                        recentContacts.map((contact: any) => {
+                          const rawContent = contact.lastMessage?.content;
+                          const subtext = !rawContent || rawContent.includes(":\\") || rawContent.startsWith("/")
+                            ? "Direct Message"
+                            : rawContent;
+                          return (
+                            <Link
+                              key={contact.id}
+                              href={`/dashboard/messages/${contact.id}`}
+                              className="flex items-center justify-between p-2.5 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-800/30 hover:bg-purple-50/50 dark:hover:bg-purple-900/20 hover:border-purple-200 dark:hover:border-purple-800 transition-all duration-150 group"
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <Avatar className="h-8 w-8 ring-2 ring-white dark:ring-slate-800 shrink-0">
+                                  <AvatarImage src={contact.image || ""} alt={contact.name} />
+                                  <AvatarFallback className="bg-gradient-to-br from-purple-600 to-indigo-600 text-white font-bold text-xs">
+                                    {contact.name?.charAt(0)?.toUpperCase() || "U"}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-bold text-slate-900 dark:text-white text-xs truncate group-hover:text-purple-600 dark:group-hover:text-purple-400">
+                                    {contact.name}
+                                  </p>
+                                  <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
+                                    {subtext}
+                                  </p>
+                                </div>
+                              </div>
+                              <MessageSquare className="h-3.5 w-3.5 text-slate-400 group-hover:text-purple-600 dark:group-hover:text-purple-400" />
+                            </Link>
+                          );
+                        })
+                      ) : (
+                        <div className="text-center py-6">
+                          <p className="text-slate-500 dark:text-slate-400 font-medium text-xs">No recent contacts</p>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  {/* Performance Radar Chart - Hidden as requested */}
+                </div>
+
               </div>
             </div>
           </>
         )}
-      </div>
     </div>
   );
 }

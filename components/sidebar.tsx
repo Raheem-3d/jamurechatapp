@@ -377,30 +377,33 @@ export default function Sidebar({
     <div
       ref={sidebarRef}
       className={cn(
-        "fixed left-0 top-0 h-full bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 flex flex-col z-40 overflow-hidden transition-[width] duration-200",
+        "fixed left-0 top-0 h-full bg-white dark:bg-slate-900 border-r border-slate-200/80 dark:border-slate-800 flex flex-col z-40 overflow-hidden transition-[width] duration-200 shadow-sm",
       )}
       style={{
         width: isCollapsed ? 80 : width,
       }}
     >
       {/* Header */}
-      <div className="p-6 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
+      <div className="p-5 border-b border-slate-200/80 dark:border-slate-800 flex items-center justify-between bg-slate-50/40 dark:bg-slate-900/40">
         {!isCollapsed && (
           <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
-              {/* <Building className="h-5 w-5 text-white" /> */}
+            <div className="w-8 h-8 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-xl flex items-center justify-center shadow-md shadow-indigo-500/20 text-white font-bold text-sm">
+              <Building className="h-4 w-4 text-white" />
             </div>
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-              {orgName ||
-                (session as any)?.user?.organizationName ||
-                "3D Power"}
-            </h2>
+            <div>
+              <h2 className="text-sm font-extrabold text-slate-900 dark:text-white leading-tight">
+                {orgName ||
+                  (session as any)?.user?.organizationName ||
+                  "Workspace"}
+              </h2>
+              <span className="text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">Enterprise</span>
+            </div>
           </div>
         )}
         {isCollapsed && (
           <div className="flex justify-center w-full">
-            <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
-              <Building className="h-5 w-5 text-white" />
+            <div className="w-8 h-8 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-xl flex items-center justify-center shadow-md text-white font-bold">
+              <Building className="h-4 w-4 text-white" />
             </div>
           </div>
         )}
@@ -408,7 +411,7 @@ export default function Sidebar({
           variant="ghost"
           size="sm"
           onClick={() => setIsCollapsed(!isCollapsed)}
-          className="h-8 w-8 p-0"
+          className="h-7 w-7 p-0 rounded-lg text-slate-500 hover:text-slate-900 dark:hover:text-white"
         >
           <ChevronDown
             className={cn(
@@ -420,42 +423,42 @@ export default function Sidebar({
       </div>
 
       <ScrollArea className="flex-1">
-        <div className="p-4">
+        <div className="p-3.5 space-y-5">
           {/* Main Navigation */}
-          <nav className="space-y-1 mb-6">
+          <nav className="space-y-1">
             {navItems.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
                 prefetch={true}
                 className={cn(
-                  "flex items-center px-3 py-3 rounded-lg text-sm font-medium transition-all duration-200 group",
+                  "flex items-center px-3 py-2.5 rounded-xl text-xs font-semibold transition-all duration-150 group",
                   pathname === item.href
-                    ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800"
-                    : "text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100",
+                    ? "bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border border-indigo-200/60 dark:border-indigo-800/60 shadow-xs font-bold"
+                    : "text-slate-600 dark:text-slate-400 hover:bg-slate-100/70 dark:hover:bg-slate-800/70 hover:text-slate-900 dark:hover:text-slate-100",
                 )}
               >
                 <div
                   className={cn(
-                    "transition-colors",
+                    "transition-colors shrink-0",
                     pathname === item.href
-                      ? "text-blue-600 dark:text-blue-400"
-                      : "text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300",
+                      ? "text-indigo-600 dark:text-indigo-400"
+                      : "text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300",
                   )}
                 >
                   {item.icon}
                 </div>
-                {!isCollapsed && <span className="ml-3">{item.title}</span>}
+                {!isCollapsed && <span className="ml-3 truncate">{item.title}</span>}
               </Link>
             ))}
           </nav>
 
           {/* Projects/Board Section */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
+          <div className="space-y-3 pt-2 border-t border-slate-100 dark:border-slate-800/80">
+            <div className="flex items-center justify-between px-1">
               {!isCollapsed && (
-                <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  {isClient ? "Projects" : "Workspace"}
+                <h3 className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+                  {isClient ? "Projects" : "Workspace Channels"}
                 </h3>
               )}
 
@@ -542,7 +545,7 @@ export default function Sidebar({
                     placeholder="Search projects..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="h-8 text-sm bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700"
+                    className="h-8 text-xs bg-slate-100/80 dark:bg-slate-800/60 border-slate-200/80 dark:border-slate-700/80 rounded-xl focus:bg-white dark:focus:bg-slate-900"
                   />
                 )}
                 <div className="space-y-1">
@@ -550,7 +553,7 @@ export default function Sidebar({
                     ? Array.from({ length: 3 }).map((_, i) => (
                       <Skeleton
                         key={i}
-                        className="h-8 w-full bg-gray-200 dark:bg-gray-700 rounded-lg"
+                        className="h-8 w-full bg-slate-200/80 dark:bg-slate-800 rounded-xl"
                       />
                     ))
                     : recentTasks.length > 0
@@ -562,18 +565,18 @@ export default function Sidebar({
                           onMouseEnter={() => prefetchChannel(task.id)}
                           onClick={() => handleChannelNavigation(task.id)}
                           className={cn(
-                            "flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 group",
+                            "flex items-center px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-150 group",
                             navigatingTo === task.id
-                              ? "bg-blue-100 dark:bg-blue-800/40 opacity-70"
+                              ? "bg-indigo-100 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 opacity-70"
                               : pathname === `/dashboard/tasks/${task.id}`
-                                ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
-                                : "text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800",
+                                ? "bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 border border-indigo-200/60 dark:border-indigo-800/60 font-bold shadow-xs"
+                                : "text-slate-600 dark:text-slate-400 hover:bg-slate-100/70 dark:hover:bg-slate-800/70 hover:text-slate-900 dark:hover:text-slate-100",
                           )}
                         >
                           {navigatingTo === task.id ? (
-                            <div className="w-4 h-4 mr-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                            <div className="w-3.5 h-3.5 mr-2.5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
                           ) : (
-                            <Briefcase className="h-4 w-4 mr-3 text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300" />
+                            <Briefcase className="h-3.5 w-3.5 mr-2.5 text-indigo-500 group-hover:scale-110 transition-transform shrink-0" />
                           )}
                           {!isCollapsed && (
                             <span className="truncate flex-1">
@@ -583,23 +586,23 @@ export default function Sidebar({
                         </Link>
                       ))
                       : !isCollapsed && (
-                        <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-2">
-                          No projects
+                        <p className="text-xs text-slate-400 dark:text-slate-500 text-center py-2 font-medium">
+                          No projects found
                         </p>
                       )}
                 </div>
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-2.5">
                 {!isCollapsed && (
                   <Select value={boardType} onValueChange={setBoardType}>
-                    <SelectTrigger className="h-8 text-sm bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+                    <SelectTrigger className="h-8 text-xs font-semibold bg-slate-100/80 dark:bg-slate-800/60 border-slate-200/80 dark:border-slate-700/80 rounded-xl focus:ring-0">
                       <SelectValue placeholder="Select view" />
                     </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="recent-chats">Recent Chats</SelectItem>
-                      <SelectItem value="projects">Projects</SelectItem>
-                      <SelectItem value="channels">Channels</SelectItem>
+                    <SelectContent className="rounded-xl border-slate-200 dark:border-slate-800 shadow-lg">
+                      <SelectItem value="recent-chats" className="text-xs font-semibold">Recent Chats</SelectItem>
+                      <SelectItem value="projects" className="text-xs font-semibold">Projects</SelectItem>
+                      <SelectItem value="channels" className="text-xs font-semibold">Channels</SelectItem>
                     </SelectContent>
                   </Select>
                 )}
@@ -615,7 +618,7 @@ export default function Sidebar({
                     }
                     value={workspaceSearchQuery}
                     onChange={(e) => setWorkspaceSearchQuery(e.target.value)}
-                    className="h-8 text-sm bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700"
+                    className="h-8 text-xs bg-slate-100/80 dark:bg-slate-800/60 border-slate-200/80 dark:border-slate-700/80 rounded-xl focus:bg-white dark:focus:bg-slate-900"
                   />
                 )}
 
@@ -624,7 +627,7 @@ export default function Sidebar({
                     ? Array.from({ length: 3 }).map((_, i) => (
                       <Skeleton
                         key={i}
-                        className="h-8 w-full bg-gray-200 dark:bg-gray-700 rounded-lg break-all"
+                        className="h-8 w-full bg-slate-200/80 dark:bg-slate-800 rounded-xl"
                       />
                     ))
                     : boardType === "recent-chats"
@@ -639,41 +642,41 @@ export default function Sidebar({
                               handleChannelNavigation(contact.id)
                             }
                             className={cn(
-                              "flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 group",
+                              "flex items-center px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-150 group",
                               navigatingTo === contact.id
-                                ? "bg-blue-100 dark:bg-blue-800/40 opacity-70"
+                                ? "bg-indigo-100 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 opacity-70"
                                 : pathname ===
                                   `/dashboard/messages/${contact.id}`
-                                  ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
-                                  : "text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800",
+                                  ? "bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 border border-indigo-200/60 dark:border-indigo-800/60 font-bold shadow-xs"
+                                  : "text-slate-600 dark:text-slate-400 hover:bg-slate-100/70 dark:hover:bg-slate-800/70 hover:text-slate-900 dark:hover:text-slate-100",
                             )}
                           >
                             <div className="relative flex-shrink-0">
                               {navigatingTo === contact.id ? (
-                                <div className="w-5 h-5 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center">
-                                  <div className="w-2 h-2 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                                <div className="w-5 h-5 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center">
+                                  <div className="w-2 h-2 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
                                 </div>
                               ) : (
                                 <>
-                                  <div className="w-5 h-5 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-xs text-white font-medium">
+                                  <div className="w-5 h-5 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-[10px] text-white font-bold">
                                     {contact.name?.charAt(0)?.toUpperCase() ||
                                       "U"}
                                   </div>
                                   {onlineUsers?.includes(contact.id) && (
-                                    <div className="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-green-500 border border-white dark:border-gray-700"></div>
+                                    <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-500 border border-white dark:border-slate-900"></div>
                                   )}
                                 </>
                               )}
                             </div>
                             {!isCollapsed && (
-                              <span className="ml-3 truncate flex-1 text-gray-700 dark:text-gray-300">
+                              <span className="ml-2.5 truncate flex-1 text-slate-700 dark:text-slate-300">
                                 {contact.name || "Unknown User"}
                               </span>
                             )}
                           </Link>
                         ))
                         : !isCollapsed && (
-                          <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-2">
+                          <p className="text-xs text-slate-400 dark:text-slate-500 text-center py-2 font-medium">
                             No recent chats
                           </p>
                         )
@@ -687,18 +690,18 @@ export default function Sidebar({
                               onMouseEnter={() => prefetchChannel(task.id)}
                               onClick={() => handleChannelNavigation(task.id)}
                               className={cn(
-                                "flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 group",
+                                "flex items-center px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-150 group",
                                 navigatingTo === task.id
-                                  ? "bg-blue-100 dark:bg-blue-800/40 opacity-70"
+                                  ? "bg-indigo-100 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 opacity-70"
                                   : pathname === `/dashboard/tasks/${task.id}`
-                                    ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
-                                    : "text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800",
+                                    ? "bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 border border-indigo-200/60 dark:border-indigo-800/60 font-bold shadow-xs"
+                                    : "text-slate-600 dark:text-slate-400 hover:bg-slate-100/70 dark:hover:bg-slate-800/70 hover:text-slate-900 dark:hover:text-slate-100",
                               )}
                             >
                               {navigatingTo === task.id ? (
-                                <div className="w-4 h-4 mr-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                                <div className="w-3.5 h-3.5 mr-2.5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
                               ) : (
-                                <Briefcase className="h-4 w-4 mr-3 text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300" />
+                                <Briefcase className="h-3.5 w-3.5 mr-2.5 text-indigo-500 group-hover:scale-110 transition-transform shrink-0" />
                               )}
                               {!isCollapsed && (
                                 <span className="truncate flex-1">
@@ -708,7 +711,7 @@ export default function Sidebar({
                             </Link>
                           ))
                           : !isCollapsed && (
-                            <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-2">
+                            <p className="text-xs text-slate-400 dark:text-slate-500 text-center py-2 font-medium">
                               No projects
                             </p>
                           )
@@ -723,25 +726,23 @@ export default function Sidebar({
                                 handleChannelNavigation(channel.id)
                               }
                               className={cn(
-                                "flex items-start px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 group break-words relative",
+                                "flex items-center px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-150 group",
                                 navigatingTo === channel.id
-                                  ? "bg-blue-100 dark:bg-blue-800/40 text-blue-700 dark:text-blue-300 opacity-70"
+                                  ? "bg-indigo-100 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 opacity-70"
                                   : pathname ===
                                     `/dashboard/channels/${channel.id}`
-                                    ? "bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
-                                    : "text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800",
+                                    ? "bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 border border-indigo-200/60 dark:border-indigo-800/60 font-bold shadow-xs"
+                                    : "text-slate-600 dark:text-slate-400 hover:bg-slate-100/70 dark:hover:bg-slate-800/70 hover:text-slate-900 dark:hover:text-slate-100",
                               )}
                             >
                               {navigatingTo === channel.id ? (
-                                <div className="inline-block mr-3 mt-0.5 shrink-0">
-                                  <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                                </div>
+                                <div className="w-3.5 h-3.5 mr-2.5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin shrink-0"></div>
                               ) : (
-                                <Hash className="h-4 w-4 mt-0.5 mr-3 shrink-0 text-gray-400" />
+                                <Hash className="h-3.5 w-3.5 mr-2.5 text-indigo-500 group-hover:scale-110 transition-transform shrink-0" />
                               )}
 
                               {!isCollapsed && (
-                                <span className="flex-1 min-w-0 whitespace-normal break-words leading-tight">
+                                <span className="truncate flex-1 text-slate-700 dark:text-slate-300">
                                   {channel.name.charAt(0).toUpperCase() +
                                     channel.name.slice(1)}
                                 </span>
@@ -749,7 +750,7 @@ export default function Sidebar({
                             </Link>
                           ))
                           : !isCollapsed && (
-                            <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-2">
+                            <p className="text-xs text-slate-400 dark:text-slate-500 text-center py-2 font-medium">
                               No channels
                             </p>
                           )}

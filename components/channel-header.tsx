@@ -132,92 +132,85 @@ export default function ChannelHeader({ channel }: ChannelHeaderProps) {
   return (
     <div>
       <motion.div
-        className="px-4 py-3 border-b flex items-center justify-between bg-white shadow-sm dark:bg-gray-800 dark:text-[#f5f5f5]"
-        initial={{ y: -20, opacity: 0 }}
+        className="px-5 py-3 border-b border-slate-200/80 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-slate-900 shadow-xs"
+        initial={{ y: -10, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        transition={{ duration: 0.3 }}
+        transition={{ duration: 0.2 }}
       >
-       
-      
-   
+        <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 w-8 p-0 rounded-xl border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 shrink-0"
+            onClick={() => router.back()}
+            title="Back"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
 
-
-
-        <div className="flex items-center">
-          <div className="bg-gray-100 p-2 rounded-md mr-3 dark:bg-gray-700 flex items-center justify-center">
-
-                    <Button
-      variant="outline"
-      size="sm"
-      className="h-10 w-10 p-0 mx-4"
-      onClick={() => router.back()}
-    >
-      <ArrowLeft className="h-4 w-4" />
-    </Button>
-
-            <Hash className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-
-    
+          <div className="h-9 w-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center border border-indigo-100 dark:border-indigo-800/80 shrink-0 font-bold">
+            <Hash className="h-4 w-4" />
           </div>
-          
+
           <div>
-            <h2 className="font-semibold text-gray-900 dark:text-[#f5f5f5]">
-              {channel.name}
-            </h2>
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center gap-2">
+              <h2 className="font-bold text-slate-900 dark:text-white text-base leading-tight">
+                {channel.name}
+              </h2>
               {channel.department && (
                 <Badge
-                  variant="outline"
-                  className="bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900 dark:text-blue-200 dark:border-blue-700"
+                  variant="secondary"
+                  className="bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-extrabold text-[10px] px-2 py-0.5"
                 >
                   {channel.department.name}
                 </Badge>
               )}
               {channel.isTaskThread && channel.task && (
                 <Badge
-                  variant="outline"
-                  className="bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900 dark:text-purple-200 dark:border-purple-700"
+                  variant="secondary"
+                  className="bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 font-extrabold text-[10px] px-2 py-0.5"
                 >
                   Task Thread
                 </Badge>
               )}
-              <span className="text-xs text-gray-500 dark:text-gray-400">
-                {displayMembers.length} members
-              </span>
             </div>
+            <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mt-0.5">
+              {displayMembers.length} {displayMembers.length === 1 ? "member" : "members"}
+            </p>
           </div>
         </div>
-        <div className="flex items-center space-x-2">
-          {/* AI Summary Button */}
-          {/* <MessageSummarizer channelId={channel.id} limit={50} /> */}
-          
+
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowMembers(true)}
+            className="h-8 rounded-xl border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 px-3"
+          >
+            <Users className="h-3.5 w-3.5 mr-1.5 text-indigo-500" />
+            Members
+          </Button>
+
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => setShowMembers(true)}
-            className="dark:hover:bg-gray-700"
-          >
-            <Users className="h-4 w-4 mr-2" />
-            Members
-          </Button>
-          <Button 
-            variant="ghost" 
-            size="icon" 
             onClick={toggleMute}
-            className="dark:hover:bg-gray-700"
+            className="h-8 w-8 p-0 rounded-xl text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+            title={isMuted ? "Unmute Notifications" : "Mute Notifications"}
           >
-            {/* {isMuted ? (
-              <BellOff className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+            {isMuted ? (
+              <BellOff className="h-4 w-4 text-rose-500" />
             ) : (
-              <Bell className="h-5 w-5 text-gray-500 dark:text-gray-400" />
-            )} */}
+              <Bell className="h-4 w-4 text-slate-400" />
+            )}
           </Button>
+
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button 
-                variant="ghost" 
-                size="icon"
-                className="dark:hover:bg-gray-700"
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 w-8 p-0 rounded-xl border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200"
               >
                 <Settings className="h-5 w-5" />
               </Button>

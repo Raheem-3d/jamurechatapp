@@ -13,11 +13,16 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Dialog } from "@/components/ui/dialog";
 import { SocketProvider } from "@/lib/socket-client";
 
+import { usePathname } from "next/navigation";
+import { cn } from "@/lib/utils";
+
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const pathname = usePathname();
+  const isChatPage = pathname?.startsWith("/dashboard/channels") || pathname?.startsWith("/dashboard/messages");
   const { data: session, status } = useSession();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -48,7 +53,7 @@ export default function DashboardLayout({
   return (
     <SocketProvider>
       <NotificationsProvider>
-        <div className="flex h-screen bg-background ">
+        <div className="flex h-screen bg-slate-50/60 dark:bg-slate-950">
           {/* Desktop Sidebar */}
           <div
             className="hidden md:flex transition-all duration-300"
@@ -57,7 +62,7 @@ export default function DashboardLayout({
             }}
           >
             {/* ✅ Use isCollapsed here */}
-            <div className="flex flex-col flex-1 min-h-0 border-r bg-card">
+            <div className="flex flex-col flex-1 min-h-0 border-r border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900">
               <div className="flex-1 overflow-y-auto">
                 <Sidebar
                   isCollapsed={isCollapsed}
@@ -83,7 +88,7 @@ export default function DashboardLayout({
           </Sheet>
 
           {/* Main Content */}
-          <div className="flex flex-col flex-1 overflow-hidden dark:bg-gray-900">
+          <div className="flex flex-col flex-1 overflow-hidden bg-slate-50/60 dark:bg-slate-950">
             <div className=" md:hidden flex items-center justify-between p-4 border-b bg-card">
               {/* <Dialog>
                 <SheetTrigger asChild>
@@ -94,7 +99,7 @@ export default function DashboardLayout({
               </Dialog> */}
             </div>
             <Header />
-            <main className="flex-1 overflow-auto m-4 dark:bg-gray-900">
+            <main className={cn("flex-1 overflow-auto bg-slate-50/60 dark:bg-slate-950 flex flex-col", isChatPage ? "p-2 md:p-3" : "p-4 md:p-6")}>
               {children}
             </main>
           </div>

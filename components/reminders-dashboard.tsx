@@ -1,5 +1,3 @@
-
-
 "use client"
 
 import { useState } from "react"
@@ -8,13 +6,29 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/hooks/use-toast"
-import { format, isAfter, isBefore, addDays } from "date-fns"
-import { Clock, Plus, Bell, BellOff, Trash2, User, CheckCircle, AlertTriangle, Calendar, Settings, Filter, MoreVertical, ArrowLeft } from "lucide-react"
+import { format, isAfter, isBefore } from "date-fns"
+import {
+  Clock,
+  Plus,
+  Bell,
+  BellOff,
+  Trash2,
+  CheckCircle,
+  AlertTriangle,
+  Calendar,
+  ArrowLeft,
+  CheckCircle2,
+  AlarmClock,
+  User,
+  SlidersHorizontal,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useRouter } from "next/navigation"
+import { useEffect } from "react"
 
 interface I_User {
   id: string
@@ -50,8 +64,14 @@ interface RemindersDashboardProps {
 export function RemindersDashboard({ currentUser, reminders: initialReminders, users }: RemindersDashboardProps) {
   const [reminders, setReminders] = useState<Reminder[]>(initialReminders)
   const [filter, setFilter] = useState("all")
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 6
   const { toast } = useToast()
-  const router = useRouter();
+  const router = useRouter()
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [filter])
 
   const toggleMute = async (reminderId: string) => {
     try {
@@ -100,44 +120,21 @@ export function RemindersDashboard({ currentUser, reminders: initialReminders, u
     }
   }
 
-  const getPriorityColor = (priority: string) => {
+  const getPriorityBadge = (priority: string) => {
     switch (priority) {
       case "URGENT":
-        return "bg-red-100 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800"
+        return <Badge className="bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800 text-[10px] px-1.5 py-0">Urgent</Badge>
       case "HIGH":
-        return "bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-900/20 dark:text-orange-400 dark:border-orange-800"
+        return <Badge className="bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800 text-[10px] px-1.5 py-0">High</Badge>
       case "MEDIUM":
-        return "bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800"
-      case "LOW":
-        return "bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700"
+        return <Badge className="bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800 text-[10px] px-1.5 py-0">Medium</Badge>
       default:
-        return "bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700"
+        return <Badge className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 text-[10px] px-1.5 py-0">Low</Badge>
     }
-  }
-
-  const getStatusColor = (reminder: Reminder) => {
-    const now = new Date()
-    const remindTime = new Date(reminder.remindAt)
-
-    if (reminder.isSent) return "text-green-600 dark:text-green-400"
-    if (isBefore(remindTime, now)) return "text-red-600 dark:text-red-400"
-    if (isBefore(remindTime, addDays(now, 1))) return "text-orange-600 dark:text-orange-400"
-    return "text-blue-600 dark:text-blue-400"
-  }
-
-  const getStatusIcon = (reminder: Reminder) => {
-    const now = new Date()
-    const remindTime = new Date(reminder.remindAt)
-
-    if (reminder.isSent) return <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400" />
-    if (isBefore(remindTime, now)) return <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />
-    if (isBefore(remindTime, addDays(now, 1))) return <Clock className="h-4 w-4 text-orange-600 dark:text-orange-400" />
-    return <Calendar className="h-4 w-4 text-blue-600 dark:text-blue-400" />
   }
 
   const getFilteredReminders = () => {
     const now = new Date()
-
     switch (filter) {
       case "upcoming":
         return reminders.filter((r) => isAfter(new Date(r.remindAt), now) && !r.isSent)
@@ -157,253 +154,278 @@ export function RemindersDashboard({ currentUser, reminders: initialReminders, u
   }
 
   const filteredReminders = getFilteredReminders()
+  const totalPages = Math.ceil(filteredReminders.length / itemsPerPage)
+  const paginatedReminders = filteredReminders.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  )
   const upcomingCount = reminders.filter((r) => isAfter(new Date(r.remindAt), new Date()) && !r.isSent).length
   const overdueCount = reminders.filter((r) => isBefore(new Date(r.remindAt), new Date()) && !r.isSent).length
   const sentCount = reminders.filter((r) => r.isSent).length
 
-  const StatCard = ({ title, value, icon: Icon, color, description }: any) => (
-    <Card className="border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-shadow dark:bg-gray-900">
-      <CardContent className="p-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">{title}</p>
-            <p className={cn("text-2xl font-bold", color)}>{value}</p>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{description}</p>
-          </div>
-          <div className={cn("p-3 rounded-xl", color.replace('text', 'bg').replace('-600', '-100 dark:bg-gray-700'))}>
-            <Icon className="h-6 w-6" />
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  )
-
   return (
-    <div className="min-h-screen bg-gray-50/50 dark:bg-gray-900 p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-         
-          <div>
+    <div className="w-full space-y-5">
+      {/* Sleek Header Bar */}
+      <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 px-5 border border-slate-200/80 dark:border-slate-800 shadow-xs">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
             <Button
               variant="outline"
               size="sm"
-              className="h-10 w-10 p-0 mx-2 bg-blue-800/30 hover:bg-blue-800/40 border-0"
+              className="h-8 w-8 p-0 rounded-xl border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 shrink-0"
               onClick={() => router.back()}
+              title="Back"
             >
               <ArrowLeft className="h-4 w-4" />
             </Button>
-          </div>
-
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Reminders</h1>
-            <p className="text-gray-600 dark:text-gray-400">
-              Manage your reminders and stay on top of important tasks
-            </p>
-          </div>
-          <div className="flex gap-3">
-            <Link href="/dashboard/reminders/create">
-              <Button className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm">
-                <Plus className="h-4 w-4 mr-2" />
-                Create Reminder
-              </Button>
-            </Link>
-          </div>
-        </div>
-
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 ">
-          <StatCard
-          className='dark:bg-gray-900'
-            title="Total Reminders"
-            value={reminders.length}
-            icon={Calendar}
-            color="text-gray-600 dark:text-gray-400  "
-            description="All reminders"
-          />
-          <StatCard
-            title="Upcoming"
-            value={upcomingCount}
-            icon={Clock}
-            color="text-blue-600 dark:text-blue-400"
-            description="Scheduled reminders"
-          />
-          <StatCard
-            title="Overdue"
-            value={overdueCount}
-            icon={AlertTriangle}
-            color="text-red-600 dark:text-red-400"
-            description="Require attention"
-          />
-          <StatCard
-            title="Completed"
-            value={sentCount}
-            icon={CheckCircle}
-            color="text-green-600 dark:text-green-400"
-            description="Sent reminders"
-          />
-        </div>
-
-        {/* Main Content */}
-        <Card className="border border-gray-200 dark:border-gray-700 shadow-sm dark:bg-gray-900">
-          <CardHeader className="pb-4 border-b border-gray-100 dark:border-gray-700">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div>
-                <CardTitle className="text-xl text-gray-900 dark:text-white">Your Reminders</CardTitle>
-                <CardDescription className="text-gray-600 dark:text-gray-400">
-                  {filteredReminders.length} reminder{filteredReminders.length !== 1 ? 's' : ''} found
-                </CardDescription>
-              </div>
-              
-              {/* Filter Tabs */}
-              <Tabs value={filter} onValueChange={setFilter} className="w-full sm:w-auto">
-                <TabsList className="grid grid-cols-4 sm:grid-cols-7 w-full sm:w-auto">
-                  <TabsTrigger value="all" className="text-xs">All</TabsTrigger>
-                  <TabsTrigger value="upcoming" className="text-xs">Upcoming</TabsTrigger>
-                  <TabsTrigger value="overdue" className="text-xs">Overdue</TabsTrigger>
-                  <TabsTrigger value="sent" className="text-xs">Sent</TabsTrigger>
-                  <TabsTrigger value="muted" className="text-xs hidden sm:flex">Muted</TabsTrigger>
-                  <TabsTrigger value="assigned" className="text-xs hidden sm:flex">Assigned</TabsTrigger>
-                  <TabsTrigger value="created" className="text-xs hidden sm:flex">Created</TabsTrigger>
-                </TabsList>
-              </Tabs>
+            <div className="p-2 bg-indigo-50 dark:bg-indigo-950/60 rounded-xl text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-800/80 shrink-0">
+              <AlarmClock className="h-5 w-5" />
             </div>
-          </CardHeader>
+            <div>
+              <h1 className="text-base font-bold text-slate-900 dark:text-white leading-tight">
+                Reminders
+              </h1>
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                Manage your reminders and stay on top of important tasks
+              </p>
+            </div>
+          </div>
 
-          <CardContent className="p-0">
-            {filteredReminders.length === 0 ? (
-              <div className="text-center py-12">
-                <div className="w-16 h-16 mx-auto bg-gray-100 dark:bg-gray-800 rounded-2xl flex items-center justify-center mb-4">
-                  <Calendar className="h-8 w-8 text-gray-400" />
-                </div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">No reminders found</h3>
-                <p className="text-gray-500 dark:text-gray-400 mb-6 max-w-md mx-auto">
-                  {filter === "all" 
-                    ? "You don't have any reminders set up yet. Create your first reminder to stay organized." 
-                    : `No ${filter} reminders match your current filter.`
-                  }
-                </p>
-                <Link href="/dashboard/reminders/create">
-                  <Button className="bg-blue-600 hover:bg-blue-700 text-white">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Create New Reminder
-                  </Button>
-                </Link>
+          <div className="flex items-center gap-2">
+            <Button asChild size="sm" className="h-8 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl text-xs px-3.5 shadow-xs">
+              <Link href="/dashboard/reminders/create" className="flex items-center gap-1.5">
+                <Plus className="h-3.5 w-3.5" />
+                Create Reminder
+              </Link>
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* Metric Cards Row */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Total Reminders</p>
+              <p className="text-2xl font-black text-slate-900 dark:text-white mt-0.5">{reminders.length}</p>
+            </div>
+            <div className="h-9 w-9 rounded-xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 flex items-center justify-center border border-blue-100 dark:border-blue-900/40">
+              <Calendar className="h-4 w-4" />
+            </div>
+          </div>
+        </Card>
+
+        <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Upcoming</p>
+              <p className="text-2xl font-black text-slate-900 dark:text-white mt-0.5">{upcomingCount}</p>
+            </div>
+            <div className="h-9 w-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center border border-indigo-100 dark:border-indigo-900/40">
+              <Clock className="h-4 w-4" />
+            </div>
+          </div>
+        </Card>
+
+        <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Overdue</p>
+              <p className="text-2xl font-black text-slate-900 dark:text-white mt-0.5">{overdueCount}</p>
+            </div>
+            <div className="h-9 w-9 rounded-xl bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 flex items-center justify-center border border-rose-100 dark:border-rose-900/40">
+              <AlertTriangle className="h-4 w-4" />
+            </div>
+          </div>
+        </Card>
+
+        <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Completed / Sent</p>
+              <p className="text-2xl font-black text-slate-900 dark:text-white mt-0.5">{sentCount}</p>
+            </div>
+            <div className="h-9 w-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center border border-emerald-100 dark:border-emerald-900/40">
+              <CheckCircle2 className="h-4 w-4" />
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      {/* Main List Container */}
+      <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs overflow-hidden">
+        <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 p-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <CardTitle className="text-sm font-bold text-slate-900 dark:text-white">Your Reminders</CardTitle>
+              <Badge variant="secondary" className="bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-extrabold text-[10px] px-2 py-0.5">
+                {filteredReminders.length}
+              </Badge>
+            </div>
+
+            {/* Filter Tabs */}
+            <Tabs value={filter} onValueChange={setFilter} className="w-full sm:w-auto">
+              <TabsList className="bg-slate-200/60 dark:bg-slate-800 p-1 rounded-xl h-8">
+                <TabsTrigger value="all" className="text-[11px] font-semibold h-6 rounded-lg px-2.5">All</TabsTrigger>
+                <TabsTrigger value="upcoming" className="text-[11px] font-semibold h-6 rounded-lg px-2.5">Upcoming</TabsTrigger>
+                <TabsTrigger value="overdue" className="text-[11px] font-semibold h-6 rounded-lg px-2.5">Overdue</TabsTrigger>
+                <TabsTrigger value="sent" className="text-[11px] font-semibold h-6 rounded-lg px-2.5">Sent</TabsTrigger>
+                <TabsTrigger value="muted" className="text-[11px] font-semibold h-6 rounded-lg px-2.5">Muted</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
+        </CardHeader>
+
+        <CardContent className="p-4 space-y-3">
+          {filteredReminders.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="w-12 h-12 mx-auto bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center text-slate-400 mb-3">
+                <AlarmClock className="h-6 w-6" />
               </div>
-            ) : (
-              <div className="divide-y divide-gray-100 dark:divide-gray-800">
-                {filteredReminders.map((reminder) => (
-                  <div key={reminder.id} className="p-6 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1 space-y-3">
-                        {/* Header */}
-                        <div className="flex items-start justify-between">
-                          <div className="flex items-center gap-3">
-                            {getStatusIcon(reminder)}
-                            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{reminder.title}</h3>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Badge className={cn("text-xs font-medium", getPriorityColor(reminder.priority))}>
-                              {reminder.priority}
-                            </Badge>
-                            {reminder.isMuted && (
-                              <Badge variant="outline" className="text-xs">
-                                <BellOff className="h-3 w-3 mr-1" />
-                                Muted
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
+              <p className="text-sm font-bold text-slate-800 dark:text-slate-200">No reminders found</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-sm mx-auto">
+                {filter === "all"
+                  ? "You don't have any reminders set up yet. Create your first reminder to stay organized."
+                  : `No ${filter} reminders match your current filter.`}
+              </p>
+              <Button asChild size="sm" className="mt-4 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl text-xs px-4 shadow-xs">
+                <Link href="/dashboard/reminders/create" className="flex items-center gap-1.5">
+                  <Plus className="h-3.5 w-3.5" />
+                  Create Reminder
+                </Link>
+              </Button>
+            </div>
+          ) : (
+            <>
+              {paginatedReminders.map((reminder) => (
+                <div
+                  key={reminder.id}
+                  className="p-4 rounded-2xl border border-slate-100 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-800/30 hover:border-indigo-200 dark:hover:border-indigo-800 transition-all flex flex-col md:flex-row items-start md:items-center justify-between gap-4 group"
+                >
+                  <div className="space-y-1.5 flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                        {reminder.title}
+                      </h3>
+                      {getPriorityBadge(reminder.priority)}
+                      {reminder.isMuted && (
+                        <Badge variant="outline" className="text-[9px] font-semibold border-rose-200 text-rose-600 bg-rose-50 dark:bg-rose-950/40 px-1.5 py-0">
+                          Muted
+                        </Badge>
+                      )}
+                    </div>
 
-                        {/* Description */}
-                        {reminder.description && (
-                          <p className="text-gray-600 dark:text-gray-400 text-sm leading-relaxed">
-                            {reminder.description}
-                          </p>
-                        )}
+                    {reminder.description && (
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed line-clamp-2">
+                        {reminder.description}
+                      </p>
+                    )}
 
-                        {/* Metadata */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                          <div className="flex items-center gap-2">
-                            <Clock className="h-4 w-4 text-gray-400" />
-                            <span className={cn("font-medium", getStatusColor(reminder))}>
-                              {format(new Date(reminder.remindAt), "MMM d, yyyy 'at' h:mm a")}
-                            </span>
-                          </div>
-
-                          <div className="flex items-center gap-2">
-                            <User className="h-4 w-4 text-gray-400" />
-                            <div className="flex items-center gap-2">
-                              <Avatar className="h-5 w-5">
-                                <AvatarImage src={reminder.creator.image} alt={reminder.creator.name} />
-                                <AvatarFallback className="text-xs bg-blue-100 text-blue-600 dark:bg-blue-900 dark:text-blue-400">
-                                  {reminder.creator.name.charAt(0)}
-                                </AvatarFallback>
-                              </Avatar>
-                              <span className="text-gray-600 dark:text-gray-400">From {reminder.creator.name}</span>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-2">
-                            <User className="h-4 w-4 text-gray-400" />
-                            <div className="flex items-center gap-2">
-                              <Avatar className="h-5 w-5">
-                                <AvatarImage src={reminder.assignee.image} alt={reminder.assignee.name} />
-                                <AvatarFallback className="text-xs bg-green-100 text-green-600 dark:bg-green-900 dark:text-green-400">
-                                  {reminder.assignee.name.charAt(0)}
-                                </AvatarFallback>
-                              </Avatar>
-                              <span className="text-gray-600 dark:text-gray-400">To {reminder.assignee.name}</span>
-                            </div>
-                          </div>
-                        </div>
+                    <div className="flex items-center gap-4 text-[11px] font-medium text-slate-500 dark:text-slate-400 pt-1">
+                      <div className="flex items-center gap-1">
+                        <Clock className="h-3.5 w-3.5 text-indigo-500" />
+                        <span>{format(new Date(reminder.remindAt), "PPP 'at' p")}</span>
                       </div>
 
-                      {/* Actions */}
-                      <div className="flex items-center gap-2 ml-4">
-                        {reminder.assigneeId === currentUser.id && !reminder.isSent && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => toggleMute(reminder.id)}
-                            className="h-8 w-8 p-0 border-gray-200 dark:border-gray-700"
-                            title={reminder.isMuted ? "Unmute reminder" : "Mute reminder"}
-                          >
-                            {reminder.isMuted ? <BellOff className="h-4 w-4" /> : <Bell className="h-4 w-4" />}
-                          </Button>
-                        )}
-
-                        {(reminder.creatorId === currentUser.id || currentUser.role === "ORG_ADMIN") && (
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-8 w-8 p-0 border-gray-200 dark:border-gray-700"
-                              >
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem 
-                                onClick={() => deleteReminder(reminder.id)}
-                                className="text-red-600 dark:text-red-400 focus:text-red-600"
-                              >
-                                <Trash2 className="h-4 w-4 mr-2" />
-                                Delete Reminder
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        )}
+                      <div className="flex items-center gap-1.5">
+                        <Avatar className="h-4 w-4">
+                          <AvatarImage src={reminder.assignee?.image || ""} alt={reminder.assignee?.name} />
+                          <AvatarFallback className="text-[8px] bg-indigo-600 text-white font-bold">
+                            {reminder.assignee?.name?.charAt(0) || "U"}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span>{reminder.assignee?.name || "Assigned"}</span>
                       </div>
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+
+                  <div className="flex items-center gap-2 self-end md:self-center shrink-0">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => toggleMute(reminder.id)}
+                      className="h-8 text-xs font-semibold rounded-xl border-slate-200 dark:border-slate-700 px-3"
+                      title={reminder.isMuted ? "Unmute reminder" : "Mute reminder"}
+                    >
+                      {reminder.isMuted ? (
+                        <>
+                          <Bell className="h-3.5 w-3.5 mr-1 text-emerald-500" />
+                          Unmute
+                        </>
+                      ) : (
+                        <>
+                          <BellOff className="h-3.5 w-3.5 mr-1 text-rose-500" />
+                          Mute
+                        </>
+                      )}
+                    </Button>
+
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => deleteReminder(reminder.id)}
+                      className="h-8 text-xs font-semibold rounded-xl text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 px-2.5"
+                      title="Delete reminder"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+
+              {/* Pagination Controls */}
+              {totalPages > 1 && (
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 mt-4 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-500 font-medium">
+                  <div>
+                    Showing {Math.min((currentPage - 1) * itemsPerPage + 1, filteredReminders.length)} - {Math.min(currentPage * itemsPerPage, filteredReminders.length)} of {filteredReminders.length} reminders
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={currentPage === 1}
+                      onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                      className="h-7 text-xs font-semibold rounded-xl border-slate-200 dark:border-slate-700 px-2.5"
+                    >
+                      <ChevronLeft className="h-3.5 w-3.5 mr-1" />
+                      Previous
+                    </Button>
+                    <div className="flex items-center gap-1">
+                      {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
+                        <Button
+                          key={pageNum}
+                          variant={pageNum === currentPage ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => setCurrentPage(pageNum)}
+                          className={cn(
+                            "h-7 w-7 p-0 text-xs font-bold rounded-lg",
+                            pageNum === currentPage
+                              ? "bg-indigo-600 text-white hover:bg-indigo-700"
+                              : "border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200"
+                          )}
+                        >
+                          {pageNum}
+                        </Button>
+                      ))}
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={currentPage === totalPages}
+                      onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                      className="h-7 text-xs font-semibold rounded-xl border-slate-200 dark:border-slate-700 px-2.5"
+                    >
+                      Next
+                      <ChevronRight className="h-3.5 w-3.5 ml-1" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }
