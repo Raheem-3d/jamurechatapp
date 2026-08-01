@@ -117,12 +117,27 @@ export default function ChannelHeader({ channel }: ChannelHeaderProps) {
     }
   };
 
+  useEffect(() => {
+    if (typeof window !== "undefined" && channel?.id) {
+      const stored = localStorage.getItem(`muted_channel_${channel.id}`);
+      setIsMuted(stored === "true");
+    }
+  }, [channel?.id]);
+
   const toggleMute = () => {
-    setIsMuted(!isMuted);
-    toast.success(isMuted ? "Notifications Enabled" : "Notifications Muted", {
-      description: isMuted
-        ? "You will now receive notifications for this channel"
-        : "You will no longer receive notifications for this channel",
+    const nextState = !isMuted;
+    setIsMuted(nextState);
+    if (typeof window !== "undefined" && channel?.id) {
+      if (nextState) {
+        localStorage.setItem(`muted_channel_${channel.id}`, "true");
+      } else {
+        localStorage.removeItem(`muted_channel_${channel.id}`);
+      }
+    }
+    toast.success(nextState ? "Notifications Muted" : "Notifications Enabled", {
+      description: nextState
+        ? "You will no longer receive notifications for this channel"
+        : "You will now receive notifications for this channel",
     });
   };
 

@@ -14,9 +14,10 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import TaskCard from "@/components/task-card";
 import TaskFilter from "@/components/task-filter";
-import { PlusCircle, Loader2 } from "lucide-react";
+import { PlusCircle, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { usePermissions } from "@/lib/rbac-utils";
+import { cn } from "@/lib/utils";
 
 export default function TasksPage() {
   const { data: session } = useSession();
@@ -26,7 +27,10 @@ export default function TasksPage() {
   const [filteredCreatedTasks, setFilteredCreatedTasks] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeFilters, setActiveFilters] = useState<any>({});
+  const [assignedPage, setAssignedPage] = useState(1);
+  const [createdPage, setCreatedPage] = useState(1);
 
+  const itemsPerPage = 4;
   const { toast } = useToast();
   const perms = usePermissions();
 
@@ -140,8 +144,22 @@ export default function TasksPage() {
   const groupedAssignedTasks = groupTasksByStatus(filteredAssignedTasks);
   const groupedCreatedTasks = groupTasksByStatus(filteredCreatedTasks);
 
+  const totalAssignedPages = Math.ceil(filteredAssignedTasks.length / itemsPerPage);
+  const paginatedAssignedTasks = filteredAssignedTasks.slice(
+    (assignedPage - 1) * itemsPerPage,
+    assignedPage * itemsPerPage
+  );
+
+  const totalCreatedPages = Math.ceil(filteredCreatedTasks.length / itemsPerPage);
+  const paginatedCreatedTasks = filteredCreatedTasks.slice(
+    (createdPage - 1) * itemsPerPage,
+    createdPage * itemsPerPage
+  );
+
   const handleFilterChange = (filters: any) => {
     setActiveFilters(filters);
+    setAssignedPage(1);
+    setCreatedPage(1);
   };
 
   if (!session) {
@@ -188,7 +206,7 @@ export default function TasksPage() {
                   Projects that have been assigned to you
                 </CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-4">
                 {filteredAssignedTasks.length === 0 ? (
                   <div className="text-center py-8">
                     <p className="text-gray-500 mb-4">
@@ -206,11 +224,61 @@ export default function TasksPage() {
                     )}
                   </div>
                 ) : (
-                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    {filteredAssignedTasks.map((task) => (
-                      <TaskCard key={task.id} task={task} />
-                    ))}
-                  </div>
+                  <>
+                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-2">
+                      {paginatedAssignedTasks.map((task) => (
+                        <TaskCard key={task.id} task={task} />
+                      ))}
+                    </div>
+
+                    {totalAssignedPages > 1 && (
+                      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t text-xs text-slate-500 font-medium">
+                        <div>
+                          Showing {Math.min((assignedPage - 1) * itemsPerPage + 1, filteredAssignedTasks.length)} - {Math.min(assignedPage * itemsPerPage, filteredAssignedTasks.length)} of {filteredAssignedTasks.length} projects
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={assignedPage === 1}
+                            onClick={() => setAssignedPage((prev) => Math.max(prev - 1, 1))}
+                            className="h-7 text-xs font-semibold rounded-xl px-2.5"
+                          >
+                            <ChevronLeft className="h-3.5 w-3.5 mr-1" />
+                            Previous
+                          </Button>
+                          <div className="flex items-center gap-1">
+                            {Array.from({ length: totalAssignedPages }, (_, i) => i + 1).map((pageNum) => (
+                              <Button
+                                key={pageNum}
+                                variant={pageNum === assignedPage ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => setAssignedPage(pageNum)}
+                                className={cn(
+                                  "h-7 w-7 p-0 text-xs font-bold rounded-lg",
+                                  pageNum === assignedPage
+                                    ? "bg-indigo-600 text-white hover:bg-indigo-700"
+                                    : ""
+                                )}
+                              >
+                                {pageNum}
+                              </Button>
+                            ))}
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={assignedPage === totalAssignedPages}
+                            onClick={() => setAssignedPage((prev) => Math.min(prev + 1, totalAssignedPages))}
+                            className="h-7 text-xs font-semibold rounded-xl px-2.5"
+                          >
+                            Next
+                            <ChevronRight className="h-3.5 w-3.5 ml-1" />
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
               </CardContent>
             </Card>
@@ -222,7 +290,7 @@ export default function TasksPage() {
                 <CardTitle>Projects Created by Me</CardTitle>
                 <CardDescription>Projects that you have created</CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="space-y-4">
                 {filteredCreatedTasks.length === 0 ? (
                   <div className="text-center py-8">
                     {perms.canCreateTasks && (
@@ -237,17 +305,63 @@ export default function TasksPage() {
                         </Button>
                       </>
                     )}
-
-                    {/* <Button variant="outline" asChild>
-                      <Link href="/dashboard/tasks/new">Create a New Task</Link>
-                    </Button> */}
                   </div>
                 ) : (
-                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    {filteredCreatedTasks.map((task) => (
-                      <TaskCard key={task.id} task={task} />
-                    ))}
-                  </div>
+                  <>
+                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-2">
+                      {paginatedCreatedTasks.map((task) => (
+                        <TaskCard key={task.id} task={task} />
+                      ))}
+                    </div>
+
+                    {totalCreatedPages > 1 && (
+                      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t text-xs text-slate-500 font-medium">
+                        <div>
+                          Showing {Math.min((createdPage - 1) * itemsPerPage + 1, filteredCreatedTasks.length)} - {Math.min(createdPage * itemsPerPage, filteredCreatedTasks.length)} of {filteredCreatedTasks.length} projects
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={createdPage === 1}
+                            onClick={() => setCreatedPage((prev) => Math.max(prev - 1, 1))}
+                            className="h-7 text-xs font-semibold rounded-xl px-2.5"
+                          >
+                            <ChevronLeft className="h-3.5 w-3.5 mr-1" />
+                            Previous
+                          </Button>
+                          <div className="flex items-center gap-1">
+                            {Array.from({ length: totalCreatedPages }, (_, i) => i + 1).map((pageNum) => (
+                              <Button
+                                key={pageNum}
+                                variant={pageNum === createdPage ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => setCreatedPage(pageNum)}
+                                className={cn(
+                                  "h-7 w-7 p-0 text-xs font-bold rounded-lg",
+                                  pageNum === createdPage
+                                    ? "bg-indigo-600 text-white hover:bg-indigo-700"
+                                    : ""
+                                )}
+                              >
+                                {pageNum}
+                              </Button>
+                            ))}
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={createdPage === totalCreatedPages}
+                            onClick={() => setCreatedPage((prev) => Math.min(prev + 1, totalCreatedPages))}
+                            className="h-7 text-xs font-semibold rounded-xl px-2.5"
+                          >
+                            Next
+                            <ChevronRight className="h-3.5 w-3.5 ml-1" />
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
               </CardContent>
             </Card>

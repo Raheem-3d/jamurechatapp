@@ -40,6 +40,8 @@ import ProjectPage from "@/components/ProjectPage";
 import { cn } from "@/lib/utils";
 import SubscriptionBanner from "@/components/subscription-banner";
 import DashboardCharts, { PerformanceRadarChart } from "@/components/dashboard-charts";
+import { RecentChannelsWidget } from "@/components/recent-channels-widget";
+import { RecentContactsWidget } from "@/components/recent-contacts-widget";
 
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions);
@@ -305,378 +307,269 @@ export default async function DashboardPage() {
     <div className="w-full">
       <SubscriptionBanner />
 
-        {isClient ? (
-          <>
-            {/* Client Dashboard - Modern Redesign */}
-            <div className="flex flex-col gap-8">
-              {/* Welcome Header - Enhanced */}
-              <div className="relative bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-800 rounded-3xl p-8 text-white shadow-2xl overflow-hidden">
-                <div className="absolute inset-0 bg-grid-white/[0.05] bg-[size:20px_20px]" />
-                <div className="relative z-10">
-                  <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-4">
-                        <div className="p-2 bg-white/20 rounded-xl backdrop-blur-sm">
-                          <Sun className="h-6 w-6" />
-                        </div>
-                        <h1 className="text-2xl md:text-4xl font-bold bg-gradient-to-r from-white to-blue-100 bg-clip-text text-transparent">
-                          {greetingMessage()}, {session.user.name}!
-                        </h1>
+      {isClient ? (
+        <>
+          {/* Client Dashboard - Modern Redesign */}
+          <div className="flex flex-col gap-8">
+            {/* Welcome Header - Enhanced */}
+            <div className="relative bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-800 rounded-3xl p-8 text-white shadow-2xl overflow-hidden">
+              <div className="absolute inset-0 bg-grid-white/[0.05] bg-[size:20px_20px]" />
+              <div className="relative z-10">
+                <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="p-2 bg-white/20 rounded-xl backdrop-blur-sm">
+                        <Sun className="h-6 w-6" />
                       </div>
-                      <p className="text-blue-100 text-lg md:text-xl">
-                        Here's what's happening with your projects today
-                      </p>
-                    </div>
-
-                    <div className="flex items-center gap-8 mt-6 lg:mt-0">
-                      <div className="text-center">
-                        <div className="flex items-center gap-2 mb-2">
-                          <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-                          <p className="text-blue-200 text-sm font-medium">Active Projects</p>
-                        </div>
-                        <p className="text-3xl font-bold text-white">{recentTasks.length}</p>
-                      </div>
-                      <div className="w-px h-12 bg-blue-400/30"></div>
-                      <div className="text-center">
-                        <div className="flex items-center gap-2 mb-2">
-                          <CheckCircle className="h-3 w-3 text-green-400" />
-                          <p className="text-blue-200 text-sm font-medium">Completed</p>
-                        </div>
-                        <p className="text-3xl font-bold text-white">{completedTasksCount}</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Projects Section */}
-              <div className="space-y-6">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                  <div>
-                    <h2 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
-                      <Briefcase className="h-7 w-7 text-blue-600" />
-                      My Projects
-                    </h2>
-                    <p className="text-gray-600 dark:text-gray-400 mt-2 text-lg">
-                      Overview of your recent projects and progress
-                    </p>
-                  </div>
-                  <Button asChild className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl px-6 py-3">
-                    <Link href="/dashboard/tasks" className="flex items-center gap-2 font-semibold">
-                      View All Projects
-                      <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
-                    </Link>
-                  </Button>
-                </div>
-
-                {/* Projects Grid */}
-                <Card className="rounded-2xl border-0 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm shadow-xl overflow-hidden">
-                  <CardHeader className="pb-6 border-b border-gray-100 dark:border-gray-700 bg-gradient-to-r from-gray-50 to-blue-50/50 dark:from-gray-800 dark:to-gray-700/50">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <CardTitle className="text-gray-900 dark:text-white text-xl flex items-center gap-2">
-                          Recent Projects
-                          <Badge variant="secondary" className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-0">
-                            {recentTasks.length} total
-                          </Badge>
-                        </CardTitle>
-                        <CardDescription className="text-gray-600 dark:text-gray-400">
-                          Projects you're currently involved with
-                        </CardDescription>
-                      </div>
-                    </div>
-                  </CardHeader>
-
-                  <CardContent className="p-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                      {recentTasks.length > 0 ? (
-                        recentTasks.map((task) => (
-                          <Link
-                            key={task.id}
-                            href={`/dashboard/tasks/${task.id}/record`}
-                            className="block transition-all duration-300 hover:scale-[1.02] hover:shadow-2xl"
-                          >
-                            <TaskCard task={task} client={true} />
-                          </Link>
-                        ))
-                      ) : (
-                        <div className="col-span-full text-center py-16 space-y-6">
-                          <div className="w-24 h-24 mx-auto bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-900/20 dark:to-purple-900/20 rounded-3xl flex items-center justify-center shadow-lg">
-                            <Briefcase className="h-10 w-10 text-blue-600 dark:text-blue-400" />
-                          </div>
-                          <div>
-                            <p className="text-gray-500 dark:text-gray-400 text-xl font-semibold">No projects found</p>
-                            <p className="text-gray-400 dark:text-gray-500 text-base mt-2">
-                              Get started by creating your first project
-                            </p>
-                          </div>
-                          <Button asChild className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl px-8">
-                            <Link href="/dashboard/tasks/new">
-                              Create Project
-                            </Link>
-                          </Button>
-                        </div>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            </div>
-          </>
-        ) : (
-          <>
-            {/* Admin/Employee Dashboard - Compact Master Grid */}
-            <div className="flex flex-col gap-5">
-              {/* Header Section */}
-              <div className="bg-white dark:bg-slate-900 rounded-2xl p-3.5 px-5 border border-slate-200/80 dark:border-slate-800 shadow-xs">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <div className="p-1.5 bg-indigo-50 dark:bg-indigo-950/60 rounded-lg text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-800/80 shrink-0">
-                      <Sun className="h-4 w-4" />
-                    </div>
-                    <div>
-                      <h1 className="text-base font-bold text-slate-900 dark:text-white leading-tight">
+                      <h1 className="text-2xl md:text-4xl font-bold bg-gradient-to-r from-white to-blue-100 bg-clip-text text-transparent">
                         {greetingMessage()}, {session.user.name}!
                       </h1>
-                      <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
-                        Workspace Performance Overview
-                      </p>
+                    </div>
+                    <p className="text-blue-100 text-lg md:text-xl">
+                      Here's what's happening with your projects today
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-8 mt-6 lg:mt-0">
+                    <div className="text-center">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
+                        <p className="text-blue-200 text-sm font-medium">Active Projects</p>
+                      </div>
+                      <p className="text-3xl font-bold text-white">{recentTasks.length}</p>
+                    </div>
+                    <div className="w-px h-12 bg-blue-400/30"></div>
+                    <div className="text-center">
+                      <div className="flex items-center gap-2 mb-2">
+                        <CheckCircle className="h-3 w-3 text-green-400" />
+                        <p className="text-blue-200 text-sm font-medium">Completed</p>
+                      </div>
+                      <p className="text-3xl font-bold text-white">{completedTasksCount}</p>
                     </div>
                   </div>
-
-                  <div className="flex items-center gap-2">
-                    {isAdmin && (
-                      <>
-                        <Button asChild variant="outline" size="sm" className="h-8 rounded-xl border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 px-3">
-                          <Link href="/dashboard/new-channel" className="flex items-center gap-1">
-                            <PlusCircle className="h-3.5 w-3.5 text-indigo-500" />
-                            New Channel
-                          </Link>
-                        </Button>
-                        <Button asChild size="sm" className="h-8 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl text-xs px-3 shadow-xs">
-                          <Link href="/dashboard/tasks/new" className="flex items-center gap-1">
-                            <PlusCircle className="h-3.5 w-3.5" />
-                            New Project
-                          </Link>
-                        </Button>
-                      </>
-                    )}
-                  </div>
                 </div>
-              </div>
-
-              {/* Master 2-Column Grid (Eliminating Unnecessary Scroll) */}
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-                
-                {/* Left Column (8 cols): Projects & Analytics */}
-                <div className="lg:col-span-8 space-y-5 min-w-0">
-                  {/* Projects Section */}
-                  <div className="w-full">
-                    <ProjectPage />
-                  </div>
-
-                  {/* Analytics Charts */}
-                  <div className="w-full">
-                    <DashboardCharts
-                      taskTrendData={taskTrendData}
-                      taskStatusData={taskStatusData}
-                      performanceData={performanceData}
-                    />
-                  </div>
-                </div>
-
-                {/* Right Column (4 cols): Quick Stats + Communication Side Panel */}
-                <div className="lg:col-span-4 space-y-5 min-w-0">
-                  
-                  {/* Stats Cards (2x2 Grid) */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs p-3.5">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
-                            Channels
-                          </p>
-                          <p className="text-2xl font-black text-slate-900 dark:text-white mt-0.5">
-                            {recentChannels.length}
-                          </p>
-                        </div>
-                        <div className="h-9 w-9 rounded-xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 flex items-center justify-center border border-blue-100 dark:border-blue-900/40 shrink-0">
-                          <MessageSquare className="h-4 w-4" />
-                        </div>
-                      </div>
-                    </Card>
-
-                    <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs p-3.5">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
-                            Assigned
-                          </p>
-                          <p className="text-2xl font-black text-slate-900 dark:text-white mt-0.5">
-                            {assignedTasksCount}
-                          </p>
-                        </div>
-                        <div className="h-9 w-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center border border-indigo-100 dark:border-indigo-900/40 shrink-0">
-                          <CheckCircle className="h-4 w-4" />
-                        </div>
-                      </div>
-                    </Card>
-
-                    <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs p-3.5">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
-                            Completed
-                          </p>
-                          <p className="text-2xl font-black text-slate-900 dark:text-white mt-0.5">
-                            {completedTasksCount}
-                          </p>
-                        </div>
-                        <div className="h-9 w-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center border border-emerald-100 dark:border-emerald-900/40 shrink-0">
-                          <CheckCircle className="h-4 w-4" />
-                        </div>
-                      </div>
-                    </Card>
-
-                    <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs p-3.5">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
-                            In Progress
-                          </p>
-                          <p className="text-2xl font-black text-slate-900 dark:text-white mt-0.5">
-                            {inProgressTasksCount}
-                          </p>
-                        </div>
-                        <div className="h-9 w-9 rounded-xl bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 flex items-center justify-center border border-amber-100 dark:border-amber-900/40 shrink-0">
-                          <Activity className="h-4 w-4" />
-                        </div>
-                      </div>
-                    </Card>
-                  </div>
-
-                  {/* Channels Section */}
-                  <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs overflow-hidden">
-                    <CardHeader className="pb-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 p-4">
-                      <div className="flex items-center justify-between">
-                        <CardTitle className="text-slate-900 dark:text-white text-sm font-bold flex items-center gap-2">
-                          <div className="p-1 bg-blue-50 dark:bg-blue-950/50 rounded-md text-blue-600 dark:text-blue-400">
-                            <Hash className="h-3.5 w-3.5" />
-                          </div>
-                          Recent Channels
-                          <Badge variant="secondary" className="bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 text-[9px] px-1.5 py-0 font-bold">
-                            {recentChannels.length}
-                          </Badge>
-                        </CardTitle>
-                        <Button variant="ghost" size="sm" asChild className="h-7 text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 px-2">
-                          <Link href="/dashboard/channels/all">
-                            View All
-                          </Link>
-                        </Button>
-                      </div>
-                    </CardHeader>
-
-                    <CardContent className="p-3.5 space-y-2">
-                      {recentChannels.length > 0 ? (
-                        recentChannels.map((channel) => (
-                          <Link
-                            key={channel.id}
-                            href={`/dashboard/channels/${channel.id}`}
-                            className="flex items-center justify-between p-2.5 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-800/30 hover:bg-blue-50/50 dark:hover:bg-blue-900/20 hover:border-blue-200 dark:hover:border-blue-800 transition-all duration-150 group"
-                          >
-                            <div className="flex items-center gap-2.5 min-w-0">
-                              <div className="h-8 w-8 rounded-lg bg-blue-100/80 dark:bg-blue-900/40 flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold shrink-0">
-                                <Hash className="h-3.5 w-3.5" />
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="font-bold text-slate-900 dark:text-white text-xs truncate group-hover:text-blue-600 dark:group-hover:text-blue-400">
-                                  {channel.name || "Unnamed Channel"}
-                                </p>
-                                <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                                  {channel._count?.messages || 0} messages
-                                </p>
-                              </div>
-                            </div>
-                            <ChevronRight className="h-3.5 w-3.5 text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400" />
-                          </Link>
-                        ))
-                      ) : (
-                        <div className="text-center py-6">
-                          <p className="text-slate-500 dark:text-slate-400 font-medium text-xs">No channels joined</p>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-
-                  {/* Contacts Section */}
-                  <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs overflow-hidden">
-                    <CardHeader className="pb-3.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 p-4">
-                      <div className="flex items-center justify-between">
-                        <CardTitle className="text-slate-900 dark:text-white text-sm font-bold flex items-center gap-2">
-                          <div className="p-1 bg-purple-50 dark:bg-purple-950/50 rounded-md text-purple-600 dark:text-purple-400">
-                            <Users className="h-3.5 w-3.5" />
-                          </div>
-                          Recent Contacts
-                          <Badge variant="secondary" className="bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 text-[9px] px-1.5 py-0 font-bold">
-                            {recentContacts.length}
-                          </Badge>
-                        </CardTitle>
-                        <Button variant="ghost" size="sm" asChild className="h-7 text-[11px] font-bold text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 px-2">
-                          <Link href="/dashboard/people">
-                            View All
-                          </Link>
-                        </Button>
-                      </div>
-                    </CardHeader>
-
-                    <CardContent className="p-3.5 space-y-2">
-                      {recentContacts.length > 0 ? (
-                        recentContacts.map((contact: any) => {
-                          const rawContent = contact.lastMessage?.content;
-                          const subtext = !rawContent || rawContent.includes(":\\") || rawContent.startsWith("/")
-                            ? "Direct Message"
-                            : rawContent;
-                          return (
-                            <Link
-                              key={contact.id}
-                              href={`/dashboard/messages/${contact.id}`}
-                              className="flex items-center justify-between p-2.5 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-800/30 hover:bg-purple-50/50 dark:hover:bg-purple-900/20 hover:border-purple-200 dark:hover:border-purple-800 transition-all duration-150 group"
-                            >
-                              <div className="flex items-center gap-2.5 min-w-0">
-                                <Avatar className="h-8 w-8 ring-2 ring-white dark:ring-slate-800 shrink-0">
-                                  <AvatarImage src={contact.image || ""} alt={contact.name} />
-                                  <AvatarFallback className="bg-gradient-to-br from-purple-600 to-indigo-600 text-white font-bold text-xs">
-                                    {contact.name?.charAt(0)?.toUpperCase() || "U"}
-                                  </AvatarFallback>
-                                </Avatar>
-                                <div className="flex-1 min-w-0">
-                                  <p className="font-bold text-slate-900 dark:text-white text-xs truncate group-hover:text-purple-600 dark:group-hover:text-purple-400">
-                                    {contact.name}
-                                  </p>
-                                  <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
-                                    {subtext}
-                                  </p>
-                                </div>
-                              </div>
-                              <MessageSquare className="h-3.5 w-3.5 text-slate-400 group-hover:text-purple-600 dark:group-hover:text-purple-400" />
-                            </Link>
-                          );
-                        })
-                      ) : (
-                        <div className="text-center py-6">
-                          <p className="text-slate-500 dark:text-slate-400 font-medium text-xs">No recent contacts</p>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-
-                  {/* Performance Radar Chart - Hidden as requested */}
-                </div>
-
               </div>
             </div>
-          </>
-        )}
+
+            {/* Projects Section */}
+            <div className="space-y-6">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
+                    <Briefcase className="h-7 w-7 text-blue-600" />
+                    My Projects
+                  </h2>
+                  <p className="text-gray-600 dark:text-gray-400 mt-2 text-lg">
+                    Overview of your recent projects and progress
+                  </p>
+                </div>
+                <Button asChild className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl px-6 py-3">
+                  <Link href="/dashboard/tasks" className="flex items-center gap-2 font-semibold">
+                    View All Projects
+                    <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
+                  </Link>
+                </Button>
+              </div>
+
+              {/* Projects Grid */}
+              <Card className="rounded-2xl border-0 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm shadow-xl overflow-hidden">
+                <CardHeader className="pb-6 border-b border-gray-100 dark:border-gray-700 bg-gradient-to-r from-gray-50 to-blue-50/50 dark:from-gray-800 dark:to-gray-700/50">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-gray-900 dark:text-white text-xl flex items-center gap-2">
+                        Recent Projects
+                        <Badge variant="secondary" className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-0">
+                          {recentTasks.length} total
+                        </Badge>
+                      </CardTitle>
+                      <CardDescription className="text-gray-600 dark:text-gray-400">
+                        Projects you're currently involved with
+                      </CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+
+                <CardContent className="p-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                    {recentTasks.length > 0 ? (
+                      recentTasks.map((task) => (
+                        <Link
+                          key={task.id}
+                          href={`/dashboard/tasks/${task.id}/record`}
+                          className="block transition-all duration-300 hover:scale-[1.02] hover:shadow-2xl"
+                        >
+                          <TaskCard task={task} client={true} />
+                        </Link>
+                      ))
+                    ) : (
+                      <div className="col-span-full text-center py-16 space-y-6">
+                        <div className="w-24 h-24 mx-auto bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-900/20 dark:to-purple-900/20 rounded-3xl flex items-center justify-center shadow-lg">
+                          <Briefcase className="h-10 w-10 text-blue-600 dark:text-blue-400" />
+                        </div>
+                        <div>
+                          <p className="text-gray-500 dark:text-gray-400 text-xl font-semibold">No projects found</p>
+                          <p className="text-gray-400 dark:text-gray-500 text-base mt-2">
+                            Get started by creating your first project
+                          </p>
+                        </div>
+                        <Button asChild className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl px-8">
+                          <Link href="/dashboard/tasks/new">
+                            Create Project
+                          </Link>
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        </>
+      ) : (
+        <>
+          {/* Admin/Employee Dashboard - Compact Master Grid */}
+          <div className="flex flex-col gap-5">
+            {/* Header Section */}
+            <div className="bg-white dark:bg-slate-900 rounded-2xl p-3.5 px-5 border border-slate-200/80 dark:border-slate-800 shadow-xs">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="p-1.5 bg-indigo-50 dark:bg-indigo-950/60 rounded-lg text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-800/80 shrink-0">
+                    <Sun className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <h1 className="text-base font-bold text-slate-900 dark:text-white leading-tight">
+                      {greetingMessage()}, {session.user.name}!
+                    </h1>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+                      Workspace Performance Overview
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {isAdmin && (
+                    <>
+                      <Button asChild variant="outline" size="sm" className="h-8 rounded-xl border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 px-3">
+                        <Link href="/dashboard/new-channel" className="flex items-center gap-1">
+                          <PlusCircle className="h-3.5 w-3.5 text-indigo-500" />
+                          New Channel
+                        </Link>
+                      </Button>
+                      <Button asChild size="sm" className="h-8 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl text-xs px-3 shadow-xs">
+                        <Link href="/dashboard/tasks/new" className="flex items-center gap-1">
+                          <PlusCircle className="h-3.5 w-3.5" />
+                          New Project
+                        </Link>
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Master 2-Column Grid (Eliminating Unnecessary Scroll) */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+
+              {/* Left Column (8 cols): Projects & Analytics */}
+              <div className="lg:col-span-8 space-y-5 min-w-0">
+                {/* Projects Section */}
+                <div className="w-full">
+                  <ProjectPage />
+                </div>
+
+                {/* Analytics Charts */}
+                <div className="w-full">
+                  <DashboardCharts
+                    taskTrendData={taskTrendData}
+                    taskStatusData={taskStatusData}
+                    performanceData={performanceData}
+                  />
+                </div>
+              </div>
+
+              {/* Right Column (4 cols): Quick Stats + Communication Side Panel */}
+              <div className="lg:col-span-4 space-y-5 min-w-0">
+
+                {/* Stats Cards (2x2 Grid) */}
+                <div className="grid grid-cols-2 gap-3">
+                  <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs p-3.5">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                          Channels
+                        </p>
+                        <p className="text-2xl font-black text-slate-900 dark:text-white mt-0.5">
+                          {recentChannels.length}
+                        </p>
+                      </div>
+                      <div className="h-9 w-9 rounded-xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 flex items-center justify-center border border-blue-100 dark:border-blue-900/40 shrink-0">
+                        <MessageSquare className="h-4 w-4" />
+                      </div>
+                    </div>
+                  </Card>
+
+                  <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs p-3.5">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                          Assigned
+                        </p>
+                        <p className="text-2xl font-black text-slate-900 dark:text-white mt-0.5">
+                          {assignedTasksCount}
+                        </p>
+                      </div>
+                      <div className="h-9 w-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center border border-indigo-100 dark:border-indigo-900/40 shrink-0">
+                        <CheckCircle className="h-4 w-4" />
+                      </div>
+                    </div>
+                  </Card>
+
+                  <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs p-3.5">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                          Completed
+                        </p>
+                        <p className="text-2xl font-black text-slate-900 dark:text-white mt-0.5">
+                          {completedTasksCount}
+                        </p>
+                      </div>
+                      <div className="h-9 w-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center border border-emerald-100 dark:border-emerald-900/40 shrink-0">
+                        <CheckCircle className="h-4 w-4" />
+                      </div>
+                    </div>
+                  </Card>
+
+                  <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs p-3.5">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">
+                          In Progress
+                        </p>
+                        <p className="text-2xl font-black text-slate-900 dark:text-white mt-0.5">
+                          {inProgressTasksCount}
+                        </p>
+                      </div>
+                      <div className="h-9 w-9 rounded-xl bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 flex items-center justify-center border border-amber-100 dark:border-amber-900/40 shrink-0">
+                        <Activity className="h-4 w-4" />
+                      </div>
+                    </div>
+                  </Card>
+                </div>
+
+                {/* Channels Section */}
+                <RecentChannelsWidget channels={recentChannels} />
+
+                {/* Contacts Section */}
+                <RecentContactsWidget contacts={recentContacts} />
+
+                {/* Performance Radar Chart - Hidden as requested */}
+              </div>
+
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

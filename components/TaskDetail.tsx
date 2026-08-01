@@ -242,7 +242,6 @@ export function TaskDetail({
       setIsEditing(false);
       setIsEditingField(null);
 
-      toast.success("Task updated successfully!");
       return true;
     } catch (error) {
       console.error("Error updating task:", error);
@@ -525,64 +524,47 @@ export function TaskDetail({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl  max-h-[95vh] overflow-hidden shadow-2xl border border-gray-200">
+    <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center z-50 p-3 sm:p-5">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl h-[90vh] max-h-[850px] w-[95vw] max-w-6xl overflow-hidden shadow-2xl border border-slate-200/80 dark:border-slate-800 flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50">
+        <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 flex items-center justify-between gap-4 shrink-0">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <CheckCircle className="h-5 w-5 text-blue-600" />
+            <div className="p-1.5 bg-indigo-50 dark:bg-indigo-950/60 rounded-xl text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/40">
+              <CheckCircle className="h-4 w-4" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-gray-900">Task Details</h2>
-              <p className="text-sm text-gray-600">
+              <h2 className="text-base font-bold text-slate-900 dark:text-white leading-tight">
+                Task Details
+              </h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                 Manage and track task progress
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            {/* <Button
-              variant="default"
-              size="sm"
-              onClick={handleMoveToNextStage}
-              disabled={movingToNextTab}
-              className="bg-green-600 hover:bg-green-700 text-white shadow-lg hover:shadow-xl transition-all duration-200"
-            >
-              {movingToNextTab ? (
-                <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  Moving...
-                </div>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <CheckCircle className="h-4 w-4" />
-                  Mark Complete
-                </div>
-              )}
-            </Button> */}
-
+          <div className="flex items-center gap-2">
             <Button
-              className="  rounded-full px-3 py-2   text-blue-600 border-blue-200 hover:bg-blue-50"
               variant="outline"
+              size="sm"
               onClick={() => setShowActivityLog(true)}
+              className="h-8 rounded-xl border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 px-3 flex items-center gap-1.5"
             >
-              Activity Log
+              <Clock className="h-3.5 w-3.5 text-indigo-500" />
+              <span>Activity Log</span>
             </Button>
             <Button
               variant="ghost"
               size="icon"
               onClick={onClose}
-              className="hover:bg-red-50 hover:text-red-600 transition-colors"
+              className="h-8 w-8 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
             >
-              <X className="h-5 w-5" />
+              <X className="h-4 w-4" />
             </Button>
           </div>
         </div>
 
-        <div className="flex h-[calc(95vh-80px)]  ">
-          {/* Main Content */}
-
-          <div className="flex-1 p-6 overflow-y-auto bg-gray-50/30   ">
+        <div className="flex flex-1 overflow-hidden">
+          {/* Main Task Info Sidebar */}
+          <div className="w-full lg:w-[400px] shrink-0 p-5 overflow-y-auto border-r border-slate-200/80 dark:border-slate-800 space-y-5 bg-slate-50/40 dark:bg-slate-950/20">
             <div className="space-y-6">
               {/** Normalize user prop to array for TS safety */}
               {(() => {
@@ -643,19 +625,19 @@ export function TaskDetail({
                 )}
               </EditableField>
 
-              {/* Task Details Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Task Details Fields */}
+              <div className="space-y-4">
                 {/* Due Date */}
-                <div className="space-y-2">
-                  <label className="block text-sm font-semibold text-gray-700">
-                    {" "}
-                    Due Date{" "}
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                    <Calendar className="h-3.5 w-3.5 text-indigo-500" />
+                    Due Date
                   </label>
                   <div
-                    className="flex items-center gap-3 text-sm text-gray-700 cursor-pointer hover:bg-blue-50 rounded-lg p-3 border border-transparent hover:border-blue-200 transition-all duration-200"
+                    className="flex items-center gap-2.5 text-xs text-slate-700 dark:text-slate-300 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl p-2.5 border border-slate-200/80 dark:border-slate-700 transition-all"
                     onClick={() => setIsEditingField("dueDate")}
                   >
-                    <Calendar className="h-4 w-4 text-blue-600" />
+                    <Calendar className="h-4 w-4 text-indigo-500 shrink-0" />
                     {isEditingField === "dueDate" ? (
                       <RangeCalendarPicker
                         value={
@@ -666,7 +648,6 @@ export function TaskDetail({
                         }
                         onChange={(value) => {
                           setEditedTask({ ...editedTask, dueDate: value });
-                          // Save immediately after selection with override to avoid stale state
                           handleSave({ dueDate: value });
                         }}
                       />
@@ -680,7 +661,7 @@ export function TaskDetail({
                           const sameDay =
                             start.toDateString() === end.toDateString();
                           return (
-                            <span className="font-medium">
+                            <span className="font-bold text-slate-800 dark:text-slate-200">
                               {sameDay
                                 ? formatDate(start, "MMM dd, yyyy")
                                 : `${formatDate(start, "MMM dd")} - ${formatDate(end, "MMM dd, yyyy")}`}
@@ -688,7 +669,7 @@ export function TaskDetail({
                           );
                         }
                         return (
-                          <span className="text-gray-400 italic">
+                          <span className="text-slate-400 italic">
                             No due date set
                           </span>
                         );
@@ -698,13 +679,14 @@ export function TaskDetail({
                 </div>
 
                 {/* Assignee */}
-                <div className="space-y-2">
-                  <label className="block text-sm font-semibold text-gray-700">
-                    Assignee
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                    <Users className="h-3.5 w-3.5 text-indigo-500" />
+                    Assignees
                   </label>
 
                   <div
-                    className="flex items-center gap-3 text-sm text-gray-700 cursor-pointer hover:bg-blue-50 rounded-lg p-3 border border-transparent hover:border-blue-200 transition-all duration-200"
+                    className="flex items-center gap-2.5 text-xs text-slate-700 dark:text-slate-300 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl p-2.5 border border-slate-200/80 dark:border-slate-700 transition-all"
                     onClick={() => setIsEditingField("assignees")}
                   >
                     {isEditingField === "assignees" ? (
@@ -866,7 +848,7 @@ export function TaskDetail({
                         );
                       })}
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5 pt-1">
                       <Input
                         placeholder="Create new tag"
                         value={(editedTask as any)?.__newTagName || ""}
@@ -876,16 +858,16 @@ export function TaskDetail({
                             __newTagName: e.target.value,
                           })
                         }
-                        className="h-8"
+                        className="h-8 text-xs rounded-xl bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 flex-1"
                       />
                       <Button
                         size="sm"
+                        className="h-8 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white px-3 shrink-0"
                         onClick={() => {
                           const name = String(
                             (editedTask as any)?.__newTagName || "",
                           ).trim();
                           if (!name) return;
-                          // Add a temp tag with just a name; server will create it
                           const current = Array.isArray(editedTask.tags)
                             ? [...editedTask.tags]
                             : [];
@@ -911,8 +893,9 @@ export function TaskDetail({
                         Add
                       </Button>
                       <Button
-                        variant="secondary"
+                        variant="outline"
                         size="sm"
+                        className="h-8 rounded-xl text-xs font-bold border-slate-200 dark:border-slate-700 px-3 shrink-0"
                         onClick={() => handleSave()}
                       >
                         Save
@@ -954,9 +937,9 @@ export function TaskDetail({
           </div>
 
           {/* Chat Panel - Toggleable */}
-          <div className=" border-l border-gray-200 bg-white flex flex-col w-[700px]">
+          <div className="flex-1 flex flex-col min-w-0 bg-white dark:bg-slate-900 border-l border-slate-200/80 dark:border-slate-800">
             {/* Toggle Button Bar */}
-            <div className="flex items-center gap-2 p-4 border-b border-gray-200 bg-gray-50">
+            <div className="flex items-center gap-2 p-3.5 border-b border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 shrink-0">
               <Button
                 variant={activePanel === "admin" ? "default" : "outline"}
                 size="sm"
@@ -964,10 +947,10 @@ export function TaskDetail({
                   setActivePanel("admin");
                   setHasUnreadClientMessages(false);
                 }}
-                className={`flex-1 ${
+                className={`flex-1 h-8 rounded-xl text-xs font-bold transition-all ${
                   activePanel === "admin"
-                    ? "bg-purple-600 hover:bg-purple-700 text-white"
-                    : "text-gray-700 border-gray-300 hover:bg-gray-100"
+                    ? "bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs"
+                    : "bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200/80 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800"
                 }`}
               >
                 Internal Discussion
@@ -979,15 +962,15 @@ export function TaskDetail({
                   setActivePanel("client");
                   setHasUnreadClientMessages(false);
                 }}
-                className={`flex-1 relative ${
+                className={`flex-1 relative h-8 rounded-xl text-xs font-bold transition-all ${
                   activePanel === "client"
-                    ? "bg-green-600 hover:bg-green-700 text-white"
-                    : "text-gray-700 border-gray-300 hover:bg-gray-100"
+                    ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
+                    : "bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200/80 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800"
                 }`}
               >
                 Discuss about Project
                 {hasUnreadClientMessages && activePanel === "admin" && (
-                  <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full" />
+                  <span className="absolute top-1 right-2 w-2 h-2 bg-rose-500 rounded-full animate-pulse" />
                 )}
               </Button>
             </div>
@@ -1147,40 +1130,39 @@ export function TaskDetail({
 
           {/* Side Panel */}
           <div
-            className={`
-    fixed top-0 right-0 h-full max-w-[70vw] bg-white border-l border-gray-200 z-50
-    transform transition-transform duration-300 ease-in-out
-    ${showActivityLog ? "translate-x-0" : "translate-x-full"}
-  `}
+            className={`fixed inset-y-0 right-0 z-50 w-full sm:w-[420px] bg-white dark:bg-slate-900 border-l border-slate-200/80 dark:border-slate-800 shadow-2xl transform transition-transform duration-300 ease-in-out flex flex-col ${
+              showActivityLog ? "translate-x-0" : "translate-x-full"
+            }`}
           >
             {/* Header */}
-            <div className="sticky top-0 p-4 border-b bg-white z-10">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-blue-100 rounded-lg">
-                    <Clock className="h-4 w-4 text-blue-600" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-gray-900">
-                      Activity Log
-                    </h3>
-                    <p className="text-xs text-gray-600">Recent task updates</p>
-                  </div>
+            <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 flex items-center justify-between gap-4 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="p-1.5 bg-indigo-50 dark:bg-indigo-950/60 rounded-xl text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/40">
+                  <Clock className="h-4 w-4" />
                 </div>
-
-                {/* Close button */}
-                <button
-                  onClick={() => setShowActivityLog(false)}
-                  className="text-gray-500 hover:text-gray-700 text-sm"
-                >
-                  ✕
-                </button>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white leading-tight">
+                    Activity Log
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Recent task updates
+                  </p>
+                </div>
               </div>
+
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setShowActivityLog(false)}
+                className="h-8 w-8 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </Button>
             </div>
 
             {/* Content */}
-            <div className="p-4 overflow-y-auto h-[calc(100%-72px)]">
-              <ActivityLog activities={activityLog} />
+            <div className="p-4 overflow-y-auto flex-1 bg-slate-50/30 dark:bg-slate-950/20">
+              <ActivityLog activities={activityLog} showHeader={false} />
             </div>
           </div>
         </div>

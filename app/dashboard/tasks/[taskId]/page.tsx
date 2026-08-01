@@ -1,16 +1,14 @@
-
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { redirect, notFound } from "next/navigation";
 import { db } from "@/lib/db";
-import { getClientAccessLevel, getAccessLevelInfo } from "@/lib/client-access";
+import { getAccessLevelInfo } from "@/lib/client-access";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -20,14 +18,26 @@ import { formatDate, getPriorityColor, getStatusColor } from "@/lib/utils";
 import TaskStatusUpdate from "@/components/task-status-update";
 import TaskComments from "@/components/task-comments";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { CalendarClock, MessageSquare,
+import {
+  CalendarClock,
+  MessageSquare,
   CheckCircle,
   Clock,
   AlertTriangle,
   AlertCircle,
   ArrowLeft,
+  Briefcase,
+  UserCheck,
+  Zap,
+  History,
+  Shield,
+  FileText,
+  Edit3,
+  Bell,
+  Calendar,
 } from "lucide-react";
 import { differenceInDays } from "date-fns";
+import { cn } from "@/lib/utils";
 
 export default async function TaskDetailPage({
   params,
@@ -75,8 +85,23 @@ export default async function TaskDetailPage({
     (assignment: any) => assignment.userId === userId
   );
 
-  // Check client access level
-  const clientAccessLevel = await getClientAccessLevel(userId, params.taskId);
+  // Check client access level efficiently without duplicate DB queries
+  let clientAccessLevel: any = null;
+  if (isCreator || isAssignee) {
+    clientAccessLevel = "EDIT";
+  } else {
+    const taskClient = await db.taskClient.findUnique({
+      where: {
+        taskId_userId: {
+          taskId: params.taskId,
+          userId,
+        },
+      },
+      select: { accessLevel: true },
+    });
+    clientAccessLevel = taskClient?.accessLevel || null;
+  }
+
   const hasAccess = isCreator || isAssignee || clientAccessLevel !== null;
 
   if (!hasAccess) {
@@ -85,8 +110,15 @@ export default async function TaskDetailPage({
 
   // Determine user permissions
   const canEdit = isCreator || isAssignee || clientAccessLevel === "EDIT";
-  const canComment = isCreator || isAssignee || clientAccessLevel === "COMMENT" || clientAccessLevel === "EDIT";
-  const accessInfo = clientAccessLevel ? getAccessLevelInfo(clientAccessLevel) : null;
+  const canComment =
+    isCreator ||
+    isAssignee ||
+    clientAccessLevel === "COMMENT" ||
+    clientAccessLevel === "EDIT";
+  const accessInfo =
+    clientAccessLevel && !isCreator && !isAssignee
+      ? getAccessLevelInfo(clientAccessLevel)
+      : null;
 
   // Calculate days until deadline
   const daysUntilDeadline = task.deadline
@@ -103,218 +135,366 @@ export default async function TaskDetailPage({
     daysUntilDeadline < 0 &&
     task.status !== "DONE";
 
+  // Construct unified history log array sorted descending
+  const historyEvents = [
+    {
+      id: `created-${task.id}`,
+      title: "Project Created",
+      description: `Created by ${task.creator.name} on ${formatDate(task.createdAt)}`,
+      date: new Date(task.createdAt),
+      iconType: "created",
+      user: task.creator,
+    },
+    ...task.assignments.map((assignment: any) => ({
+      id: `assignment-${assignment.id}`,
+      title: "Team Member Assigned",
+      description: `${assignment.user.name} was assigned on ${formatDate(assignment.createdAt)}`,
+      date: new Date(assignment.createdAt),
+      iconType: "assignment",
+      user: assignment.user,
+    })),
+    ...(task.updatedAt &&
+    new Date(task.updatedAt).getTime() !== new Date(task.createdAt).getTime()
+      ? [
+          {
+            id: `updated-${task.id}-${task.updatedAt}`,
+            title: `Status: ${task.status === "DONE" ? "Completed" : task.status}`,
+            description: `Last updated on ${formatDate(task.updatedAt)}`,
+            date: new Date(task.updatedAt),
+            iconType: "status",
+            user: null,
+          },
+        ]
+      : []),
+  ].sort((a, b) => b.date.getTime() - a.date.getTime());
+
   // Get priority icon
   const getPriorityIcon = () => {
     switch (task.priority) {
       case "LOW":
-        return <Clock className="h-4 w-4" />;
       case "MEDIUM":
-        return <Clock className="h-4 w-4" />;
+        return <Clock className="h-3.5 w-3.5" />;
       case "HIGH":
-        return <AlertTriangle className="h-4 w-4" />;
+        return <AlertTriangle className="h-3.5 w-3.5" />;
       case "URGENT":
-        return <AlertCircle className="h-4 w-4" />;
+        return <AlertCircle className="h-3.5 w-3.5" />;
       default:
         return null;
     }
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-     
-     <div className="flex items-center">
-        <Button variant="outline" size="sm" asChild>
-          <Link href="/dashboard/tasks">
-            <ArrowLeft className="h-4 w-4 mr-2" />
-          </Link>
-        </Button>
-     </div>
+    <div className="w-full space-y-4">
+      {/* Full Width Top Navigation & Task Header Strip */}
+      <div className="w-full bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5 border border-slate-200/80 dark:border-slate-800 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5 min-w-0 flex-1">
+          <Button
+            variant="outline"
+            size="sm"
+            asChild
+            className="h-9 rounded-xl border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200 px-3 shrink-0"
+          >
+            <Link href="/dashboard/tasks">
+              <ArrowLeft className="h-3.5 w-3.5 mr-1.5 text-indigo-500" />
+              Back
+            </Link>
+          </Button>
 
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight flex-1">{task.title}</h2>
-          <div className="flex items-center mt-2 space-x-2">
-            <Badge className={getStatusColor(task.status)}>
-              {task.status === "DONE" && (
-                <CheckCircle className="h-3 w-3 mr-1" />
-              )}
-              {task.status}
-            </Badge>
-            <Badge className={getPriorityColor(task.priority)}>
-              {getPriorityIcon()}
-              <span className="ml-1">{task.priority}</span>
-            </Badge>
-            {task.deadline && (
-              <Badge
-                variant="outline"
-                className={`flex items-center ${
-                  isOverdue
-                    ? "bg-red-100 text-red-800 border-red-200"
-                    : isUrgent
-                    ? "bg-orange-100 text-orange-800 border-orange-200"
-                    : "bg-gray-100"
-                }`}
-              >
-                <CalendarClock className="h-3 w-3 mr-1" />
-                {isOverdue ? "Overdue: " : "Due: "}
-                {formatDate(task.deadline)}
-              </Badge>
-            )}
-            {accessInfo && (
-              <Badge className={accessInfo.color}>
-                {accessInfo.label}
-              </Badge>
-            )}
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight truncate">
+                {task.title}
+              </h1>
+
+              <div className="flex items-center gap-2 flex-wrap shrink-0">
+                <Badge
+                  className={cn(
+                    "rounded-lg px-2.5 py-0.5 font-bold text-xs shadow-2xs flex items-center gap-1",
+                    getStatusColor(task.status)
+                  )}
+                >
+                  {task.status === "DONE" && <CheckCircle className="h-3.5 w-3.5" />}
+                  {task.status === "DONE" ? "Completed" : task.status}
+                </Badge>
+
+                <Badge
+                  className={cn(
+                    "rounded-lg px-2.5 py-0.5 font-bold text-xs shadow-2xs flex items-center gap-1",
+                    getPriorityColor(task.priority)
+                  )}
+                >
+                  {getPriorityIcon()}
+                  <span>{task.priority} Priority</span>
+                </Badge>
+
+                {task.deadline && (
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      "rounded-lg px-2.5 py-0.5 font-bold text-xs flex items-center gap-1 border",
+                      isOverdue
+                        ? "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-900/60"
+                        : isUrgent
+                        ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-900/60"
+                        : "bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700"
+                    )}
+                  >
+                    <CalendarClock className="h-3.5 w-3.5" />
+                    {isOverdue ? "Overdue: " : "Due: "}
+                    {formatDate(task.deadline)}
+                  </Badge>
+                )}
+
+                {accessInfo && (
+                  <Badge className={cn("rounded-lg px-2.5 py-0.5 font-bold text-xs", accessInfo.color)}>
+                    {accessInfo.label}
+                  </Badge>
+                )}
+              </div>
+            </div>
           </div>
         </div>
-        <div className="flex items-center space-x-2">
+
+        {/* Action Buttons */}
+        <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
           {task.channel && canComment && (
-            <>
-              <Button variant="outline" asChild>
-                <Link href={`/dashboard/channels/${task.channel.id}`}>
-                  <MessageSquare className="h-4 w-4 mr-2" />
-                  Open Task Thread
-                </Link>
-              </Button>
-            </>
+            <Button
+              variant="outline"
+              size="sm"
+              asChild
+              className="h-9 rounded-xl border-slate-200 dark:border-slate-800 hover:bg-indigo-50/50 dark:hover:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 text-xs font-bold px-3.5"
+            >
+              <Link href={`/dashboard/channels/${task.channel.id}`}>
+                <MessageSquare className="h-4 w-4 mr-1.5" />
+                Task Thread
+              </Link>
+            </Button>
           )}
           {canEdit && (
-            <Button asChild>
-              <Link href={`/dashboard/tasks/${task.id}/edit`}>Edit Task</Link>
+            <Button
+              size="sm"
+              asChild
+              className="h-9 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs px-4 shadow-xs"
+            >
+              <Link href={`/dashboard/tasks/${task.id}/edit`}>
+                <Edit3 className="h-4 w-4 mr-1.5" />
+                Edit Task
+              </Link>
             </Button>
           )}
         </div>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-3">
-        <div className="md:col-span-2 space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Task Details</CardTitle>
-              <CardDescription className="flex items-center">
-                <Avatar className="h-5 w-5 mr-2">
-                  <AvatarImage
-                    src={task.creator.image || ""}
-                    alt={task.creator.name}
-                  />
-                  <AvatarFallback className="bg-blue-100 text-blue-800">
-                    {task.creator.name?.charAt(0) || "U"}
-                  </AvatarFallback>
-                </Avatar>
-                Created by {task.creator.name} on {formatDate(task.createdAt)}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <h3 className="text-sm font-medium text-gray-500">
-                  Description
-                </h3>
-                <p className="mt-1 whitespace-pre-wrap">
-                  {task.description || "No description provided"}
-                </p>
+      {/* Full Width 2-Column Responsive Layout */}
+      <div className="w-full grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+        {/* Left Column (5 Cols): Task Overview, Description, Status, & Assignees */}
+        <div className="lg:col-span-5 space-y-5 min-w-0">
+          {/* Project Overview Card */}
+          <Card className="w-full rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs overflow-hidden">
+            <CardHeader className="pb-3 pt-4 px-4 sm:px-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <div className="p-1.5 bg-indigo-50 dark:bg-indigo-950/60 rounded-lg text-indigo-600 dark:text-indigo-400">
+                    <FileText className="h-4 w-4" />
+                  </div>
+                  Project Overview
+                </CardTitle>
+
+                <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
+                  <Avatar className="h-5 w-5 ring-1 ring-slate-200 dark:ring-slate-700">
+                    <AvatarImage src={task.creator.image || ""} alt={task.creator.name} />
+                    <AvatarFallback className="bg-indigo-600 text-white font-bold text-[9px]">
+                      {task.creator.name?.charAt(0) || "U"}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span className="font-bold text-slate-700 dark:text-slate-300">
+                    {task.creator.name}
+                  </span>
+                </div>
               </div>
-              <div className="flex flex-wrap gap-4">
-                <div>
-                  <h3 className="text-sm font-medium text-gray-500">Created</h3>
-                  <p className="text-sm">{formatDate(task.createdAt)}</p>
+            </CardHeader>
+
+            <CardContent className="p-4 sm:p-5 space-y-4">
+              {/* Description Box */}
+              <div>
+                <p className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1.5">
+                  Description
+                </p>
+                <div className="p-3.5 rounded-xl bg-slate-50/60 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800 text-xs text-slate-800 dark:text-slate-200 leading-relaxed whitespace-pre-wrap max-h-36 overflow-y-auto">
+                  {task.description || "No description provided."}
                 </div>
-                <div>
-                  <h3 className="text-sm font-medium text-gray-500">
-                    Last Updated
-                  </h3>
-                  <p className="text-sm">{formatDate(task.updatedAt)}</p>
+              </div>
+
+              {/* Dates Grid */}
+              <div className="grid grid-cols-2 gap-3 pt-1">
+                <div className="p-3 rounded-xl bg-slate-50/60 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800">
+                  <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">
+                    Created
+                  </p>
+                  <p className="text-xs font-bold text-slate-800 dark:text-slate-200 mt-1 flex items-center gap-1.5">
+                    <Calendar className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
+                    {formatDate(task.createdAt)}
+                  </p>
                 </div>
-                <div>
-                  <h3 className="text-sm font-medium text-gray-500">
-                    Deadline
-                  </h3>
-                  <p className="text-sm">
-                    {((task as any).deadlineStart && (task as any).deadlineEnd)
-                      ? (((task as any).deadlineStart !== (task as any).deadlineEnd)
-                          ? `${formatDate((task as any).deadlineStart)} — ${formatDate((task as any).deadlineEnd)}`
-                          : formatDate((task as any).deadlineEnd))
-                      : (task.deadline ? formatDate(task.deadline) : "No deadline")}
+
+                <div className="p-3 rounded-xl bg-slate-50/60 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800">
+                  <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">
+                    Target Deadline
+                  </p>
+                  <p className="text-xs font-bold text-slate-800 dark:text-slate-200 mt-1 flex items-center gap-1.5 truncate">
+                    <CalendarClock className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
+                    {task.deadline ? formatDate(task.deadline) : "No deadline"}
                   </p>
                 </div>
               </div>
+
+              {/* Status Updater */}
+              {(isAssignee || canEdit) && (
+                <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+                  <TaskStatusUpdate taskId={params.taskId} currentStatus={task.status} />
+                </div>
+              )}
             </CardContent>
-            {(isAssignee || canEdit) && (
-              <CardFooter>
-                <TaskStatusUpdate taskId={params.taskId} currentStatus={task.status} />
-              </CardFooter>
-            )}
           </Card>
 
-          <Tabs defaultValue="comments">
-            <TabsList>
-              <TabsTrigger value="comments">Comments</TabsTrigger>
-              <TabsTrigger value="history">History</TabsTrigger>
-              {accessInfo && (
-                <TabsTrigger value="permissions">Your Access</TabsTrigger>
-              )}
-            </TabsList>
-            <TabsContent value="comments">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Comments</CardTitle>
-                  {!canComment && (
-                    <CardDescription className="text-amber-600">
-                      ⓘ You have view-only access. You cannot add comments.
-                    </CardDescription>
-                  )}
-                </CardHeader>
-                <CardContent>
-                  <TaskComments 
-                    taskId={task.id} 
-                    comments={task.comments}
-                  />
-                  {!canComment && (
-                    <div className="mt-4 bg-amber-50 border border-amber-200 rounded-lg p-3">
-                      <p className="text-sm text-amber-800">
-                        ⓘ You have view-only access. You cannot add comments.
-                      </p>
+          {/* Assignees Card */}
+          <Card className="w-full rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs overflow-hidden">
+            <CardHeader className="pb-2.5 pt-3.5 px-4 sm:px-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <UserCheck className="h-4 w-4 text-indigo-500" />
+                  Assignees ({task.assignments.length})
+                </CardTitle>
+                {canEdit && (
+                  <Link
+                    href={`/dashboard/tasks/${task.id}/assignees`}
+                    className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline"
+                  >
+                    Manage Assignees
+                  </Link>
+                )}
+              </div>
+            </CardHeader>
+
+            <CardContent className="p-4">
+              {task.assignments.length === 0 ? (
+                <p className="text-slate-400 text-xs italic text-center py-2">No assignees added yet</p>
+              ) : (
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  {task.assignments.map((assignment: any) => (
+                    <div
+                      key={assignment.id}
+                      className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700/60 text-xs font-bold text-slate-800 dark:text-slate-200"
+                    >
+                      <Avatar className="h-5 w-5 shrink-0">
+                        <AvatarImage src={assignment.user.image || ""} alt={assignment.user.name} />
+                        <AvatarFallback className="bg-indigo-600 text-white font-bold text-[9px]">
+                          {assignment.user.name?.charAt(0) || "U"}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="text-xs font-bold">{assignment.user.name}</span>
                     </div>
-                  )}
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Right Column (7 Cols): Main Discussion & Comments Section */}
+        <div className="lg:col-span-7 min-w-0">
+          <Tabs defaultValue="comments" className="w-full space-y-4">
+            <div className="bg-white dark:bg-slate-900 p-1.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
+              <TabsList className="bg-slate-100/80 dark:bg-slate-800/80 p-1 rounded-xl w-full justify-start gap-1">
+                <TabsTrigger
+                  value="comments"
+                  className="rounded-lg text-xs font-bold px-4 py-2 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-900 data-[state=active]:text-indigo-600 dark:data-[state=active]:text-indigo-400 data-[state=active]:shadow-xs flex items-center gap-1.5"
+                >
+                  <MessageSquare className="h-4 w-4" />
+                  Project Discussion & Comments
+                  <Badge variant="secondary" className="text-[10px] font-extrabold px-1.5 py-0 bg-slate-200/70 dark:bg-slate-700">
+                    {task.comments.length}
+                  </Badge>
+                </TabsTrigger>
+
+                <TabsTrigger
+                  value="history"
+                  className="rounded-lg text-xs font-bold px-4 py-2 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-900 data-[state=active]:text-indigo-600 dark:data-[state=active]:text-indigo-400 data-[state=active]:shadow-xs flex items-center gap-1.5"
+                >
+                  <History className="h-4 w-4" />
+                  History Log
+                </TabsTrigger>
+
+                {accessInfo && (
+                  <TabsTrigger
+                    value="permissions"
+                    className="rounded-lg text-xs font-bold px-4 py-2 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-900 data-[state=active]:text-indigo-600 dark:data-[state=active]:text-indigo-400 data-[state=active]:shadow-xs flex items-center gap-1.5"
+                  >
+                    <Shield className="h-4 w-4" />
+                    Access Rights
+                  </TabsTrigger>
+                )}
+              </TabsList>
+            </div>
+
+            {/* Comments Tab */}
+            <TabsContent value="comments" className="mt-0">
+              <Card className="w-full rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs overflow-hidden">
+                <CardHeader className="pb-3 pt-4 px-4 sm:px-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40">
+                  <CardTitle className="text-sm font-bold text-slate-900 dark:text-white flex items-center justify-between">
+                    <span className="flex items-center gap-2">
+                      <MessageSquare className="h-4 w-4 text-indigo-500" />
+                      Discussion Feed
+                    </span>
+                    {!canComment && (
+                      <span className="text-xs text-amber-600 dark:text-amber-400 font-semibold">
+                        View-only mode
+                      </span>
+                    )}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-4 sm:p-5">
+                  <TaskComments taskId={task.id} comments={task.comments} />
                 </CardContent>
               </Card>
             </TabsContent>
-            <TabsContent value="history">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Task History</CardTitle>
+
+            {/* History Log Tab */}
+            <TabsContent value="history" className="mt-0">
+              <Card className="w-full rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs overflow-hidden">
+                <CardHeader className="pb-3 pt-4 px-4 sm:px-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40">
+                  <CardTitle className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <History className="h-4 w-4 text-indigo-500" />
+                    Project History Log
+                  </CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="flex items-start">
-                      <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-800 mr-3">
-                        <CheckCircle className="h-5 w-5" />
-                      </div>
-                      <div>
-                        <p className="font-medium">Task created</p>
-                        <p className="text-sm text-gray-500">
-                          {task.creator.name} created this task on{" "}
-                          {formatDate(task.createdAt)}
-                        </p>
-                      </div>
-                    </div>
-                    {task.assignments.map((assignment: any) => (
-                      <div key={assignment.id} className="flex items-start">
-                        <div className="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center text-green-800 mr-3">
-                          <Avatar className="h-8 w-8">
-                            <AvatarImage
-                              src={assignment.user.image || ""}
-                              alt={assignment.user.name}
-                            />
-                            <AvatarFallback className="bg-green-100 text-green-800">
-                              {assignment.user.name?.charAt(0) || "U"}
+                <CardContent className="p-4 sm:p-5">
+                  <div className="space-y-3.5">
+                    {historyEvents.map((event) => (
+                      <div
+                        key={event.id}
+                        className="flex items-start gap-3.5 p-3.5 rounded-xl bg-slate-50/60 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800 text-xs"
+                      >
+                        {event.iconType === "assignment" && event.user ? (
+                          <Avatar className="h-8 w-8 ring-1 ring-slate-200 dark:ring-slate-700 shrink-0">
+                            <AvatarImage src={event.user.image || ""} alt={event.user.name} />
+                            <AvatarFallback className="bg-emerald-600 text-white font-bold text-xs">
+                              {event.user.name?.charAt(0) || "U"}
                             </AvatarFallback>
                           </Avatar>
-                        </div>
+                        ) : event.iconType === "status" ? (
+                          <div className="h-8 w-8 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-100 dark:border-emerald-900/60 font-bold">
+                            <CheckCircle className="h-4 w-4" />
+                          </div>
+                        ) : (
+                          <div className="h-8 w-8 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0 border border-indigo-100 dark:border-indigo-900/60 font-bold">
+                            <Briefcase className="h-4 w-4" />
+                          </div>
+                        )}
                         <div>
-                          <p className="font-medium">User assigned</p>
-                          <p className="text-sm text-gray-500">
-                            {assignment.user.name} was assigned to this task on{" "}
-                            {formatDate(assignment.createdAt)}
+                          <p className="font-bold text-slate-900 dark:text-white text-xs">{event.title}</p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
+                            {event.description}
                           </p>
                         </div>
                       </div>
@@ -323,128 +503,40 @@ export default async function TaskDetailPage({
                 </CardContent>
               </Card>
             </TabsContent>
+
+            {/* Access Rights Tab */}
             {accessInfo && (
-              <TabsContent value="permissions">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Your Access Level</CardTitle>
-                    <CardDescription>{accessInfo.description}</CardDescription>
+              <TabsContent value="permissions" className="mt-0">
+                <Card className="w-full rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs overflow-hidden">
+                  <CardHeader className="pb-3 pt-4 px-4 sm:px-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40">
+                    <CardTitle className="text-sm font-bold text-slate-900 dark:text-white">
+                      Access Rights
+                    </CardTitle>
                   </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      <div className={`p-4 rounded-lg ${accessInfo.color}`}>
-                        <h3 className="font-semibold text-lg">{accessInfo.label}</h3>
-                      </div>
-                      <div>
-                        <h4 className="font-medium mb-2">What you can do:</h4>
-                        <ul className="space-y-2">
-                          {accessInfo.permissions.map((permission, index) => (
-                            <li key={index} className="flex items-center text-sm">
-                              <CheckCircle className="h-4 w-4 mr-2 text-green-600" />
-                              {permission}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                      {clientAccessLevel === "VIEW" && (
-                        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                          <p className="text-sm text-amber-800">
-                            <strong>Note:</strong> You have view-only access. Contact the task creator to request additional permissions.
-                          </p>
-                        </div>
-                      )}
+                  <CardContent className="p-4 sm:p-5 space-y-4">
+                    <div className={cn("p-4 rounded-xl text-xs font-bold", accessInfo.color)}>
+                      <h3 className="font-extrabold text-sm mb-1">{accessInfo.label}</h3>
+                      <p className="text-xs opacity-90 font-normal">{accessInfo.description}</p>
+                    </div>
+
+                    <div>
+                      <h4 className="text-xs font-extrabold text-slate-700 dark:text-slate-300 mb-2">
+                        Granted Permissions:
+                      </h4>
+                      <ul className="space-y-2">
+                        {accessInfo.permissions.map((permission, index) => (
+                          <li key={index} className="flex items-center text-xs text-slate-600 dark:text-slate-400 font-medium">
+                            <CheckCircle className="h-4 w-4 mr-2 text-emerald-500 shrink-0" />
+                            {permission}
+                          </li>
+                        ))}
+                      </ul>
                     </div>
                   </CardContent>
                 </Card>
               </TabsContent>
             )}
           </Tabs>
-        </div>
-
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Assignees</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {task.assignments.length === 0 ? (
-                <p className="text-sm text-gray-500">No assignees</p>
-              ) : (
-                <div className="space-y-4">
-                  {task.assignments.map((assignment: any) => (
-                    <div
-                      key={assignment.id}
-                      className="flex items-center space-x-3 p-2 hover:bg-gray-50 rounded-md"
-                    >
-                      <Avatar className="h-10 w-10">
-                        <AvatarImage
-                          src={assignment.user.image || ""}
-                          alt={assignment.user.name}
-                        />
-                        <AvatarFallback className="bg-blue-100 text-blue-800">
-                          {assignment.user.name?.charAt(0) || "U"}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <p className="font-medium">{assignment.user.name}</p>
-                        <p className="text-sm text-gray-500">
-                          {assignment.user.email}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-            {canEdit && (
-              <CardFooter>
-                <Button variant="outline" asChild className="w-full">
-                  <Link href={`/dashboard/tasks/${task.id}/assignees`}>
-                    Manage Assignees
-                  </Link>
-                </Button>
-              </CardFooter>
-            )}
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Quick Actions</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {canEdit && (
-                <Button
-                  variant="outline"
-                  className="w-full justify-start"
-                  asChild
-                >
-                  <Link href={`/dashboard/tasks/${task.id}/edit`}>
-                    <CheckCircle className="h-4 w-4 mr-2" />
-                    Edit Task Details
-                  </Link>
-                </Button>
-              )}
-              {task.channel && canComment && (
-                <Button
-                  variant="outline"
-                  className="w-full justify-start"
-                  asChild
-                >
-                  <Link href={`/dashboard/channels/${task.channel.id}`}>
-                    <MessageSquare className="h-4 w-4 mr-2" />
-                    View Discussion Thread
-                  </Link>
-                </Button>
-              )}
-              <Button variant="outline" className="w-full justify-start">
-                <CalendarClock className="h-4 w-4 mr-2" />
-                <Link href={`/dashboard/task-reminder`}>
-                      Set Reminder
-                  </Link>
-              
-              </Button>
-            </CardContent>
-          </Card>
         </div>
       </div>
     </div>

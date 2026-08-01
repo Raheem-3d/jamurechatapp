@@ -3,7 +3,7 @@
 //
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/auth-context";
 import { useResizableSidebar } from "@/hooks/useResizableSidebar";
 import { Button } from "@/components/ui/button";
@@ -62,6 +62,7 @@ export default function Sidebar({
 }) {
   const { data: session } = useSession();
   const pathname = usePathname();
+  const router = useRouter();
   const { user } = useAuth();
   const [channels, setChannels] = useState<Channel[]>([]);
   const [isLoading, setIsLoading] = useState(true);

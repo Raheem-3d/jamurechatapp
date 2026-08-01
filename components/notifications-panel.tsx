@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from "react";
@@ -14,9 +13,10 @@ import {
   Hash,
   AlertCircle,
   Calendar,
-  Filter,
   ChevronLeft,
   ChevronRight,
+  Clock,
+  CheckCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -24,7 +24,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { useSession } from "next-auth/react";
 
 interface NotificationsPanelProps {
@@ -50,7 +50,7 @@ export function NotificationsPanel({
   const notifications = propNotifications || contextNotifications;
   const [activeTab, setActiveTab] = useState<string>("all");
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 5;
+  const itemsPerPage = 6;
 
   useEffect(() => {
     setCurrentPage(1);
@@ -71,66 +71,64 @@ export function NotificationsPanel({
   );
 
   const getNotificationIcon = (type: string) => {
-    if (type.includes('ANNOUNCEMENT')) {
-      return <AlertCircle className="h-4 w-4 text-amber-600" />
+    if (type.includes("ANNOUNCEMENT")) {
+      return <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400" />;
     }
     if (type.includes("MESSAGE")) {
       return type.includes("CHANNEL") ? (
-        <Hash className="h-4 w-4 text-blue-600" />
+        <Hash className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
       ) : (
-        <MessageSquare className="h-4 w-4 text-green-600" />
+        <MessageSquare className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
       );
     }
     if (type.includes("TASK")) {
       if (type.includes("DUE"))
-        return <AlertCircle className="h-4 w-4 text-orange-600" />;
+        return <AlertCircle className="h-4 w-4 text-rose-600 dark:text-rose-400" />;
       if (type.includes("COMPLETED"))
-        return <CheckSquare className="h-4 w-4 text-green-600" />;
+        return <CheckSquare className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />;
       if (type.includes("ASSIGNED"))
-        return <Users className="h-4 w-4 text-blue-600" />;
+        return <Users className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />;
       if (type.includes("REMINDER"))
-        return <Calendar className="h-4 w-4 text-purple-600" />;
-      return <CheckSquare className="h-4 w-4 text-gray-600" />;
+        return <Calendar className="h-4 w-4 text-purple-600 dark:text-purple-400" />;
+      return <CheckSquare className="h-4 w-4 text-slate-600 dark:text-slate-400" />;
     }
     if (type.includes("USER"))
-      return <Users className="h-4 w-4 text-indigo-600" />;
-    return <Bell className="h-4 w-4 text-gray-600" />;
+      return <Users className="h-4 w-4 text-violet-600 dark:text-violet-400" />;
+    return <Bell className="h-4 w-4 text-slate-600 dark:text-slate-400" />;
   };
 
   const getNotificationLink = (notification: any) => {
-
-    // console.log(notification,'notificationnnnnnnnnn')
-    if (notification.type && notification.type.includes('ANNOUNCEMENT')) {
+    if (notification.type && notification.type.includes("ANNOUNCEMENT")) {
       if (notification.announcementId && notification.organizationId) {
-        return `/org/${notification.organizationId}/announcements/${notification.announcementId}`
+        return `/org/${notification.organizationId}/announcements/${notification.announcementId}`;
       }
       if (notification.announcementId) {
-        return `/org/${notification.announcementId}/announcements/${notification.announcementId}`
+        return `/org/${notification.announcementId}/announcements/${notification.announcementId}`;
       }
     }
     if (notification.type === "CHANNEL_MESSAGE") {
       return `/dashboard/channels/${notification.channelId}`;
     }
     if (notification.type === "DIRECT_MESSAGE") {
-      // Prefer sender, then receiver, then messageId; avoid routing to self
       const candidates = [
         notification.senderId,
         notification.receiverId,
         notification.messageId,
       ].filter(Boolean) as string[];
 
-      // pick first id that is not current user; else first candidate; else fallback to inbox
-      const targetId = candidates.find((id) => !currentUserId || id !== currentUserId) || candidates[0];
+      const targetId =
+        candidates.find((id) => !currentUserId || id !== currentUserId) ||
+        candidates[0];
       return targetId ? `/dashboard/messages/${targetId}` : `/dashboard/messages`;
     }
-    
+
     if (notification.type === "TASK_ASSIGNED") {
       return `/dashboard/tasks/${notification.taskId || notification.id}`;
     }
     if (notification.type === "CHANNEL") {
       return `/dashboard/channels/${notification.channelId || notification.id}`;
     }
-     if (notification.type === "CHANNEL_INVITE") {
+    if (notification.type === "CHANNEL_INVITE") {
       return `/dashboard/channels/${notification.channelId || notification.id}`;
     }
     if (notification.type === "USER") {
@@ -147,71 +145,79 @@ export function NotificationsPanel({
       return {
         text: "Due Soon",
         class:
-          "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-900/20 dark:text-orange-300",
+          "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-900/60",
       };
     }
     if (type.includes("COMPLETED")) {
       return {
         text: "Completed",
         class:
-          "bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-300",
+          "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-900/60",
       };
     }
     if (type.includes("ASSIGNED")) {
       return {
         text: "Assigned",
         class:
-          "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-300",
+          "bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/60 dark:text-indigo-300 dark:border-indigo-900/60",
       };
     }
     if (type.includes("REMINDER")) {
       return {
         text: "Reminder",
         class:
-          "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/20 dark:text-purple-300",
+          "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/60 dark:text-purple-300 dark:border-purple-900/60",
       };
     }
     return {
       text: "Task",
       class:
-        "bg-gray-50 text-gray-700 border-gray-200 dark:bg-gray-800 dark:text-gray-300",
+        "bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700",
     };
   };
-  
+
   const getNotificationTypeColor = (type: string) => {
-    if (type.includes('ANNOUNCEMENT'))
-      return 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-300'
+    if (type.includes("ANNOUNCEMENT"))
+      return "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-900/60";
     if (type.includes("MESSAGE"))
-      return "bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400";
+      return "bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/60 dark:text-indigo-300 dark:border-indigo-900/60";
     if (type.includes("TASK"))
-      return "bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-400";
+      return "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-900/60";
     if (type.includes("REMINDER"))
-      return "bg-purple-50 text-purple-600 dark:bg-purple-900/20 dark:text-purple-400";
-    return "bg-gray-50 text-gray-600 dark:bg-gray-800 dark:text-gray-400";
+      return "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/60 dark:text-purple-300 dark:border-purple-900/60";
+    return "bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700";
   };
 
   return (
-    <Card className="border border-gray-200 dark:border-gray-700 shadow-sm dark:bg-gray-900 w-full">
-      <CardHeader className="pb-4 border-b border-gray-100 dark:border-gray-700">
-        <div className="flex items-center justify-between w-fit">
-          <CardTitle className="text-lg text-gray-900 dark:text-white flex items-center gap-2">
-            <Bell className="h-5 w-5 text-blue-600 mr-6" />
-        
-            {unreadCount > 0 && (
-              <Badge variant="default" className="bg-blue-600 text-white">
-                {unreadCount} new
-              </Badge>
-            )}
-          </CardTitle>
+    <Card className="border border-slate-200/80 dark:border-slate-800 shadow-md dark:bg-slate-900 w-full rounded-2xl overflow-hidden">
+      {/* Header */}
+      <CardHeader className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40">
+        <div className="flex items-center justify-between gap-4 flex-wrap w-full">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-indigo-50 dark:bg-indigo-950/60 rounded-xl text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/40">
+              <Bell className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+            </div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-base font-bold text-slate-900 dark:text-white leading-tight">
+                Notifications
+              </h3>
+              {unreadCount > 0 && (
+                <Badge className="bg-indigo-600 text-white font-extrabold text-xs px-2 py-0.5 rounded-full">
+                  {unreadCount} new
+                </Badge>
+              )}
+            </div>
+          </div>
+
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
               size="sm"
               onClick={markAllAsRead}
               disabled={unreadCount === 0}
-              className="border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
+              className="h-8 rounded-xl border-slate-200/80 dark:border-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
             >
-              <Check className="h-4 w-4 mr-2" />
+              <CheckCheck className="h-3.5 w-3.5 mr-1.5 text-indigo-500" />
               Mark all read
             </Button>
             <Button
@@ -219,9 +225,9 @@ export function NotificationsPanel({
               size="sm"
               onClick={clearNotifications}
               disabled={notifications.length === 0}
-              className="border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
+              className="h-8 rounded-xl border-slate-200/80 dark:border-slate-800 text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 hover:border-rose-200 dark:hover:border-rose-900/40 transition-colors"
             >
-              <Trash2 className="h-4 w-4 mr-2" />
+              <Trash2 className="h-3.5 w-3.5 mr-1.5" />
               Clear all
             </Button>
           </div>
@@ -230,32 +236,36 @@ export function NotificationsPanel({
 
       <CardContent className="p-0">
         <Tabs defaultValue="all" value={activeTab} onValueChange={setActiveTab}>
-          <div className="border-b border-gray-100 dark:border-gray-700">
-            <TabsList className="w-full justify-start rounded-none border-0 bg-transparent p-0">
+          {/* Navigation Tabs Bar */}
+          <div className="border-b border-slate-100 dark:border-slate-800 bg-slate-50/30 dark:bg-slate-900/50 px-2 pt-1">
+            <TabsList className="w-full justify-start rounded-none border-0 bg-transparent p-0 gap-1 overflow-x-auto scrollbar-none">
               <TabsTrigger
                 value="all"
-                className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:bg-transparent px-4 py-3"
+                className="rounded-xl border-b-2 border-transparent data-[state=active]:border-indigo-600 data-[state=active]:bg-indigo-50/60 dark:data-[state=active]:bg-indigo-950/40 data-[state=active]:text-indigo-600 dark:data-[state=active]:text-indigo-300 font-bold text-xs px-3.5 py-2.5 transition-all"
               >
                 All
-                <Badge variant="secondary" className="ml-2 text-xs">
+                <Badge
+                  variant="secondary"
+                  className="ml-1.5 text-[10px] font-extrabold px-1.5 py-0 bg-slate-200/70 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-md"
+                >
                   {notifications.length}
                 </Badge>
               </TabsTrigger>
               <TabsTrigger
                 value="messages"
-                className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:bg-transparent px-4 py-3"
+                className="rounded-xl border-b-2 border-transparent data-[state=active]:border-indigo-600 data-[state=active]:bg-indigo-50/60 dark:data-[state=active]:bg-indigo-950/40 data-[state=active]:text-indigo-600 dark:data-[state=active]:text-indigo-300 font-bold text-xs px-3.5 py-2.5 transition-all"
               >
                 Messages
               </TabsTrigger>
               <TabsTrigger
                 value="tasks"
-                className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:bg-transparent px-4 py-3"
+                className="rounded-xl border-b-2 border-transparent data-[state=active]:border-indigo-600 data-[state=active]:bg-indigo-50/60 dark:data-[state=active]:bg-indigo-950/40 data-[state=active]:text-indigo-600 dark:data-[state=active]:text-indigo-300 font-bold text-xs px-3.5 py-2.5 transition-all"
               >
                 Tasks
               </TabsTrigger>
               <TabsTrigger
                 value="reminder"
-                className="rounded-none border-b-2 border-transparent data-[state=active]:border-blue-600 data-[state=active]:bg-transparent px-4 py-3"
+                className="rounded-xl border-b-2 border-transparent data-[state=active]:border-indigo-600 data-[state=active]:bg-indigo-50/60 dark:data-[state=active]:bg-indigo-950/40 data-[state=active]:text-indigo-600 dark:data-[state=active]:text-indigo-300 font-bold text-xs px-3.5 py-2.5 transition-all"
               >
                 Reminders
               </TabsTrigger>
@@ -263,29 +273,29 @@ export function NotificationsPanel({
           </div>
 
           <TabsContent value={activeTab} className="mt-0">
-            <ScrollArea className="h-[400px]">
+            <ScrollArea className="h-[420px]">
               {showEmptyState || filteredNotifications.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-[300px] text-center p-6">
-                  <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mb-4">
-                    <Bell className="h-8 w-8 text-gray-400" />
+                <div className="flex flex-col items-center justify-center h-[340px] text-center p-6">
+                  <div className="w-14 h-14 bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center mb-3 text-slate-400 dark:text-slate-500 border border-slate-200/60 dark:border-slate-700">
+                    <Bell className="h-7 w-7" />
                   </div>
-                  <h3 className="font-medium text-gray-900 dark:text-white mb-2">
+                  <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200 mb-1">
                     No notifications
-                  </h3>
-                  <p className="text-gray-500 dark:text-gray-400 text-sm">
+                  </h4>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 max-w-xs">
                     {activeTab === "all"
-                      ? "You're all caught up!"
-                      : `No ${activeTab} notifications found`}
+                      ? "You're all caught up! New alerts will appear here."
+                      : `No ${activeTab} notifications found at the moment.`}
                   </p>
                 </div>
               ) : (
                 <>
-                  <div className="divide-y divide-gray-100 dark:divide-gray-800">
+                  <div className="divide-y divide-slate-100 dark:divide-slate-800">
                     {paginatedNotifications.map((notification) => {
                       const taskStatus = notification.type.includes("TASK")
                         ? getTaskStatus(notification.type)
                         : null;
-                      const isAnnouncement = notification.type.includes('ANNOUNCEMENT')
+                      const isAnnouncement = notification.type.includes("ANNOUNCEMENT");
 
                       return (
                         <Link
@@ -293,31 +303,32 @@ export function NotificationsPanel({
                           href={getNotificationLink(notification)}
                           onClick={() => markAsRead(notification.id)}
                           className={cn(
-                            "flex items-start gap-4 p-4 transition-colors group",
+                            "flex items-start gap-3.5 p-4 transition-all duration-200 group border-l-4",
                             !notification.read
-                              ? "bg-blue-50/50 dark:bg-blue-900/10 hover:bg-blue-100/50 dark:hover:bg-blue-900/20"
-                              : "hover:bg-gray-50 dark:hover:bg-gray-800/50"
+                              ? "bg-indigo-50/40 dark:bg-indigo-950/30 border-l-indigo-600 dark:border-l-indigo-500 hover:bg-indigo-100/50 dark:hover:bg-indigo-950/50"
+                              : "border-l-transparent hover:bg-slate-50/80 dark:hover:bg-slate-800/40"
                           )}
                         >
+                          {/* Type Icon */}
                           <div
                             className={cn(
-                              "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border-2",
+                              "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border shadow-xs transition-transform group-hover:scale-105",
                               !notification.read
-                                ? "border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-900/20"
-                                : "border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-gray-800"
+                                ? "border-indigo-200 bg-indigo-50 dark:border-indigo-800 dark:bg-indigo-950/60"
+                                : "border-slate-200/80 bg-slate-50 dark:border-slate-800 dark:bg-slate-800"
                             )}
                           >
                             {getNotificationIcon(notification.type)}
                           </div>
 
-                          <div className="flex-1 min-w-0 space-y-2">
+                          <div className="flex-1 min-w-0 space-y-1.5">
                             <div className="flex items-start justify-between gap-2">
                               <p
                                 className={cn(
-                                  "text-sm leading-relaxed",
+                                  "text-xs leading-relaxed",
                                   !notification.read
-                                    ? "text-gray-900 dark:text-white font-medium"
-                                    : "text-gray-700 dark:text-gray-300"
+                                    ? "text-slate-900 dark:text-white font-bold"
+                                    : "text-slate-700 dark:text-slate-300 font-medium"
                                 )}
                               >
                                 {notification.content}
@@ -325,37 +336,36 @@ export function NotificationsPanel({
                               {!notification.read && (
                                 <Badge
                                   variant="default"
-                                  className="bg-blue-600 text-white flex-shrink-0"
+                                  className="bg-indigo-600 text-white text-[10px] font-extrabold px-1.5 py-0 rounded-md shrink-0"
                                 >
                                   New
                                 </Badge>
                               )}
                             </div>
 
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <Badge
                                 variant="outline"
                                 className={cn(
-                                  "text-xs",
+                                  "text-[10px] font-bold px-2 py-0.5 rounded-lg border",
                                   getNotificationTypeColor(notification.type),
-                                  isAnnouncement && 'ring-1 ring-amber-300 dark:ring-amber-700'
+                                  isAnnouncement && "ring-1 ring-amber-300 dark:ring-amber-700"
                                 )}
                               >
-                                {notification.type
-                                  .replace(/_/g, " ")
-                                  .toLowerCase()}
+                                {notification.type.replace(/_/g, " ").toLowerCase()}
                               </Badge>
 
                               {taskStatus && (
                                 <Badge
                                   variant="outline"
-                                  className={cn("text-xs", taskStatus.class)}
+                                  className={cn("text-[10px] font-bold px-2 py-0.5 rounded-lg border", taskStatus.class)}
                                 >
                                   {taskStatus.text}
                                 </Badge>
                               )}
 
-                              <span className="text-xs text-gray-500 dark:text-gray-400">
+                              <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 flex items-center gap-1 ml-auto">
+                                <Clock className="h-3 w-3 text-slate-400" />
                                 {formatDistanceToNow(
                                   new Date(notification.createdAt),
                                   { addSuffix: true }
@@ -368,18 +378,19 @@ export function NotificationsPanel({
                     })}
                   </div>
 
+                  {/* Pagination Footer */}
                   {totalPages > 1 && (
-                    <div className="flex items-center justify-between p-3 border-t border-gray-100 dark:border-gray-800 text-xs text-gray-500">
+                    <div className="flex items-center justify-between p-3 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 text-xs font-semibold text-slate-500 dark:text-slate-400">
                       <span>
                         Page {currentPage} of {totalPages}
                       </span>
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1.5">
                         <Button
                           variant="outline"
                           size="sm"
                           disabled={currentPage === 1}
                           onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
-                          className="h-7 px-2 text-xs"
+                          className="h-7 px-2.5 text-xs rounded-lg border-slate-200/80 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800"
                         >
                           <ChevronLeft className="h-3.5 w-3.5 mr-1" />
                           Prev
@@ -389,7 +400,7 @@ export function NotificationsPanel({
                           size="sm"
                           disabled={currentPage === totalPages}
                           onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
-                          className="h-7 px-2 text-xs"
+                          className="h-7 px-2.5 text-xs rounded-lg border-slate-200/80 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800"
                         >
                           Next
                           <ChevronRight className="h-3.5 w-3.5 ml-1" />

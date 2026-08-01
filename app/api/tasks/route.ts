@@ -708,6 +708,11 @@ export async function PUT(req: Request, { params }: { params: { taskId: string }
       data: updateData,
     });
 
+    if (updatedTask.status === "DONE") {
+      const { silenceTaskReminders } = await import("@/lib/reminder-processor");
+      await silenceTaskReminders(params.taskId);
+    }
+
     // Handle assignees (existing code)
     const currentAssigneeIds = task.assignments.map((a: any) => a.userId);
     const assigneesToRemove = currentAssigneeIds.filter((id: any) => !assignees.includes(id));
@@ -867,6 +872,7 @@ async function createAutomaticTaskReminders(taskId: string, taskTitle: string, d
               type: "TASK_DEADLINE",
               creatorId: assigneeId, // System-created, but assigned to user
               assigneeId: assigneeId,
+              taskId: taskId,
               isAutomatic: true,
             },
           }),

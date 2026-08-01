@@ -24,6 +24,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { cn } from "@/lib/utils"
 
 type Task = {
   id: string
@@ -33,6 +34,7 @@ type Task = {
   deadline?: string
   deadlineStart?: string
   deadlineEnd?: string
+  updatedAt?: string
   description?: string
 }
 
@@ -106,8 +108,19 @@ export default function TaskCalendarPage() {
   const normalizeYMD = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate())
   const parseDate = (val?: string) => (val ? new Date(val) : undefined)
   const getTaskRange = (t: Task) => {
-    const start = parseDate(t.deadlineStart) ?? parseDate(t.deadline) ?? parseDate(t.deadlineEnd)
-    const end = parseDate(t.deadlineEnd) ?? parseDate(t.deadline) ?? parseDate(t.deadlineStart)
+    let start = parseDate(t.deadlineStart) ?? parseDate(t.deadline) ?? parseDate(t.deadlineEnd) ?? parseDate(t.updatedAt)
+    let end = parseDate(t.deadlineEnd) ?? parseDate(t.deadline) ?? parseDate(t.deadlineStart) ?? parseDate(t.updatedAt)
+
+    if (t.status === "DONE") {
+      const doneDate = parseDate(t.updatedAt) ?? new Date()
+      // Mark completed on calendar for doneDate (and prior start dates up to doneDate).
+      // Completed task will NOT appear on any future dates after doneDate.
+      end = doneDate
+      if (!start || start > doneDate) {
+        start = doneDate
+      }
+    }
+
     return start && end ? { start: normalizeYMD(start), end: normalizeYMD(end) } : undefined
   }
   const dayInRange = (day: Date, t: Task) => {
@@ -118,6 +131,7 @@ export default function TaskCalendarPage() {
   }
 
   const upcomingTasksCount = tasks.filter((task) => {
+    if (task.status === "DONE") return false
     const r = getTaskRange(task)
     return r ? r.end >= new Date() : false
   }).length
@@ -220,10 +234,20 @@ export default function TaskCalendarPage() {
                   {dayTasks.slice(0, 2).map((t) => (
                     <div
                       key={t.id}
-                      className="px-2 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-100 dark:border-indigo-900/60 text-[10px] font-semibold text-indigo-700 dark:text-indigo-300 truncate"
-                      title={t.title}
+                      className={cn(
+                        "px-2 py-0.5 rounded-md text-[10px] font-semibold truncate flex items-center gap-1",
+                        t.status === "DONE"
+                          ? "bg-emerald-50 dark:bg-emerald-950/70 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 font-bold"
+                          : "bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-100 dark:border-indigo-900/60 text-indigo-700 dark:text-indigo-300"
+                      )}
+                      title={`${t.title} (${t.status === "DONE" ? "Completed" : t.status})`}
                     >
-                      {t.title}
+                      {t.status === "DONE" ? (
+                        <CheckCircle2 className="h-3 w-3 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                      ) : null}
+                      <span className={t.status === "DONE" ? "line-through opacity-85 truncate" : "truncate"}>
+                        {t.title}
+                      </span>
                     </div>
                   ))}
                   {dayTasks.length > 2 && (
@@ -404,8 +428,23 @@ export default function TaskCalendarPage() {
                   )}
 
                   <div className="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-slate-800/60">
-                    <Badge variant="outline" className="text-[10px] font-semibold border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300">
-                      {t.status}
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "text-[10px] font-bold flex items-center gap-1",
+                        t.status === "DONE"
+                          ? "bg-emerald-50 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800"
+                          : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300"
+                      )}
+                    >
+                      {t.status === "DONE" ? (
+                        <>
+                          <CheckCircle2 className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+                          Completed
+                        </>
+                      ) : (
+                        t.status
+                      )}
                     </Badge>
 
                     <Button variant="ghost" size="sm" asChild className="h-6 text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 px-2">

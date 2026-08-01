@@ -1,6 +1,6 @@
 {
   "name": "jamurechat",
-  "version": "1.1.4",
+  "version": "1.1.5",
   "description": "JamureChat - Team Communication App",
   "author": "3D Power",
   "private": true,
@@ -37,7 +37,7 @@
       {
         "provider": "github",
         "owner": "Raheem-3d",
-        "repo": "jamure-test-desktop"
+        "repo": "jamurechatapp"
       }
     ],
     "win": {

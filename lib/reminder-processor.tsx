@@ -9,6 +9,7 @@ export class ReminderProcessor {
   private static instance: ReminderProcessor
   private intervalId: NodeJS.Timeout | null = null
   private isRunning = false
+  private processingReminderIds = new Set<string>()
 
   private constructor() {}
 
@@ -96,26 +97,41 @@ export class ReminderProcessor {
         return
       }
 
-      // console.log(`📬 Found ${dueReminders.length} due reminders to process`)
-
       for (const reminder of dueReminders) {
-        try {
-       
-          await this.sendReminderNotification(reminder)
-          // Mark as sent
-          await db.reminder.update({
-            where: { id: reminder.id },
-            data: {
-              isSent: true,
-              sentAt: new Date(),
-            },
-          })
+    if (this.processingReminderIds.has(reminder.id)) continue;
+    this.processingReminderIds.add(reminder.id);
 
-     
-        } catch (error) {
-          console.error(`❌ Failed to send reminder ${reminder.id}:`, error)
-        }
+    try {
+      // Skip and mute reminders if the task is marked DONE
+      if (reminder.task && reminder.task.status === "DONE") {
+        await db.reminder.update({
+          where: { id: reminder.id },
+          data: {
+            isSent: true,
+            isMuted: true,
+            sentAt: new Date(),
+          },
+        });
+        console.log(`🔕 Muted reminder ${reminder.id} because task "${reminder.task.title}" is DONE`);
+        continue;
       }
+
+      await this.sendReminderNotification(reminder);
+      // Mark as sent
+      await db.reminder.update({
+        where: { id: reminder.id },
+        data: {
+          isSent: true,
+          sentAt: new Date(),
+        },
+      });
+    } catch (error) {
+      console.error(`❌ Failed to send reminder ${reminder.id}:`, error);
+    } finally {
+      // Keep in processing set for 2 minutes to prevent any duplicates
+      setTimeout(() => this.processingReminderIds.delete(reminder.id), 120000);
+    }
+  }
     } catch (error) {
       console.error("💥 Error processing due reminders:", error)
     }
@@ -267,3 +283,19 @@ export class ReminderProcessor {
 
 // Export singleton instance
 export const reminderProcessor = ReminderProcessor.getInstance()
+
+export async function silenceTaskReminders(taskId: string) {
+  try {
+    await db.reminder.updateMany({
+      where: { taskId },
+      data: {
+        isMuted: true,
+        isSent: true,
+      },
+    })
+    console.log(`🔕 Muted all reminders for task: ${taskId}`)
+  } catch (error) {
+    console.error(`Error silencing reminders for task ${taskId}:`, error)
+  }
+}
+
