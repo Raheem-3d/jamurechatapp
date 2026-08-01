@@ -1,176 +1,179 @@
+"use client";
 
-
-"use client"
-import type { Stage, Task } from "@/types/task"
-import { Badge } from "@/components/ui/badge"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Calendar, MessageSquare, Paperclip, CheckCircle } from "lucide-react"
-import { formatDistanceToNow } from "date-fns"
-import { Button } from "@/components/ui/button"
-import { cn } from "@/lib/utils"
-import { toast } from "sonner"
-
+import type { Stage, Task } from "@/types/task";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Calendar, MessageSquare, Paperclip, CheckCircle } from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 interface TaskCardProps {
-  task: Task
-  onClick: () => void
-  isComplete?: boolean
-  showCompleteButton?: boolean
-  onComplete?: (taskId: string) => Promise<void>
-  isCompleting?: boolean
-  stages: Stage[] // Add stages to props
+  task: Task;
+  onClick: () => void;
+  isComplete?: boolean;
+  showCompleteButton?: boolean;
+  onComplete?: (taskId: string) => Promise<void>;
+  isCompleting?: boolean;
+  stages: Stage[];
 }
 
-export function TaskCard({ 
-  task, 
-  onClick, 
+export function TaskCard({
+  task,
+  onClick,
   isComplete = false,
   showCompleteButton = false,
   onComplete,
   isCompleting = false,
-  stages = []
+  stages = [],
 }: TaskCardProps) {
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
+  const getPriorityBadgeClass = (priority: string) => {
+    switch (priority?.toLowerCase()) {
       case "urgent":
-        return "bg-gradient-to-r from-red-100 to-rose-100 dark:from-red-950/50 dark:to-rose-950/50 text-red-800 dark:text-red-300 border-red-200 dark:border-red-500/50 shadow-sm dark:shadow-red-500/20"
+        return "bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900/60";
       case "high":
-        return "bg-gradient-to-r from-orange-100 to-amber-100 dark:from-orange-950/50 dark:to-amber-950/50 text-orange-800 dark:text-orange-300 border-orange-200 dark:border-orange-500/50 shadow-sm dark:shadow-orange-500/20"
+        return "bg-orange-50 dark:bg-orange-950/60 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-900/60";
       case "medium":
-        return "bg-gradient-to-r from-yellow-100 to-amber-100 dark:from-yellow-950/50 dark:to-amber-950/50 text-yellow-800 dark:text-yellow-300 border-yellow-200 dark:border-yellow-500/50 shadow-sm dark:shadow-yellow-500/20"
+        return "bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-900/60";
       case "low":
-        return "bg-gradient-to-r from-green-100 to-emerald-100 dark:from-green-950/50 dark:to-emerald-950/50 text-green-800 dark:text-green-300 border-green-200 dark:border-green-500/50 shadow-sm dark:shadow-green-500/20"
+        return "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900/60";
       default:
-        return "bg-gradient-to-r from-gray-100 to-slate-100 dark:from-gray-800 dark:to-slate-800 text-gray-800 dark:text-gray-300 border-gray-200 dark:border-gray-600 shadow-sm"
+        return "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700";
     }
-  }
-  
+  };
+
   const handleCompleteClick = async (e: React.MouseEvent) => {
-    e.stopPropagation()
+    e.stopPropagation();
     try {
       if (onComplete) {
-        await onComplete(task.id)
-        // No need to manually update UI here - parent component should handle it
+        await onComplete(task.id);
       }
     } catch (error) {
-      toast.error("Failed to complete task")
-      console.error("Error completing task:", error)
+      toast.error("Failed to complete task");
+      console.error("Error completing task:", error);
     }
-  }
-
-
-
+  };
 
   const getNextStageName = () => {
-    const currentStageIndex = stages.findIndex(s => s.id === task.stageId)
+    const currentStageIndex = stages.findIndex((s) => s.id === task.stageId);
     if (currentStageIndex === -1 || currentStageIndex === stages.length - 1) {
-      return null
+      return null;
     }
-    const nextStage = stages[currentStageIndex + 1]
-    return nextStage?.name || null
-  }
+    const nextStage = stages[currentStageIndex + 1];
+    return nextStage?.name || null;
+  };
 
   return (
     <div
       className={cn(
-        "group relative bg-white dark:bg-gradient-to-br dark:from-slate-800 dark:via-slate-800/95 dark:to-slate-900/90 rounded-xl border border-gray-200 dark:border-slate-700/50 p-4 cursor-pointer hover:shadow-lg dark:hover:shadow-2xl dark:hover:shadow-purple-500/10 transition-all duration-300 hover:scale-[1.02] dark:hover:border-purple-500/30",
-        isComplete && "bg-green-50 dark:bg-gradient-to-br dark:from-green-950/30 dark:to-emerald-950/20 border-green-200 dark:border-green-500/40"
+        "group relative bg-white dark:bg-slate-900 rounded-xl border border-slate-200/80 dark:border-slate-800 p-3.5 cursor-pointer shadow-xs hover:shadow-md transition-all duration-150 hover:-translate-y-0.5 space-y-2.5",
+        isComplete &&
+          "bg-emerald-50/40 dark:bg-emerald-950/20 border-emerald-200/80 dark:border-emerald-900/60"
       )}
       onClick={onClick}
     >
-      {/* Gradient overlay on hover */}
-      <div className="absolute inset-0 bg-gradient-to-r from-blue-500/0 via-purple-500/0 to-pink-500/0 dark:group-hover:from-blue-500/5 dark:group-hover:via-purple-500/5 dark:group-hover:to-pink-500/5 rounded-xl transition-all duration-300 pointer-events-none"></div>
-      
-      {/* Completion badge */}
-      {isComplete && (
-        <Badge className="relative z-10 mb-2 bg-gradient-to-r from-green-100 to-emerald-100 dark:from-green-900/50 dark:to-emerald-900/50 text-green-800 dark:text-green-300 border-green-200 dark:border-green-500/50 shadow-sm dark:shadow-green-500/20">
-          Completed
-        </Badge>
-      )}
-
-      <div className="relative z-10 flex items-start justify-between mb-3">
-        <h4 className="font-semibold text-gray-900 dark:text-slate-100 text-sm leading-tight group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+      {/* Top Header: Completion Badge / Title / Priority */}
+      <div className="flex items-start justify-between gap-2">
+        <h4 className="font-bold text-slate-900 dark:text-white text-xs leading-snug group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors line-clamp-2">
           {task.title}
         </h4>
-        <Badge className={`text-xs font-semibold ${getPriorityColor(task.priority)}`}>
+        <Badge
+          variant="outline"
+          className={cn(
+            "text-[10px] font-bold px-2 py-0.5 rounded-lg shrink-0 capitalize",
+            getPriorityBadgeClass(task.priority)
+          )}
+        >
           {task.priority}
         </Badge>
       </div>
 
+      {/* Description Snippet */}
       {task.description && (
-        <p className="relative z-10 text-sm text-gray-600 dark:text-slate-400 mb-3 line-clamp-2">
+        <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2 leading-relaxed font-medium">
           {task.description}
         </p>
       )}
 
-      <div className="relative z-10 flex flex-wrap gap-1.5 mb-3">
-        {task.tags.map((tag) => (
-          <Badge key={tag.id} className={`text-xs font-medium ${tag.color} dark:shadow-sm transition-all hover:scale-105`}>
-            {tag.name}
-          </Badge>
-        ))}
-      </div>
+      {/* Tag Badges */}
+      {task.tags && task.tags.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {task.tags.map((tag) => (
+            <Badge
+              key={tag.id}
+              variant="secondary"
+              className={cn(
+                "text-[9px] font-extrabold px-1.5 py-0 rounded-md bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-900/40",
+                tag.color
+              )}
+            >
+              {tag.name}
+            </Badge>
+          ))}
+        </div>
+      )}
 
-      <div className="relative z-10 flex items-center justify-between text-xs text-gray-500 dark:text-slate-400">
-        <div className="flex items-center gap-3">
+      {/* Card Metadata Footer: Due Date, Comments, Assignee */}
+      <div className="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-slate-800 text-[10px] text-slate-500 font-medium">
+        <div className="flex items-center gap-2">
           {task.dueDate && (
-            <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-700/50 dark:text-slate-300 transition-colors hover:bg-gray-100 dark:hover:bg-slate-700">
-              <Calendar className="h-3 w-3 text-blue-500 dark:text-blue-400" />
+            <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+              <Calendar className="h-3 w-3 text-indigo-500" />
               <span>{formatDistanceToNow(task.dueDate, { addSuffix: true })}</span>
             </div>
           )}
 
           {task.comments?.length > 0 && (
-            <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-700/50 dark:text-slate-300 transition-colors hover:bg-gray-100 dark:hover:bg-slate-700">
-              <MessageSquare className="h-3 w-3 text-purple-500 dark:text-purple-400" />
+            <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+              <MessageSquare className="h-3 w-3 text-purple-500" />
               <span>{task.comments.length}</span>
             </div>
           )}
 
           {task.attachments?.length > 0 && (
-            <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-gray-50 dark:bg-slate-700/50 dark:text-slate-300 transition-colors hover:bg-gray-100 dark:hover:bg-slate-700">
-              <Paperclip className="h-3 w-3 text-pink-500 dark:text-pink-400" />
+            <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+              <Paperclip className="h-3 w-3 text-pink-500" />
               <span>{task.attachments.length}</span>
             </div>
           )}
         </div>
 
         {task.assignees && (
-          <div className="relative group/avatar">
-            <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 rounded-full opacity-0 group-hover/avatar:opacity-100 blur transition-opacity"></div>
-            <Avatar className="relative h-6 w-6 ring-2 ring-white dark:ring-slate-700 transition-transform group-hover/avatar:scale-110">
-              <AvatarImage 
-                src={task.assignees.avatar || "/placeholder.svg"} 
-                alt={task.assignees.name} 
-              />
-              <AvatarFallback className="text-xs bg-gradient-to-br from-blue-500 to-purple-600 text-white font-semibold">
-                {task.assignees.name
-                  ? task.assignees.name.split(" ").map((n: string) => n[0]).join("")
-                  : "?"}
-              </AvatarFallback>
-            </Avatar>
-          </div>
+          <Avatar className="h-6 w-6 ring-2 ring-white dark:ring-slate-800 shrink-0">
+            <AvatarImage
+              src={task.assignees.avatar || "/placeholder.svg"}
+              alt={task.assignees.name}
+            />
+            <AvatarFallback className="text-[10px] bg-gradient-to-br from-indigo-600 to-purple-600 text-white font-extrabold">
+              {task.assignees.name
+                ? task.assignees.name
+                    .split(" ")
+                    .map((n: string) => n[0])
+                    .join("")
+                : "?"}
+            </AvatarFallback>
+          </Avatar>
         )}
       </div>
 
-      {/* Complete button (shown conditionally) */}
+      {/* Complete Button Action */}
       {showCompleteButton && (
-        <div className="relative z-10 mt-3">
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full group/btn relative overflow-hidden text-green-600 dark:text-green-400 hover:text-white dark:hover:text-white border-green-200 dark:border-green-500/50 hover:border-green-500 dark:hover:border-green-400 transition-all duration-300 dark:bg-green-950/20 dark:hover:bg-gradient-to-r dark:hover:from-green-600 dark:hover:to-emerald-600 dark:shadow-lg dark:hover:shadow-green-500/30"
-            onClick={handleCompleteClick}
-            disabled={isCompleting}
-          >
-            <span className="absolute inset-0 bg-gradient-to-r from-green-500 to-emerald-500 opacity-0 group-hover/btn:opacity-100 transition-opacity duration-300"></span>
-            <CheckCircle className="relative h-4 w-4 mr-2 group-hover/btn:scale-110 transition-transform" />
-            <span className="relative">
-              {isCompleting ? "Moving..." : `Mark Complete (→ ${getNextStageName()})`}
-            </span>
-          </Button>
-        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full h-7 text-[11px] font-bold rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800/80 transition-all flex items-center justify-center gap-1"
+          onClick={handleCompleteClick}
+          disabled={isCompleting}
+        >
+          <CheckCircle className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+          <span>
+            {isCompleting
+              ? "Updating..."
+              : `Mark Complete (→ ${getNextStageName()})`}
+          </span>
+        </Button>
       )}
     </div>
-  )
+  );
 }

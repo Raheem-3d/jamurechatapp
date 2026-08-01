@@ -1,6 +1,8 @@
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { emitToUser, getSocketIO } from "@/lib/socket-server";
+import { cacheGet, cacheSet, cacheDel } from "@/lib/redis";
+import { produceKafkaEvent } from "@/lib/kafka";
 import {
   Task,
   AutomationRule,
@@ -268,6 +270,18 @@ export async function POST(
     userId: sessionUserId,
   });
 
+  // Invalidate Redis cache for this task workspace
+  await cacheDel(`tasks:records:${taskId}`);
+
+  // 📡 Produce asynchronous Kafka audit event (non-blocking)
+  produceKafkaEvent("task-activity-events", {
+    type: "task_created",
+    taskId: newTask.id,
+    title: newTask.title,
+    userId: sessionUserId,
+    timestamp: new Date().toISOString(),
+  });
+
   return NextResponse.json({ task: newTask }, { status: 201 });
 }
 
@@ -276,8 +290,15 @@ export async function GET(
   { params }: { params: { taskId: string } },
 ) {
   const { taskId } = params;
+  const cacheKey = `tasks:records:${taskId}`;
 
   try {
+    // ⚡ Try fetching from Redis cache first
+    const cachedRecords = await cacheGet(cacheKey);
+    if (cachedRecords) {
+      return NextResponse.json({ records: cachedRecords }, { status: 200 });
+    }
+
     const records = await db.record.findMany({
       where: {
         parentTaskId: taskId,
@@ -288,6 +309,9 @@ export async function GET(
         createdByUser: true,
       },
     });
+
+    // ⚡ Store in Redis cache with 5-minute TTL
+    await cacheSet(cacheKey, records, 300);
 
     return NextResponse.json({ records }, { status: 200 });
   } catch (error) {
@@ -823,6 +847,18 @@ export async function PATCH(
       
     }
 
+    // Invalidate Redis cache for this task workspace
+    await cacheDel(`tasks:records:${taskId}`);
+
+    // 📡 Produce asynchronous Kafka audit event (non-blocking)
+    produceKafkaEvent("task-activity-events", {
+      type: "task_updated",
+      taskId: updatedTask.id,
+      title: updatedTask.title,
+      userId: sessionUserId,
+      timestamp: new Date().toISOString(),
+    });
+
     return NextResponse.json({ task: updatedTask }, { status: 200 });
   } catch (error) {
     console.error("Error updating task:", error);
@@ -1169,6 +1205,7 @@ async function createAutomaticTaskReminders(
               type: "TASK_DEADLINE",
               creatorId: assigneeId, // System-created, but assigned to user
               assigneeId: assigneeId,
+              taskId: taskId,
               isAutomatic: true,
             },
           }),

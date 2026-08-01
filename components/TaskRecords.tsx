@@ -1,108 +1,149 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import type { Task, Tag, User, Stage } from "@/types/task"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Search, Filter, MoreHorizontal, Calendar, TagIcon } from "lucide-react"
-import { formatDate } from "date-fns"
+import { useState } from "react";
+import type { Task, Tag, User, Stage } from "@/types/task";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Search, Filter, MoreHorizontal, Calendar, TagIcon } from "lucide-react";
+import { formatDate } from "date-fns";
+import { cn } from "@/lib/utils";
 
 interface TaskRecordsProps {
-  tasks: Task[]
-  tags: Tag[]
-  users: User[]
-  stages: Stage[]
-  onTaskClick: (task: Task) => void
-  onDeleteTask: (taskId: string) => void
+  tasks: Task[];
+  tags: Tag[];
+  users: User[];
+  stages: Stage[];
+  onTaskClick: (task: Task) => void;
+  onDeleteTask: (taskId: string) => void;
 }
 
-export function TaskRecords({ stages, tasks, tags, users, onTaskClick, onDeleteTask }: TaskRecordsProps) {
-  const [searchQuery, setSearchQuery] = useState("")
-  const [selectedTags, setSelectedTags] = useState<string[]>([])
-  const [selectedPriority, setSelectedPriority] = useState<string>("")
+const getStageColorStyles = (color?: string) => {
+  if (!color) return "bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border-indigo-100 dark:border-indigo-900/40";
+  const c = color.toLowerCase();
+  if (c.includes("blue")) return "bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border-blue-100 dark:border-blue-900/40";
+  if (c.includes("green") || c.includes("emerald")) return "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-100 dark:border-emerald-900/40";
+  if (c.includes("yellow") || c.includes("amber")) return "bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-100 dark:border-amber-900/40";
+  if (c.includes("purple") || c.includes("violet")) return "bg-purple-50 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 border-purple-100 dark:border-purple-900/40";
+  if (c.includes("pink") || c.includes("rose")) return "bg-pink-50 dark:bg-pink-950/60 text-pink-700 dark:text-pink-300 border-pink-100 dark:border-pink-900/40";
+  if (c.includes("red")) return "bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border-rose-100 dark:border-rose-900/40";
+  return "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700";
+};
 
-
+export function TaskRecords({
+  stages,
+  tasks,
+  tags,
+  users,
+  onTaskClick,
+  onDeleteTask,
+}: TaskRecordsProps) {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [selectedPriority, setSelectedPriority] = useState<string>("");
 
   const filteredTasks = tasks.filter((task) => {
     const matchesSearch =
       task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      task.description.toLowerCase().includes(searchQuery.toLowerCase())
+      task.description.toLowerCase().includes(searchQuery.toLowerCase());
 
-    const matchesTags = selectedTags.length === 0 || task.tags.some((tag) => selectedTags.includes(tag.id))
+    const matchesTags =
+      selectedTags.length === 0 ||
+      task.tags.some((tag) => selectedTags.includes(tag.id));
 
-    const matchesPriority = !selectedPriority || task.priority === selectedPriority
+    const matchesPriority =
+      !selectedPriority || task.priority === selectedPriority;
 
-    return matchesSearch && matchesTags && matchesPriority
-  })
+    return matchesSearch && matchesTags && matchesPriority;
+  });
 
-
-
-
-
-
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
+  const getPriorityBadgeClass = (priority: string) => {
+    switch (priority?.toLowerCase()) {
       case "urgent":
-        return "bg-red-100 text-red-800"
+        return "bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-900/60";
       case "high":
-        return "bg-orange-100 text-orange-800"
+        return "bg-orange-50 dark:bg-orange-950/60 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-900/60";
       case "medium":
-        return "bg-yellow-100 text-yellow-800"
+        return "bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-900/60";
       case "low":
-        return "bg-green-100 text-green-800"
+        return "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-900/60";
       default:
-        return "bg-gray-100 text-gray-800"
+        return "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700";
     }
-  }
+  };
 
   return (
-    <div className="p-6 min-h-screen bg-gray-50 dark:bg-gradient-to-br dark:from-slate-950 dark:via-indigo-950 dark:to-slate-950">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-8">
-        <div className="flex items-center gap-4">
-          <h2 className="text-3xl font-bold text-gray-900 dark:text-transparent dark:bg-gradient-to-r dark:from-cyan-400 dark:via-blue-500 dark:to-purple-600 dark:bg-clip-text drop-shadow-lg">
+    <div className="p-4 sm:p-6 min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 space-y-4">
+      {/* Header Bar */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
+        <div className="flex items-center gap-3">
+          <h2 className="text-base font-bold text-slate-900 dark:text-white">
             All Records
           </h2>
-          <Badge variant="secondary" className="px-4 py-1.5 dark:bg-gradient-to-br dark:from-indigo-600 dark:to-purple-700 dark:text-white dark:border-0 dark:shadow-xl dark:shadow-purple-500/40 font-semibold">
-            {filteredTasks.length} tasks
+          <Badge
+            variant="secondary"
+            className="text-xs font-bold px-2.5 py-0.5 bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-900/40"
+          >
+            {filteredTasks.length} total
           </Badge>
         </div>
 
-        <div className="flex items-center gap-4">
-          <div className="relative group">
-            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400 dark:text-indigo-400 dark:group-hover:text-cyan-400 transition-colors duration-300" />
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="relative flex-1 sm:w-64 min-w-44">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
             <Input
-              placeholder="Search tasks..."
+              placeholder="Search records..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-12 pr-4 py-2.5 w-80 bg-white dark:bg-gradient-to-r dark:from-slate-900 dark:to-indigo-950 dark:border-indigo-500/40 dark:text-slate-100 dark:placeholder-slate-400 dark:focus:border-cyan-500 dark:focus:ring-2 dark:focus:ring-cyan-500/30 dark:shadow-2xl dark:shadow-indigo-500/20 transition-all duration-300 rounded-xl"
+              className="h-8 pl-8 text-xs rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700"
             />
           </div>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="px-5 py-2.5 dark:bg-gradient-to-br dark:from-indigo-600 dark:to-purple-700 dark:border-0 dark:text-white dark:hover:from-indigo-500 dark:hover:to-purple-600 dark:shadow-xl dark:shadow-indigo-500/30 dark:hover:shadow-2xl dark:hover:shadow-indigo-500/50 dark:hover:scale-105 transition-all duration-300 rounded-xl font-semibold">
-                <TagIcon className="h-4 w-4 mr-2" />
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 rounded-xl border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 px-3"
+              >
+                <TagIcon className="h-3.5 w-3.5 mr-1.5 text-indigo-500" />
                 Tags
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent className="dark:bg-gradient-to-br dark:from-slate-900 dark:via-indigo-950 dark:to-slate-900 dark:border-indigo-500/30 dark:shadow-2xl dark:shadow-purple-500/40 dark:backdrop-blur-xl rounded-xl p-2">
+            <DropdownMenuContent className="rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xl p-1.5">
               {tags.map((tag) => (
                 <DropdownMenuItem
                   key={tag.id}
                   onClick={() => {
                     setSelectedTags((prev) =>
-                      prev.includes(tag.id) ? prev.filter((id) => id !== tag.id) : [...prev, tag.id],
-                    )
+                      prev.includes(tag.id)
+                        ? prev.filter((id) => id !== tag.id)
+                        : [...prev, tag.id]
+                    );
                   }}
-                  className="dark:text-slate-200 dark:hover:bg-gradient-to-r dark:hover:from-indigo-700/50 dark:hover:to-purple-700/50 dark:hover:text-white cursor-pointer transition-all duration-200 rounded-lg my-1 px-3 py-2"
+                  className="text-xs font-semibold cursor-pointer rounded-lg px-2.5 py-1.5"
                 >
-                  <Badge className={`mr-2 ${tag.color}`}>{tag.name}</Badge>
-                  {selectedTags.includes(tag.id) && <span className="ml-auto text-cyan-400 font-bold">✓</span>}
+                  <Badge variant="secondary" className="mr-2 text-[10px]">
+                    {tag.name}
+                  </Badge>
+                  {selectedTags.includes(tag.id) && (
+                    <span className="ml-auto text-indigo-600 font-bold">✓</span>
+                  )}
                 </DropdownMenuItem>
               ))}
             </DropdownMenuContent>
@@ -110,20 +151,37 @@ export function TaskRecords({ stages, tasks, tags, users, onTaskClick, onDeleteT
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="px-5 py-2.5 dark:bg-gradient-to-br dark:from-purple-600 dark:to-pink-600 dark:border-0 dark:text-white dark:hover:from-purple-500 dark:hover:to-pink-500 dark:shadow-xl dark:shadow-purple-500/30 dark:hover:shadow-2xl dark:hover:shadow-purple-500/50 dark:hover:scale-105 transition-all duration-300 rounded-xl font-semibold">
-                <Filter className="h-4 w-4 mr-2" />
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 rounded-xl border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 px-3"
+              >
+                <Filter className="h-3.5 w-3.5 mr-1.5 text-purple-500" />
                 Priority
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent className="dark:bg-gradient-to-br dark:from-slate-900 dark:via-indigo-950 dark:to-slate-900 dark:border-indigo-500/30 dark:shadow-2xl dark:shadow-purple-500/40 dark:backdrop-blur-xl rounded-xl p-2">
-              <DropdownMenuItem onClick={() => setSelectedPriority("")} className="dark:text-slate-200 dark:hover:bg-gradient-to-r dark:hover:from-indigo-700/50 dark:hover:to-purple-700/50 dark:hover:text-white cursor-pointer transition-all duration-200 rounded-lg my-1 px-3 py-2">
+            <DropdownMenuContent className="rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xl p-1.5">
+              <DropdownMenuItem
+                onClick={() => setSelectedPriority("")}
+                className="text-xs font-semibold cursor-pointer rounded-lg px-2.5 py-1.5"
+              >
                 All Priorities
-                {!selectedPriority && <span className="ml-auto text-cyan-400 font-bold">✓</span>}
+                {!selectedPriority && (
+                  <span className="ml-auto text-indigo-600 font-bold">✓</span>
+                )}
               </DropdownMenuItem>
               {["urgent", "high", "medium", "low"].map((priority) => (
-                <DropdownMenuItem key={priority} onClick={() => setSelectedPriority(priority)} className="dark:text-slate-200 dark:hover:bg-gradient-to-r dark:hover:from-indigo-700/50 dark:hover:to-purple-700/50 dark:hover:text-white cursor-pointer transition-all duration-200 rounded-lg my-1 px-3 py-2">
-                  <Badge className={`mr-2 ${getPriorityColor(priority)}`}>{priority}</Badge>
-                  {selectedPriority === priority && <span className="ml-auto text-cyan-400 font-bold">✓</span>}
+                <DropdownMenuItem
+                  key={priority}
+                  onClick={() => setSelectedPriority(priority)}
+                  className="text-xs font-semibold cursor-pointer rounded-lg px-2.5 py-1.5 capitalize"
+                >
+                  <Badge className={cn("mr-2 text-[10px]", getPriorityBadgeClass(priority))}>
+                    {priority}
+                  </Badge>
+                  {selectedPriority === priority && (
+                    <span className="ml-auto text-indigo-600 font-bold">✓</span>
+                  )}
                 </DropdownMenuItem>
               ))}
             </DropdownMenuContent>
@@ -131,121 +189,144 @@ export function TaskRecords({ stages, tasks, tags, users, onTaskClick, onDeleteT
         </div>
       </div>
 
-      <div className="border rounded-2xl w-full overflow-hidden dark:border-indigo-500/20 dark:bg-gradient-to-br dark:from-slate-900/80 dark:via-indigo-950/50 dark:to-slate-900/80 dark:shadow-2xl dark:shadow-indigo-500/20 dark:backdrop-blur-sm">
+      {/* Table Container */}
+      <div className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs overflow-hidden">
         <Table>
-          <TableHeader>
-            <TableRow className="dark:border-indigo-500/20 dark:bg-gradient-to-r dark:from-indigo-900/50 dark:via-purple-900/50 dark:to-indigo-900/50 dark:hover:from-indigo-900/60 dark:hover:to-purple-900/60 border-b-2">
-              <TableHead className="dark:text-cyan-300 font-bold text-base py-4">Task</TableHead>
-              <TableHead className="dark:text-cyan-300 font-bold text-base py-4">Stage</TableHead>
-              {/* <TableHead>Priority</TableHead> */}
-              {/* <TableHead className="dark:text-cyan-300 font-bold text-base py-4">Assignee</TableHead> */}
-              <TableHead className="dark:text-cyan-300 font-bold text-base py-4">Due Date</TableHead>
-              <TableHead className="dark:text-cyan-300 font-bold text-base py-4">Tags</TableHead>
-              <TableHead className="w-[50px] dark:text-cyan-300"></TableHead>
+          <TableHeader className="bg-slate-50/50 dark:bg-slate-800/40 border-b border-slate-100 dark:border-slate-800">
+            <TableRow>
+              <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 py-3">
+                Record Title
+              </TableHead>
+              <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 py-3">
+                Stage
+              </TableHead>
+              <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 py-3">
+                Due Date
+              </TableHead>
+              <TableHead className="text-xs font-bold text-slate-700 dark:text-slate-300 py-3">
+                Tags
+              </TableHead>
+              <TableHead className="w-[50px]"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredTasks.map((task) => (
-              <TableRow 
-                key={task.id} 
-                className="cursor-pointer hover:bg-gray-50 dark:border-indigo-500/10 dark:hover:bg-gradient-to-r dark:hover:from-indigo-900/30 dark:hover:via-purple-900/20 dark:hover:to-indigo-900/30 transition-all duration-300 dark:hover:shadow-xl dark:hover:shadow-purple-500/20 dark:hover:scale-[1.01] dark:hover:border-l-4 dark:hover:border-l-cyan-500" 
-                onClick={() => onTaskClick(task)}
-              >
-                <TableCell className="dark:text-slate-100 py-4">
-                  <div>
-                    <div className="font-semibold dark:text-white text-base dark:drop-shadow-lg">{task.title}</div>
-                    <div className="text-sm text-gray-500 dark:text-slate-400 truncate max-w-xs mt-1">{task.description}</div>
-                  </div>
-                </TableCell>
-                <TableCell className="py-4">
-                  {stages.find((stage: Stage) => stage.id === task.stageId)?.name ? (
-                    <Badge variant="destructive" className="w-full dark:bg-gradient-to-br dark:from-red-600 dark:to-rose-700 dark:border-0 dark:shadow-xl dark:shadow-red-500/30 font-semibold px-3 py-1.5">
-                      <div className="items-center w-fit">
-                        {stages.find((stage: Stage) => stage.id === task.stageId)?.name}
-                      </div>
-                    </Badge>
-                  ) : (
-                    <span className="text-gray-400 dark:text-slate-500 italic">No stage</span>
-                  )}
-                </TableCell>
-                {/* <TableCell>
-                  <Badge className={getPriorityColor(task.priority)}>{task.priority}</Badge>
-                </TableCell> */}
-                {/* <TableCell className="py-4">
-                  {task.assignees ? (
-                    <div className="flex items-center gap-3">
-                      <Avatar className="h-8 w-8 ring-2 ring-slate-200 dark:ring-cyan-500/50 dark:ring-offset-2 dark:ring-offset-slate-900 transition-all duration-300 dark:hover:ring-cyan-400 dark:hover:scale-110">
-                        <AvatarImage src={task.assignees.avatar || "/placeholder.svg"} alt={task.assignees.name} />
-                        <AvatarFallback className="text-xs font-bold dark:bg-gradient-to-br dark:from-cyan-500 dark:to-blue-600 dark:text-white dark:shadow-lg">
-                          {task.assignees.name ? task.assignees.name.split(" ").map((n: string) => n[0]).join("") : "?"}
-                        </AvatarFallback>
-                      </Avatar>
-                      <span className="text-sm font-medium dark:text-slate-100">{task.assignees.name || "Unknown"}</span>
-                    </div>
-                  ) : (
-                    <span className="text-gray-400 dark:text-slate-500 italic">Unassigned</span>
-                  )}
-                </TableCell> */}
-                <TableCell className="w-32 py-4">
-                  {task.dueDate ? (
-                    <div className="flex items-center gap-2 w-[160px] px-3 py-2 rounded-xl bg-gradient-to-br from-blue-50 to-blue-100 dark:from-indigo-600/40 dark:via-blue-600/30 dark:to-cyan-600/40 dark:border dark:border-cyan-500/30 dark:shadow-lg dark:shadow-cyan-500/20 transition-all duration-300 dark:hover:shadow-xl dark:hover:shadow-cyan-500/40">
-                      <Calendar className="h-5 w-5 text-blue-500 dark:text-cyan-300" />
-                      <div className="flex flex-col">
-                        <span className="text-xs text-blue-700 dark:text-cyan-200 font-bold">
-                          {formatDate(task.dueDate, "MMM dd, yyyy")}
-                        </span>
-                        <span className="text-[11px] text-gray-500 dark:text-cyan-400/80 font-medium">
-                          {task.dueDate < new Date() ? "⚠ Overdue" : "📅 Due soon"}
-                        </span>
-                      </div>
-                    </div>
-                  ) : (
-                    <span className="text-gray-400 dark:text-slate-500 italic">No due date</span>
-                  )}
-                </TableCell>
-                <TableCell className="py-4">
-                  <div className="flex flex-wrap gap-2">
-                    {task.tags.slice(0, 2).map((tag) => (
-                      <Badge key={tag.id} className={`text-xs font-semibold px-3 py-1 ${tag.color} dark:shadow-lg dark:shadow-purple-500/20 transition-all duration-300 dark:hover:scale-105`}>
-                        {tag.name}
-                      </Badge>
-                    ))}
-                    {task.tags.length > 2 && (
-                      <Badge variant="outline" className="text-xs font-semibold px-2 dark:bg-indigo-900/50 dark:border-indigo-500/50 dark:text-indigo-300 dark:hover:bg-indigo-800/70 transition-all">
-                        +{task.tags.length - 2}
-                      </Badge>
-                    )}
-                  </div>
-                </TableCell>
-                <TableCell className="py-4">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-9 w-9 dark:text-slate-300 dark:hover:bg-gradient-to-br dark:hover:from-indigo-700/50 dark:hover:to-purple-700/50 dark:hover:text-white transition-all duration-300 dark:hover:scale-110 rounded-xl">
-                        <MoreHorizontal className="h-5 w-5" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="dark:bg-gradient-to-br dark:from-slate-900 dark:via-indigo-950 dark:to-slate-900 dark:border-indigo-500/30 dark:shadow-2xl dark:shadow-purple-500/40 dark:backdrop-blur-xl rounded-xl p-2">
-                      <DropdownMenuItem onClick={() => onTaskClick(task)} className="dark:text-slate-200 dark:hover:bg-gradient-to-r dark:hover:from-indigo-700/50 dark:hover:to-purple-700/50 dark:hover:text-white cursor-pointer transition-all duration-200 rounded-lg px-3 py-2 font-medium">
-                        👁️ View Details
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          onDeleteTask(task.id)
-                        }}
-                        className="text-red-600 dark:text-red-400 dark:hover:bg-gradient-to-r dark:hover:from-red-700/50 dark:hover:to-rose-700/50 dark:hover:text-red-300 cursor-pointer transition-all duration-200 rounded-lg px-3 py-2 font-medium"
-                      >
-                        🗑️ Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+            {filteredTasks.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={5} className="text-center py-8 text-xs text-slate-400 font-medium">
+                  No records found
                 </TableCell>
               </TableRow>
-            ))}
+            ) : (
+              filteredTasks.map((task) => {
+                const stageObj = stages.find((s) => s.id === task.stageId);
+
+                return (
+                  <TableRow
+                    key={task.id}
+                    className="cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors border-b border-slate-100 dark:border-slate-800/80"
+                    onClick={() => onTaskClick(task)}
+                  >
+                    <TableCell className="py-3">
+                      <div>
+                        <div className="font-bold text-xs text-slate-900 dark:text-white">
+                          {task.title}
+                        </div>
+                        {task.description && (
+                          <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate max-w-xs mt-0.5 font-medium">
+                            {task.description}
+                          </div>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="py-3">
+                      {stageObj?.name ? (
+                        <Badge
+                          variant="secondary"
+                          className={cn(
+                            "text-[10px] font-bold px-2 py-0.5 border",
+                            getStageColorStyles(stageObj.color)
+                          )}
+                        >
+                          {stageObj.name}
+                        </Badge>
+                      ) : (
+                        <span className="text-[10px] text-slate-400 italic">No stage</span>
+                      )}
+                    </TableCell>
+
+                    <TableCell className="py-3">
+                      {task.dueDate ? (
+                        <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                          <Calendar className="h-3.5 w-3.5 text-indigo-500" />
+                          <span>{formatDate(task.dueDate, "MMM dd, yyyy")}</span>
+                        </div>
+                      ) : (
+                        <span className="text-[10px] text-slate-400 italic">No due date</span>
+                      )}
+                    </TableCell>
+
+                    <TableCell className="py-3">
+                      <div className="flex flex-wrap gap-1">
+                        {task.tags.slice(0, 2).map((tag) => (
+                          <Badge
+                            key={tag.id}
+                            variant="secondary"
+                            className="text-[9px] font-extrabold px-1.5 py-0 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
+                          >
+                            {tag.name}
+                          </Badge>
+                        ))}
+                        {task.tags.length > 2 && (
+                          <Badge
+                            variant="outline"
+                            className="text-[9px] font-bold px-1 text-slate-500"
+                          >
+                            +{task.tags.length - 2}
+                          </Badge>
+                        )}
+                      </div>
+                    </TableCell>
+
+                    <TableCell className="py-3">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent
+                          align="end"
+                          className="rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xl"
+                        >
+                          <DropdownMenuItem
+                            onClick={() => onTaskClick(task)}
+                            className="text-xs font-semibold cursor-pointer"
+                          >
+                            View Details
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onDeleteTask(task.id);
+                            }}
+                            className="text-xs font-semibold text-rose-600 dark:text-rose-400 cursor-pointer"
+                          >
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
+            )}
           </TableBody>
         </Table>
       </div>
     </div>
-  )
+  );
 }
-

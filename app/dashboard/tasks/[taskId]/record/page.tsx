@@ -35,13 +35,18 @@ import {
   Zap,
   Eye,
   Edit,
+  Edit3,
   SignalHigh,
   ArrowLeft,
   Clock,
+  X,
+  CheckCircle,
 } from "lucide-react";
 import { useSocket } from "@/lib/socket-client";
 import { toast } from "sonner";
 import { useParams } from "next/navigation";
+import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
 import { ActivityLog } from "@/components/ActivityLog";
 import { useRouter } from "next/navigation";
 import { Switch } from "@radix-ui/react-switch";
@@ -262,6 +267,9 @@ export default function TaskManagement() {
   const [selectedAssignees, setSelectedAssignees] = useState<string[]>([]);
   const [selectedPriority, setSelectedPriority] = useState<string>("");
   const [dueDateFilter, setDueDateFilter] = useState<string>("");
+  const [selectedStage, setSelectedStage] = useState<string>("");
+  const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>("");
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
 
   // State for modals and forms
   const [isCreateTaskOpen, setIsCreateTaskOpen] = useState(false);
@@ -356,7 +364,6 @@ export default function TaskManagement() {
         return [...prev, task];
       });
       addActivity("task_created", `Task "${task.title}" was created`, task.id);
-      toast.success("New task created!");
     };
 
     const handleTaskUpdated = (task: Task) => {
@@ -504,10 +511,27 @@ export default function TaskManagement() {
       timestamp: new Date(),
     };
     setActivityLog((prev) => [activity, ...prev]);
-    router.refresh();
   };
 
   const createTask = async (taskData: any) => {
+    const tempId = `temp-${Date.now()}`;
+    const optimisticTask: Task = {
+      id: tempId,
+      title: taskData.title,
+      description: taskData.description || "",
+      stageId: taskData.stageId || stages[0]?.id,
+      priority: taskData.priority || "medium",
+      status: "in_progress",
+      tags: taskData.tags || [],
+      assigneeId: taskData.assigneeId || [],
+      dueDate: taskData.dueDate?.endDate ? new Date(taskData.dueDate.endDate) : null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    } as any;
+
+    // ⚡ Optimistic UI Update: Render task immediately on UI (0ms delay)
+    setTasks((prev) => [...prev, optimisticTask]);
+
     try {
       const response = await fetch(`/api/tasks/${taskId}/taskrecord`, {
         method: "POST",
@@ -520,13 +544,13 @@ export default function TaskManagement() {
           priority: taskData.priority,
           status: "in_progress",
           isComplete: false,
-          dueDate: taskData.dueDate.endDate
+          dueDate: taskData.dueDate?.endDate
             ? new Date(taskData.dueDate.endDate)
             : null,
-          startDate: taskData.dueDate.startDate
+          startDate: taskData.dueDate?.startDate
             ? new Date(taskData.dueDate.startDate)
             : null,
-          endDate: taskData.dueDate.endDate
+          endDate: taskData.dueDate?.endDate
             ? new Date(taskData.dueDate.endDate)
             : null,
           tags: taskData.tags,
@@ -535,11 +559,10 @@ export default function TaskManagement() {
 
       if (response.ok) {
         const newTaskData = await response.json();
-        // Optimistically add, but guard against duplicates
-        setTasks((prev) => {
-          const exists = prev.some((t) => t.id === newTaskData.task.id);
-          return exists ? prev : [...prev, newTaskData.task];
-        });
+        // Replace temp task with confirmed server task
+        setTasks((prev) =>
+          prev.map((t) => (t.id === tempId ? newTaskData.task : t))
+        );
 
         if (socket && isConnected) {
           socket.emit("task:create", newTaskData.task);
@@ -553,43 +576,41 @@ export default function TaskManagement() {
         toast.success("Task created successfully!");
         return true;
       } else {
+        // Rollback on failure
+        setTasks((prev) => prev.filter((t) => t.id !== tempId));
         throw new Error("Failed to create task");
       }
     } catch (error) {
       console.error("Error creating task:", error);
+      setTasks((prev) => prev.filter((t) => t.id !== tempId));
       toast.error("Failed to create task");
       return false;
     }
   };
 
-  const updateTask = async (taskid: string, updates: Partial<Task>) => {
+  const updateTask = async (
+    taskid: string,
+    updates: Partial<Task>,
+    options?: { silent?: boolean }
+  ) => {
     try {
       if (!taskid) {
         throw new Error("Task ID is required");
       }
 
-      const currentTaskResponse = await fetch(
-        `/api/tasks/${taskId}/taskrecord`,
+      // ⚡ Optimistic UI Update: Instant local state update (0ms delay)
+      setTasks((prev) =>
+        prev.map((t) => (t.id === taskid ? { ...t, ...updates } : t))
       );
-
-      if (!currentTaskResponse.ok) {
-        throw new Error("Failed to fetch current task state");
-      }
-      const currentTask = await currentTaskResponse.json();
-
-      // Prepare update payload
-      const updatePayload = {
-        id: taskid,
-        ...updates,
-      };
-
-      console.log("Update Payload:", updatePayload);
 
       // Send update to server
       const response = await fetch(`/api/tasks/${taskId}/taskrecord`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updatePayload),
+        body: JSON.stringify({
+          id: taskid,
+          ...updates,
+        }),
       });
 
       if (!response.ok) {
@@ -597,42 +618,20 @@ export default function TaskManagement() {
       }
 
       const updatedTask = await response.json();
-      setTasks((prev) =>
-        prev.map((t) => (t.id === taskid ? updatedTask.task : t)),
-      );
-
-      const newTaskState = updatedTask.task;
-
-      // Update local state
-      setTasks((prev) => prev.map((t) => (t.id === taskId ? newTaskState : t)));
-
-      // Check automation rules with both old and new states
-      const rules = await fetchAutomationRules(taskId);
-      const data = await checkAutomationRules({
-        previousTask: currentTask,
-        currentTask: newTaskState,
-        updates,
-        rules,
-      });
-
-      const refreshedTaskRes = await fetch(`/api/tasks/${taskId}/taskrecord`);
-      const refreshedTask = await refreshedTaskRes.json();
+      const newTaskState = updatedTask.task || updatedTask;
 
       setTasks((prev) =>
-        prev.map((t) => (t.id === taskId ? refreshedTask : t)),
+        prev.map((t) => (t.id === taskid ? newTaskState : t))
       );
-      toast.success("Task updated successfully");
 
-      // Log activity
+      if (!options?.silent) {
+        toast.success("Task updated successfully");
+      }
+
       addActivity(
         "task_updated",
-        `Task "${newTaskState.title}" was updated`,
-        taskId,
-        // {
-        //   changes: Object.keys(updates),
-        //   previousState: currentTask,
-        //   newState: newTaskState,
-        // }
+        `Task "${newTaskState.title || "Record"}" was updated`,
+        taskid
       );
 
       return true;
@@ -653,6 +652,11 @@ export default function TaskManagement() {
         return;
       }
 
+      // 🛑 If already in the same stage, do not move or trigger notification
+      if (currentTask.stageId === newStageId) {
+        return;
+      }
+
       const previousStageId = currentTask.stageId;
 
       // Optimistically update the UI
@@ -662,20 +666,23 @@ export default function TaskManagement() {
         ),
       );
 
-      // Send update to the server
-      const success = await updateTask(taskId, {
-        stageId: newStageId,
-        isComplete: false,
-      });
+      // Send update to the server SILENTLY (prevents duplicate updateTask toast)
+      const success = await updateTask(
+        taskId,
+        {
+          stageId: newStageId,
+          isComplete: false,
+        },
+        { silent: true }
+      );
 
       if (success) {
-        // Emit via socket if applicable - broadcast to all users
         if (socket && isConnected) {
           socket.emit("task:move", {
             taskId,
             newStageId,
             stageName: newStage.name,
-            task: tasks.find((t) => t.id === taskId), // Include full task data
+            task: tasks.find((t) => t.id === taskId),
           });
         }
 
@@ -685,7 +692,7 @@ export default function TaskManagement() {
           taskId,
         );
 
-        toast.success("Task moved successfully!");
+        toast.success(`Task moved to ${newStage.name}`);
       } else {
         // Rollback if update fails
         setTasks((prevTasks) =>
@@ -698,7 +705,6 @@ export default function TaskManagement() {
     } catch (error) {
       console.error("Error moving task:", error);
 
-      // Rollback on error
       const originalTask = tasks.find((t) => t.id === taskId);
       setTasks((prevTasks) =>
         prevTasks.map((t) =>
@@ -710,6 +716,21 @@ export default function TaskManagement() {
 
       toast.error("Failed to move task");
     }
+  };
+
+  const reorderTask = (stageId: string, sourceIndex: number, destinationIndex: number) => {
+    if (sourceIndex === destinationIndex) return;
+
+    setTasks((prevTasks) => {
+      const stageTasks = prevTasks.filter((t) => t.stageId === stageId);
+      const otherTasks = prevTasks.filter((t) => t.stageId !== stageId);
+
+      const [movedItem] = stageTasks.splice(sourceIndex, 1);
+      if (!movedItem) return prevTasks;
+      stageTasks.splice(destinationIndex, 0, movedItem);
+
+      return [...otherTasks, ...stageTasks];
+    });
   };
 
   const deleteTask = async (recordId: string) => {
@@ -1655,48 +1676,100 @@ export default function TaskManagement() {
     }
   };
 
-  //  ---------------------Automation Rule End Here---------------------------
+  // Helper functions
+  const isTaskComplete = (task: Task) => {
+    const stage = stages.find((s) => s.id === task.stageId);
+    return Boolean(stage?.isCompleted || task.isComplete);
+  };
 
   // Filter functions
+  const getActiveFilterCount = () => {
+    let count = 0;
+    if (searchQuery.trim()) count++;
+    if (selectedTags.length > 0) count++;
+    if (selectedAssignees.length > 0) count++;
+    if (selectedPriority && selectedPriority !== "all") count++;
+    if (dueDateFilter && dueDateFilter !== "all") count++;
+    if (selectedStage && selectedStage !== "all") count++;
+    if (selectedStatusFilter && selectedStatusFilter !== "all") count++;
+    return count;
+  };
+
   const getFilteredTasks = () => {
     return tasks.filter((task) => {
-      const matchesSearch =
-        !searchQuery ||
-        (task.title?.toLowerCase() || "").includes(searchQuery.toLowerCase()) ||
-        (task.description?.toLowerCase() || "").includes(
-          searchQuery.toLowerCase(),
-        );
+      // 1. Search Query: title, description, stage name, assignee names, tag names
+      const q = searchQuery.trim().toLowerCase();
+      let matchesSearch = true;
+      if (q) {
+        const titleMatch = (task.title?.toLowerCase() || "").includes(q);
+        const descMatch = (task.description?.toLowerCase() || "").includes(q);
+        const stageMatch = (
+          stages.find((s) => s.id === task.stageId)?.name?.toLowerCase() || ""
+        ).includes(q);
+        const tagMatch =
+          Array.isArray(task.tags) &&
+          task.tags.some((t: any) =>
+            (typeof t === "string" ? t : t.name || "").toLowerCase().includes(q)
+          );
+        matchesSearch = titleMatch || descMatch || stageMatch || tagMatch;
+      }
 
-   
-
+      // 2. Tags Filter (robust ID/Name matching)
       const matchesTags =
         selectedTags.length === 0 ||
         (Array.isArray(task.tags) &&
-          task.tags.some((tag) => selectedTags.includes(tag.id)));
+          task.tags.some((tag: any) => {
+            const tagId = typeof tag === "string" ? tag : (tag.id || tag.tagId || tag.name);
+            const tagName = typeof tag === "string" ? tag : (tag.name || tag.id);
+            return (
+              selectedTags.includes(tagId) ||
+              selectedTags.includes(tagName) ||
+              selectedTags.includes(String(tag))
+            );
+          }));
 
+      // 3. Assignees Filter
       const matchesAssignees =
         selectedAssignees.length === 0 ||
         (Array.isArray(task.assignees) &&
-          task.assignees.some((user) =>
-            selectedAssignees.includes(user.userId),
+          task.assignees.some((user: any) =>
+            selectedAssignees.includes(user.userId || user.id || user)
           ));
 
+      // 4. Priority Filter
       const matchesPriority =
         !selectedPriority ||
-        selectedPriority === "" ||
-        task.priority === selectedPriority;
+        selectedPriority === "all" ||
+        (task.priority || "").toLowerCase() === selectedPriority.toLowerCase();
 
+      // 5. Due Date Filter
       const matchesDueDate =
         !dueDateFilter ||
-        dueDateFilter === "" ||
+        dueDateFilter === "all" ||
         checkDueDateFilter(task.dueDate, dueDateFilter);
+
+      // 6. Stage Filter
+      const matchesStage =
+        !selectedStage ||
+        selectedStage === "all" ||
+        task.stageId === selectedStage;
+
+      // 7. Status Filter
+      const completed = isTaskComplete(task);
+      const matchesStatus =
+        !selectedStatusFilter ||
+        selectedStatusFilter === "all" ||
+        (selectedStatusFilter === "completed" && completed) ||
+        (selectedStatusFilter === "in_progress" && !completed);
 
       return (
         matchesSearch &&
         matchesTags &&
         matchesAssignees &&
         matchesPriority &&
-        matchesDueDate
+        matchesDueDate &&
+        matchesStage &&
+        matchesStatus
       );
     });
   };
@@ -1931,11 +2004,6 @@ export default function TaskManagement() {
       : null;
   };
 
-  const isTaskComplete = (task: Task) => {
-    const stage = stages.find((s) => s.id === task.stageId);
-    return Boolean(stage?.isCompleted || task.isComplete);
-  };
-
   const hasNextStage = (stageId: string) => {
     return getNextStageId(stageId) !== null;
   };
@@ -2069,152 +2137,213 @@ export default function TaskManagement() {
 
   return (
     <div
-      className={`min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/20 dark:from-gray-950 dark:via-slate-900 dark:to-indigo-950/50 ${showActivityLog ? "overflow-hidden" : ""}`}
+      className={`min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 ${showActivityLog ? "overflow-hidden" : ""}`}
     >
       {/* Header */}
-      <header className="sticky top-0 z-50 backdrop-blur-xl bg-white/80 dark:bg-gradient-to-r dark:from-slate-900/95 dark:via-slate-800/95 dark:to-slate-900/95 border-b border-gray-200/50 dark:border-slate-700/50 shadow-lg dark:shadow-2xl dark:shadow-purple-500/10">
+      <header className="sticky top-0 z-50 bg-white dark:bg-slate-900 border-b border-slate-200/80 dark:border-slate-800 shadow-xs">
         <div className="px-4 py-3">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-4 flex-1 min-w-0">
-              {/* Logo & Branding */}
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <div className="relative group">
-                  <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 rounded-xl blur opacity-60 group-hover:opacity-100 transition duration-300 dark:opacity-75"></div>
-                  <div className="relative w-10 h-10 bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-600 dark:from-blue-500 dark:via-purple-500 dark:to-pink-500 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/30 dark:shadow-purple-500/50 transform hover:scale-105 transition-transform">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-10 w-10 p-0 bg-blue-800/30 hover:bg-blue-800/40 border-0"
-                      onClick={() => router.back()}
-                    >
-                      <ArrowLeft className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-gradient-to-r from-green-400 to-emerald-500 rounded-full border-2 border-white dark:border-slate-900 animate-pulse shadow-lg shadow-green-500/50"></div>
-                </div>
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3 flex-1 min-w-0 flex-wrap">
+              {/* Back Button & Title */}
+              <div className="flex items-center gap-2.5 flex-shrink-0">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 w-8 p-0 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200/80 dark:border-slate-700 flex items-center justify-center font-bold"
+                  onClick={() => router.back()}
+                  title="Back"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                </Button>
                 <div>
-                  <h1 className="text-xl font-bold bg-gradient-to-r from-gray-900 via-blue-800 to-purple-900 dark:from-blue-400 dark:via-purple-400 dark:to-pink-400 bg-clip-text text-transparent drop-shadow-sm">
+                  <h1 className="text-base font-bold text-slate-900 dark:text-white leading-tight flex items-center gap-2">
+                    <div className="p-1 bg-indigo-50 dark:bg-indigo-950/60 rounded-md text-indigo-600 dark:text-indigo-400">
+                      <LayoutGrid className="h-3.5 w-3.5" />
+                    </div>
                     TaskFlow
                   </h1>
-                  {/* <p className="text-xs text-gray-500 dark:text-slate-400 font-medium">Project Management</p> */}
                 </div>
               </div>
 
               {/* View Toggle */}
-              <div className="flex items-center gap-1 p-1 bg-gray-100 dark:bg-gradient-to-r dark:from-slate-800 dark:to-slate-700/80 rounded-lg border border-gray-200 dark:border-slate-600/50 shadow-sm dark:shadow-lg dark:shadow-purple-500/5 flex-shrink-0">
+              <div className="flex items-center gap-1 p-1 bg-slate-100/80 dark:bg-slate-800/80 rounded-xl border border-slate-200/60 dark:border-slate-700 flex-shrink-0">
                 <Button
-                  variant={view === "board" ? "default" : "ghost"}
+                  variant="ghost"
                   size="sm"
                   onClick={() => setView("board")}
-                  className={`relative transition-all duration-200 text-xs h-8 ${
+                  className={`text-xs h-7 rounded-lg px-2.5 font-bold transition-all ${
                     view === "board"
-                      ? "bg-white dark:bg-gradient-to-r dark:from-blue-600 dark:to-purple-600 shadow-md dark:shadow-lg dark:shadow-blue-500/30 text-blue-600 dark:text-white font-semibold"
-                      : "hover:bg-gray-50 dark:hover:bg-slate-700/70 text-gray-600 dark:text-slate-300"
+                      ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs"
+                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
                   }`}
                 >
                   <LayoutGrid className="h-3.5 w-3.5" />
                   <span className="hidden sm:inline ml-1">Board</span>
-                  {view === "board" && (
-                    <span className="absolute inset-x-0 -bottom-1 h-0.5 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 rounded-full shadow-lg shadow-purple-500/50"></span>
-                  )}
                 </Button>
                 <Button
-                  variant={view === "records" ? "default" : "ghost"}
+                  variant="ghost"
                   size="sm"
                   onClick={() => setView("records")}
-                  className={`relative transition-all duration-200 text-xs h-8 ${
+                  className={`text-xs h-7 rounded-lg px-2.5 font-bold transition-all ${
                     view === "records"
-                      ? "bg-white dark:bg-gradient-to-r dark:from-purple-600 dark:to-pink-600 shadow-md dark:shadow-lg dark:shadow-purple-500/30 text-blue-600 dark:text-white font-semibold"
-                      : "hover:bg-gray-50 dark:hover:bg-slate-700/70 text-gray-600 dark:text-slate-300"
+                      ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs"
+                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
                   }`}
                 >
                   <List className="h-3.5 w-3.5" />
                   <span className="hidden sm:inline ml-1">Records</span>
-                  {view === "records" && (
-                    <span className="absolute inset-x-0 -bottom-1 h-0.5 bg-gradient-to-r from-purple-600 via-pink-600 to-rose-600 rounded-full shadow-lg shadow-pink-500/50"></span>
-                  )}
                 </Button>
               </div>
 
               {/* Stats Badges */}
               <div className="flex items-center gap-2 flex-shrink-0">
-                <div className="group relative px-2.5 py-1 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/50 dark:to-indigo-950/50 rounded-lg border border-blue-200 dark:border-blue-500/30 shadow-sm dark:shadow-lg dark:shadow-blue-500/10 hover:shadow-md dark:hover:shadow-blue-500/20 transition-all duration-200">
-                  <div className="absolute inset-0 bg-gradient-to-r from-blue-400/0 via-blue-400/5 to-indigo-400/0 dark:from-blue-400/0 dark:via-blue-400/10 dark:to-indigo-400/0 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                  <div className="relative flex items-center gap-1.5 text-xs">
-                    <div className="w-1.5 h-1.5 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full animate-pulse shadow-lg shadow-blue-500/50"></div>
-                    <span className="font-bold text-blue-700 dark:text-blue-400">
-                      {getFilteredTasks().length}
-                    </span>
-                    <span className="hidden sm:inline text-blue-600 dark:text-blue-300 font-medium">
-                      Tasks
-                    </span>
-                  </div>
+                <div className="px-2.5 py-1 bg-indigo-50 dark:bg-indigo-950/50 rounded-xl border border-indigo-100 dark:border-indigo-900/40 text-xs font-bold text-indigo-700 dark:text-indigo-300 flex items-center gap-1.5">
+                  <div className="w-1.5 h-1.5 bg-indigo-600 dark:bg-indigo-400 rounded-full animate-pulse"></div>
+                  <span>{getFilteredTasks().length}</span>
+                  <span className="hidden sm:inline font-medium text-slate-500 dark:text-slate-400">Tasks</span>
                 </div>
-                <div className="group relative px-2.5 py-1 bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-950/50 dark:to-pink-950/50 rounded-lg border border-purple-200 dark:border-purple-500/30 shadow-sm dark:shadow-lg dark:shadow-purple-500/10 hover:shadow-md dark:hover:shadow-purple-500/20 transition-all duration-200">
-                  <div className="absolute inset-0 bg-gradient-to-r from-purple-400/0 via-purple-400/5 to-pink-400/0 dark:from-purple-400/0 dark:via-purple-400/10 dark:to-pink-400/0 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                  <div className="relative flex items-center gap-1.5 text-xs">
-                    <LayoutGrid className="w-3 h-3 text-purple-500 dark:text-purple-400" />
-                    <span className="font-bold text-purple-700 dark:text-purple-400">
-                      {stages.length}
-                    </span>
-                    <span className="hidden sm:inline text-purple-600 dark:text-purple-300 font-medium">
-                      Stages
-                    </span>
-                  </div>
+
+                <div className="px-2.5 py-1 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                  <LayoutGrid className="w-3 h-3 text-slate-500" />
+                  <span>{stages.length}</span>
+                  <span className="hidden sm:inline font-medium text-slate-500 dark:text-slate-400">Stages</span>
                 </div>
               </div>
             </div>
 
             {/* Filters & Actions */}
             <div className="flex items-center gap-2">
-              <div className="relative group">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 dark:text-slate-400 group-hover:text-blue-500 dark:group-hover:text-blue-400 transition-colors" />
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
                 <Input
-                  placeholder={`Search...`}
-                  className="pl-10 w-48 text-sm dark:bg-slate-800/50 dark:border-slate-600/50 dark:text-slate-200 dark:placeholder-slate-400 dark:focus:bg-slate-800 dark:focus:border-blue-500/50 dark:focus:ring-2 dark:focus:ring-blue-500/20 transition-all"
+                  placeholder="Search..."
+                  className="pl-8 h-8 w-36 sm:w-48 text-xs rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
               </div>
 
               {/* Compact Filters Dropdown */}
-              <Popover>
+              <Popover open={isFilterOpen} onOpenChange={setIsFilterOpen}>
                 <PopoverTrigger asChild>
                   <Button
                     variant="outline"
                     size="sm"
-                    className="gap-2 dark:border-slate-600/50 dark:hover:bg-slate-800/50"
+                    className={cn(
+                      "h-8 rounded-xl text-xs font-semibold px-3 flex items-center gap-1.5 transition-all",
+                      getActiveFilterCount() > 0
+                        ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 font-bold"
+                        : "border-slate-200/80 dark:border-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
+                    )}
                   >
-                    <Filter className="h-4 w-4" />
-                    <span className="hidden sm:inline text-xs">Filters</span>
-                    {(dueDateFilter && dueDateFilter !== "all") ||
-                    selectedAssignees.length > 0 ||
-                    selectedTags.length > 0 ||
-                    selectedPriority ? (
-                      <span className="ml-1 bg-blue-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
-                        {(dueDateFilter && dueDateFilter !== "all" ? 1 : 0) +
-                          selectedAssignees.length +
-                          selectedTags.length +
-                          (selectedPriority ? 1 : 0)}
+                    <Filter className="h-3.5 w-3.5 text-indigo-500" />
+                    <span className="hidden sm:inline">Filters</span>
+                    {getActiveFilterCount() > 0 && (
+                      <span className="bg-indigo-600 text-white text-[10px] rounded-full min-w-[18px] h-4 px-1 flex items-center justify-center font-extrabold ml-0.5">
+                        {getActiveFilterCount()}
                       </span>
-                    ) : null}
+                    )}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-80 dark:bg-gray-900/95 dark:border-slate-700">
-                  <div className="space-y-4">
-                    {/* Due Date Filter */}
-                    <div className="space-y-2">
-                      <label className="text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2">
-                        <Calendar className="h-4 w-4" /> Due Date
+                <PopoverContent
+                  onPointerDownOutside={(e) => {
+                    const target = e.target as HTMLElement;
+                    if (
+                      target?.closest?.("[role='listbox']") ||
+                      target?.closest?.("[data-radix-select-viewport]") ||
+                      target?.closest?.("[data-radix-popper-content-wrapper]")
+                    ) {
+                      e.preventDefault();
+                    }
+                  }}
+                  className="w-80 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xl space-y-3"
+                >
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+                    <div className="flex items-center gap-2">
+                      <Filter className="h-4 w-4 text-indigo-500" />
+                      <h4 className="text-xs font-bold text-slate-900 dark:text-white">
+                        Advanced Filters
+                      </h4>
+                    </div>
+                    {getActiveFilterCount() > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSearchQuery("");
+                          setSelectedTags([]);
+                          setSelectedAssignees([]);
+                          setSelectedPriority("");
+                          setDueDateFilter("");
+                          setSelectedStage("");
+                          setSelectedStatusFilter("");
+                          toast.success("All filters cleared!");
+                        }}
+                        className="text-[11px] font-bold text-rose-600 dark:text-rose-400 hover:underline"
+                      >
+                        Reset All
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+                    {/* Stage Column Filter */}
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                        <LayoutGrid className="h-3.5 w-3.5 text-indigo-500" />
+                        Stage Column
                       </label>
                       <Select
-                        value={dueDateFilter || ""}
-                        onValueChange={setDueDateFilter}
+                        value={selectedStage || "all"}
+                        onValueChange={(val) => setSelectedStage(val === "all" ? "" : val)}
                       >
-                        <SelectTrigger className="w-full text-sm">
+                        <SelectTrigger className="h-8 rounded-xl text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700">
+                          <SelectValue placeholder="All Stages" />
+                        </SelectTrigger>
+                        <SelectContent className="rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xl">
+                          <SelectItem value="all">All Stages</SelectItem>
+                          {stages.map((stage) => (
+                            <SelectItem key={stage.id} value={stage.id}>
+                              {stage.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Status Filter */}
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                        <CheckCircle className="h-3.5 w-3.5 text-indigo-500" />
+                        Status
+                      </label>
+                      <Select
+                        value={selectedStatusFilter || "all"}
+                        onValueChange={(val) => setSelectedStatusFilter(val === "all" ? "" : val)}
+                      >
+                        <SelectTrigger className="h-8 rounded-xl text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700">
+                          <SelectValue placeholder="All Statuses" />
+                        </SelectTrigger>
+                        <SelectContent className="rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xl">
+                          <SelectItem value="all">All Statuses</SelectItem>
+                          <SelectItem value="in_progress">In Progress</SelectItem>
+                          <SelectItem value="completed">Completed</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Due Date Filter */}
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                        <Calendar className="h-3.5 w-3.5 text-indigo-500" /> Due Date
+                      </label>
+                      <Select
+                        value={dueDateFilter || "all"}
+                        onValueChange={(val) => setDueDateFilter(val === "all" ? "" : val)}
+                      >
+                        <SelectTrigger className="h-8 rounded-xl text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700">
                           <SelectValue placeholder="All Dates" />
                         </SelectTrigger>
-                        <SelectContent className="dark:bg-gray-900/95">
+                        <SelectContent className="rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xl">
                           <SelectItem value="all">All Dates</SelectItem>
                           <SelectItem value="overdue">Overdue</SelectItem>
                           <SelectItem value="today">Today</SelectItem>
@@ -2226,31 +2355,43 @@ export default function TaskManagement() {
                       </Select>
                     </div>
 
-                    {/* Assignees Filter */}
-                    <div className="space-y-2">
-                      <label className="text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2">
-                        <Users className="h-4 w-4" /> Assignees
+                    {/* Priority Filter */}
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                        <Zap className="h-3.5 w-3.5 text-indigo-500" /> Priority
                       </label>
                       <Select
-                        value={
-                          selectedAssignees.length === 0
-                            ? ""
-                            : selectedAssignees.join(",")
-                        }
-                        onValueChange={(value) => {
-                          if (value === "all" || !value) {
-                            setSelectedAssignees([]);
-                          } else {
-                            setSelectedAssignees([value]);
-                          }
-                        }}
+                        value={selectedPriority || "all"}
+                        onValueChange={(val) => setSelectedPriority(val === "all" ? "" : val)}
                       >
-                        <SelectTrigger className="w-full text-sm">
+                        <SelectTrigger className="h-8 rounded-xl text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700">
+                          <SelectValue placeholder="All Priorities" />
+                        </SelectTrigger>
+                        <SelectContent className="rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xl">
+                          <SelectItem value="all">All Priorities</SelectItem>
+                          <SelectItem value="low">Low</SelectItem>
+                          <SelectItem value="medium">Medium</SelectItem>
+                          <SelectItem value="high">High</SelectItem>
+                          <SelectItem value="urgent">Urgent</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Assignees Filter */}
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                        <Users className="h-3.5 w-3.5 text-indigo-500" /> Assignees
+                      </label>
+                      <Select
+                        value={selectedAssignees.length === 0 ? "all" : selectedAssignees[0]}
+                        onValueChange={(val) => setSelectedAssignees(val === "all" ? [] : [val])}
+                      >
+                        <SelectTrigger className="h-8 rounded-xl text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700">
                           <SelectValue placeholder="All Assignees" />
                         </SelectTrigger>
-                        <SelectContent className="dark:bg-gray-900/95">
+                        <SelectContent className="rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xl">
                           <SelectItem value="all">All Assignees</SelectItem>
-                          {getAvailableAssignees().map((user) => (
+                          {users.map((user) => (
                             <SelectItem key={user.id} value={user.id}>
                               {user.name}
                             </SelectItem>
@@ -2260,89 +2401,30 @@ export default function TaskManagement() {
                     </div>
 
                     {/* Tags Filter */}
-                    <div className="space-y-2">
-                      <label className="text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2">
-                        <TagIcon className="h-4 w-4" /> Tags
+                    <div className="space-y-1">
+                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                        <TagIcon className="h-3.5 w-3.5 text-indigo-500" /> Tags
                       </label>
                       <Select
-                        value={
-                          selectedTags.length === 0
-                            ? ""
-                            : selectedTags.join(",")
-                        }
-                        onValueChange={(value) => {
-                          if (value === "all" || !value) {
-                            setSelectedTags([]);
-                          } else {
-                            setSelectedTags([value]);
-                          }
-                        }}
+                        value={selectedTags.length === 0 ? "all" : selectedTags[0]}
+                        onValueChange={(val) => setSelectedTags(val === "all" ? [] : [val])}
                       >
-                        <SelectTrigger className="w-full text-sm">
+                        <SelectTrigger className="h-8 rounded-xl text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700">
                           <SelectValue placeholder="All Tags" />
                         </SelectTrigger>
-                        <SelectContent className="dark:bg-gray-900/95">
+                        <SelectContent className="rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xl">
                           <SelectItem value="all">All Tags</SelectItem>
-                          {tags?.map((tag) => (
-                            <SelectItem key={tag.tagId} value={tag.tagId}>
-                              {tag.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    {/* Priority Filter */}
-                    <div className="space-y-2">
-                      <label className="text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2">
-                        <Filter className="h-4 w-4" /> Priority
-                      </label>
-                      <Select
-                        value={
-                          selectedPriority.length === 0 ? "" : selectedPriority
-                        }
-                        onValueChange={(value) => {
-                          if (value === "all" || !value) {
-                            setSelectedPriority("");
-                          } else {
-                            setSelectedPriority(value);
-                          }
-                        }}
-                      >
-                        <SelectTrigger className="w-full text-sm">
-                          <SelectValue placeholder="All Priorities" />
-                        </SelectTrigger>
-                        <SelectContent className="dark:bg-gray-900/95">
-                          <SelectItem value="all">All Priorities</SelectItem>
-                          {getAvailablePriorities()
-                            .filter(
-                              (priority) => priority && priority.trim() !== "",
-                            )
-                            .map((priority) => (
-                              <SelectItem key={priority} value={priority}>
-                                {priority}
+                          {tags.map((tag: any) => {
+                            const tagValue = tag.id || tag.tagId || tag.name;
+                            return (
+                              <SelectItem key={tagValue} value={tagValue}>
+                                {tag.name || tagValue}
                               </SelectItem>
-                            ))}
+                            );
+                          })}
                         </SelectContent>
                       </Select>
                     </div>
-
-                    {/* Clear Filters */}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setSearchQuery("");
-                        setSelectedTags([]);
-                        setSelectedAssignees([]);
-                        setSelectedPriority("");
-                        setDueDateFilter("");
-                        toast.success("All filters cleared!");
-                      }}
-                      className="w-full border-red-200 dark:border-red-500/50 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20 hover:border-red-400 dark:hover:border-red-400/70"
-                    >
-                      <span>🔄 Clear Filters</span>
-                    </Button>
                   </div>
                 </PopoverContent>
               </Popover>
@@ -2353,44 +2435,46 @@ export default function TaskManagement() {
                 <DialogTrigger asChild>
                   <Button
                     onClick={() => handleCreateTask()}
-                    className="group relative bg-gradient-to-r from-blue-500 via-purple-600 to-pink-600 hover:from-blue-600 hover:via-purple-700 hover:to-pink-700 dark:from-blue-600 dark:via-purple-600 dark:to-pink-600 dark:hover:from-blue-500 dark:hover:via-purple-500 dark:hover:to-pink-500 shadow-lg dark:shadow-xl dark:shadow-purple-500/30 hover:shadow-xl dark:hover:shadow-2xl dark:hover:shadow-purple-500/50 transition-all duration-200 transform hover:scale-105 font-semibold"
+                    className="h-8 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl text-xs px-3 shadow-xs transition-all flex items-center gap-1"
                   >
-                    <span className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 opacity-0 group-hover:opacity-100 transition-opacity rounded-md"></span>
-                    <Plus className="h-4 w-4 mr-2 relative z-10" />
-                    <span className="relative z-10">Add Record</span>
+                    <Plus className="h-3.5 w-3.5" />
+                    <span>Add Record</span>
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="backdrop-blur-xl bg-white/95 dark:bg-gray-900/95 border border-gray-200 dark:border-gray-700 shadow-2xl max-w-2xl max-h-[90vh] overflow-y-auto">
-                  <DialogHeader className="border-b border-gray-200 dark:border-gray-700 pb-4">
-                    <DialogTitle className="text-2xl font-bold  dark:from-white dark:to-gray-300">
-                      🚀 Create New Task
+                <DialogContent className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl p-0 overflow-hidden max-w-2xl max-h-[90vh]">
+                  <DialogHeader className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40">
+                    <DialogTitle className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                      <div className="p-1.5 bg-indigo-50 dark:bg-indigo-950/60 rounded-lg text-indigo-600 dark:text-indigo-400">
+                        <Plus className="h-4 w-4" />
+                      </div>
+                      Create New Record / Task
                     </DialogTitle>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                      Add a new task to your workflow
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                      Add a new record to your workspace stage workflow
                     </p>
                   </DialogHeader>
 
-                  <div className="space-y-6 py-4">
+                  <div className="space-y-4 p-5 overflow-y-auto max-h-[calc(90vh-100px)]">
                     {/* Title */}
-                    <div className="space-y-3">
-                      <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2">
-                        <span>📝</span>
-                        Title
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
+                        <Edit3 className="h-3.5 w-3.5 text-indigo-500" />
+                        Record Title
                       </label>
                       <Input
                         value={newTask.title}
                         onChange={(e) =>
                           setNewTask({ ...newTask, title: e.target.value })
                         }
-                        placeholder="Enter task title"
-                        className="bg-white/50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-600 focus:bg-white dark:focus:bg-gray-800 transition-colors focus:ring-2 focus:ring-blue-500/20"
+                        placeholder="e.g. Design homepage layout, Update API endpoint"
+                        className="h-9 rounded-xl text-xs bg-slate-50/60 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500/20"
                       />
                     </div>
 
                     {/* Description */}
-                    <div className="space-y-3">
-                      <label className="text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2">
-                        <span>📄</span>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
+                        <List className="h-3.5 w-3.5 text-indigo-500" />
                         Description
                       </label>
                       <Textarea
@@ -2401,17 +2485,17 @@ export default function TaskManagement() {
                             description: e.target.value,
                           })
                         }
-                        placeholder="Enter task description..."
-                        rows={4}
-                        className="bg-white/50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-600 focus:bg-white dark:focus:bg-gray-800 transition-colors resize-none focus:ring-2 focus:ring-blue-500/20"
+                        placeholder="Enter record details, requirements, or acceptance criteria..."
+                        rows={3}
+                        className="rounded-xl text-xs bg-slate-50/60 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500/20 resize-none p-3"
                       />
                     </div>
 
                     {/* Stage Selection */}
-                    <div className="space-y-3">
-                      <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2">
-                        <span>📊</span>
-                        Stage
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
+                        <LayoutGrid className="h-3.5 w-3.5 text-indigo-500" />
+                        Stage Column
                       </label>
                       <Select
                         value={newTask.stageId}
@@ -2419,19 +2503,16 @@ export default function TaskManagement() {
                           setNewTask({ ...newTask, stageId: value })
                         }
                       >
-                        <SelectTrigger className="bg-white/50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-600 focus:bg-white dark:focus:bg-gray-800 focus:ring-2 focus:ring-blue-500/20">
-                          <SelectValue placeholder="Select a stage" />
+                        <SelectTrigger className="h-9 rounded-xl text-xs bg-slate-50/60 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700 text-slate-900 dark:text-slate-100">
+                          <SelectValue placeholder="Select target stage column" />
                         </SelectTrigger>
-                        <SelectContent className="backdrop-blur-xl bg-white/95 dark:bg-gray-900/95 border border-gray-200 dark:border-gray-700">
+                        <SelectContent className="rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xl">
                           {stages.map((stage) => (
                             <SelectItem
                               key={stage.id}
                               value={stage.id}
-                              className="flex items-center gap-2"
+                              className="text-xs font-semibold"
                             >
-                              {/* <div
-                                className={`flex w-3 h-3 rounded-full ${stage.color}`}
-                              ></div> */}
                               {stage.name}
                             </SelectItem>
                           ))}
@@ -2440,64 +2521,55 @@ export default function TaskManagement() {
                     </div>
 
                     {/* Assignees */}
-                    <div className="space-y-3">
-                      <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2">
-                        <span>👥</span>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
+                        <Users className="h-3.5 w-3.5 text-indigo-500" />
                         Assignees
                       </label>
 
                       {/* Selected Assignees Chips */}
-                      <div className="flex flex-wrap gap-2 mb-3">
-                        {newTask?.assigneeId?.map((id) => {
-                          const user = users.find((u) => u.id === id);
-                          return user ? (
-                            <span
-                              key={user.id}
-                              className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-gradient-to-r from-blue-100 to-blue-50 text-blue-800 dark:from-blue-900 dark:to-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-700 transition-all duration-200 hover:shadow-md group"
-                            >
-                              <div className="w-2 h-2 bg-blue-500 rounded-full mr-2"></div>
-                              {user.name}
-                              <button
-                                type="button"
-                                className="ml-2 inline-flex text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200 transition-colors group-hover:scale-110"
-                                onClick={() =>
-                                  setNewTask((prev) => ({
-                                    ...prev,
-                                    assigneeId: prev.assigneeId.filter(
-                                      (aid) => aid !== user.id,
-                                    ),
-                                  }))
-                                }
+                      {newTask?.assigneeId?.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mb-2">
+                          {newTask.assigneeId.map((id) => {
+                            const user = users.find((u) => u.id === id);
+                            return user ? (
+                              <span
+                                key={user.id}
+                                className="inline-flex items-center px-2.5 py-1 rounded-xl text-xs font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-900/40 gap-1.5"
                               >
-                                <span className="sr-only">Remove</span>
-                                <svg
-                                  className="h-3.5 w-3.5"
-                                  fill="currentColor"
-                                  viewBox="0 0 20 20"
+                                <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full" />
+                                {user.name}
+                                <button
+                                  type="button"
+                                  className="text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-200 ml-0.5"
+                                  onClick={() =>
+                                    setNewTask((prev) => ({
+                                      ...prev,
+                                      assigneeId: prev.assigneeId.filter(
+                                        (aid) => aid !== user.id
+                                      ),
+                                    }))
+                                  }
                                 >
-                                  <path
-                                    fillRule="evenodd"
-                                    d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                                    clipRule="evenodd"
-                                  />
-                                </svg>
-                              </button>
-                            </span>
-                          ) : null;
-                        })}
-                      </div>
+                                  ✕
+                                </button>
+                              </span>
+                            ) : null;
+                          })}
+                        </div>
+                      )}
 
                       {/* Add Assignee with Search */}
-                      <div className="space-y-2">
+                      <div className="space-y-1.5">
                         <Input
-                          placeholder="🔍 Search team members..."
+                          placeholder="Search team members..."
                           value={assigneeSearchQuery}
                           onChange={(e) => setAssigneeSearchQuery(e.target.value)}
-                          className="bg-white/50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-600 focus:bg-white dark:focus:bg-gray-800 focus:ring-2 focus:ring-blue-500/20"
+                          className="h-8 rounded-xl text-xs bg-slate-50/60 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700"
                         />
-                        
+
                         {/* Filtered Users List */}
-                        <div className="max-h-48 overflow-y-auto rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800">
+                        <div className="max-h-36 overflow-y-auto rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 divide-y divide-slate-100 dark:divide-slate-800">
                           {users
                             .filter((user) => !newTask.assigneeId.includes(user.id))
                             .filter((user) =>
@@ -2519,29 +2591,32 @@ export default function TaskManagement() {
                                   }));
                                   setAssigneeSearchQuery("");
                                 }}
-                                className="w-full px-4 py-2.5 text-left hover:bg-blue-50 dark:hover:bg-gray-700 border-b border-gray-100 dark:border-gray-700 last:border-b-0 transition-colors flex items-center gap-3 text-sm"
+                                className="w-full px-3 py-2 text-left hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex items-center justify-between text-xs"
                               >
-                                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                                <div className="flex-1">
-                                  <div className="font-medium text-gray-900 dark:text-gray-100">
+                                <div>
+                                  <div className="font-bold text-slate-800 dark:text-slate-200">
                                     {user.name}
                                   </div>
-                                  <div className="text-xs text-gray-500 dark:text-gray-400">
+                                  <div className="text-[10px] text-slate-400">
                                     {user.email}
                                   </div>
                                 </div>
+                                <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400">
+                                  + Add
+                                </span>
                               </button>
                             ))}
-                          {users.filter((user) =>
-                            !newTask.assigneeId.includes(user.id) &&
-                            (user.name
-                              ?.toLowerCase()
-                              .includes(assigneeSearchQuery.toLowerCase()) ||
-                            user.email
-                              ?.toLowerCase()
-                              .includes(assigneeSearchQuery.toLowerCase()))
+                          {users.filter(
+                            (user) =>
+                              !newTask.assigneeId.includes(user.id) &&
+                              (user.name
+                                ?.toLowerCase()
+                                .includes(assigneeSearchQuery.toLowerCase()) ||
+                                user.email
+                                  ?.toLowerCase()
+                                  .includes(assigneeSearchQuery.toLowerCase()))
                           ).length === 0 && assigneeSearchQuery && (
-                            <div className="px-4 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
+                            <div className="px-3 py-3 text-center text-xs text-slate-400 font-medium">
                               No team members found
                             </div>
                           )}
@@ -2550,12 +2625,12 @@ export default function TaskManagement() {
                     </div>
 
                     {/* Due Date */}
-                    <div className="space-y-3">
-                      <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2">
-                        <span>📅</span>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
+                        <Calendar className="h-3.5 w-3.5 text-indigo-500" />
                         Due Date
                       </label>
-                      <div className="border border-gray-200 dark:border-gray-600 rounded-lg p-4 bg-white/50 dark:bg-gray-800/50 hover:bg-white dark:hover:bg-gray-800 transition-colors">
+                      <div className="border border-slate-200/80 dark:border-slate-800 rounded-xl p-3 bg-slate-50/40 dark:bg-slate-800/40">
                         <RangeCalendarPicker
                           value={newTask.dueDate}
                           onChange={(value) => {
@@ -2565,131 +2640,30 @@ export default function TaskManagement() {
                       </div>
                     </div>
 
-                    {/* Tags */}
-
-                    {/* <div className="space-y-3">
-                      <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2">
-                        <span>🏷️</span>
-                        Tags
-                      </label>
-
-                
-                      <div className="flex flex-wrap gap-2 mb-3">
-                        {newTask.tags?.map((tagId) => {
-                          const tag = tags.find((t) => t.tagId === tagId);
-
-                          return tag ? (
-                            <span
-                              key={tag.tagId}
-                              className={`inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium border transition-all duration-200 hover:shadow-md group ${tag.color} border-opacity-30`}
-                            >
-                              {tag.name}
-                              <button
-                                type="button"
-                                className="ml-2 inline-flex opacity-70 hover:opacity-100 transition-opacity group-hover:scale-110"
-                                onClick={() => {
-                                  setNewTask((prev) => ({
-                                    ...prev,
-                                    tags: prev.tags.filter(
-                                      (id) => id !== tag.tagId,
-                                    ), 
-                                  }));
-                                }}
-                              >
-                                <span className="sr-only">Remove</span>
-                                <svg
-                                  className="h-3.5 w-3.5"
-                                  fill="currentColor"
-                                  viewBox="0 0 20 20"
-                                >
-                                  <path
-                                    fillRule="evenodd"
-                                    d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-                                    clipRule="evenodd"
-                                  />
-                                </svg>
-                              </button>
-                            </span>
-                          ) : null;
-                        })}
-                      </div>
-
-                   
-                      <div className="flex gap-2">
-                        <Select
-                          key={newTask.tags.length}
-                          onValueChange={async (value) => {
-                            if (value === "new-tag") {
-                              const newTagName = prompt("Enter new tag name:");
-                              if (newTagName) {
-                                const newTag = await createTag(newTagName);
-                                if (newTag) {
-                                  setNewTask((prev) => ({
-                                    ...prev,
-                                    tags: [...prev.tags, newTag.tagId],
-                                  }));
-                                }
-                              }
-                            } else if (value && !newTask.tags.includes(value)) {
-                              setNewTask((prev) => ({
-                                ...prev,
-                                tags: [...prev.tags, value],
-                              }));
-                            }
-                          }}
-                        >
-                          <SelectTrigger className="bg-white/50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-600 focus:bg-white dark:focus:bg-gray-800 focus:ring-2 focus:ring-blue-500/20 flex-1">
-                            <SelectValue placeholder="Select or create a tag" />
-                          </SelectTrigger>
-                          <SelectContent className="backdrop-blur-xl bg-white/95 dark:bg-gray-900/95 border border-gray-200 dark:border-gray-700">
-                            {tags
-                              .filter(
-                                (tag) => !newTask.tags.includes(tag.tagId),
-                              ) // ✅ tag.id
-                              .map((tag) => (
-                                <SelectItem
-                                  key={tag.tagId}
-                                  value={tag.name}
-                                  className="flex items-center gap-2"
-                                >
-                                  <span
-                                    className={`inline-block h-3 w-3 rounded-full ${tag.color?.split(" ")[0]}`}
-                                  />
-                                  {tag.name}
-                                </SelectItem>
-                              ))}
-                       
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div> */}
-
-                    {/* Priority (Optional Additional Field) */}
-                    <div className="space-y-3">
-                      <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-2">
-                        <span>⚡</span>
-                        Priority
+                    {/* Priority Selector */}
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5 flex items-center gap-1.5">
+                        <Zap className="h-3.5 w-3.5 text-amber-500" />
+                        Priority Level
                       </label>
                       <div className="grid grid-cols-4 gap-2">
-                        {["low", "medium", "high", "urgent"].map((priority) => (
+                        {[
+                          { id: "low", label: "Low", style: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800" },
+                          { id: "medium", label: "Medium", style: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800" },
+                          { id: "high", label: "High", style: "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/60 dark:text-orange-300 dark:border-orange-800" },
+                          { id: "urgent", label: "Urgent", style: "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-800" },
+                        ].map((p) => (
                           <button
-                            key={priority}
+                            key={p.id}
                             type="button"
-                            onClick={() => setNewTask({ ...newTask, priority })}
-                            className={`p-2 rounded-lg border transition-all duration-200 text-sm font-medium ${
-                              newTask.priority === priority
-                                ? priority === "low"
-                                  ? "bg-green-100 border-green-500 text-green-700 dark:bg-green-900 dark:border-green-600 dark:text-green-300"
-                                  : priority === "medium"
-                                    ? "bg-yellow-100 border-yellow-500 text-yellow-700 dark:bg-yellow-900 dark:border-yellow-600 dark:text-yellow-300"
-                                    : priority === "high"
-                                      ? "bg-orange-100 border-orange-500 text-orange-700 dark:bg-orange-900 dark:border-orange-600 dark:text-orange-300"
-                                      : "bg-red-100 border-red-500 text-red-700 dark:bg-red-900 dark:border-red-600 dark:text-red-300"
-                                : "bg-gray-100 border-gray-300 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-700"
+                            onClick={() => setNewTask({ ...newTask, priority: p.id })}
+                            className={`h-8 rounded-xl border text-xs font-bold transition-all ${
+                              newTask.priority === p.id
+                                ? p.style + " shadow-xs ring-1 ring-slate-400/30"
+                                : "bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:bg-slate-100"
                             }`}
                           >
-                            {priority.charAt(0).toUpperCase() +
-                              priority.slice(1)}
+                            {p.label}
                           </button>
                         ))}
                       </div>
@@ -2698,33 +2672,96 @@ export default function TaskManagement() {
                     {/* Submit Button */}
                     <Button
                       onClick={handleSubmitTask}
-                      className="w-full bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105 py-2.5 text-base font-semibold"
+                      className="w-full h-9 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs shadow-xs transition-all flex items-center justify-center gap-1.5 mt-3"
                       disabled={!newTask.title || !newTask.stageId}
                     >
-                      <Plus className="h-5 w-5 mr-2" />
-                      Create Task
+                      <Plus className="h-4 w-4" />
+                      <span>Create Record / Task</span>
                     </Button>
                   </div>
                 </DialogContent>
               </Dialog>
+
               <Button
                 variant="outline"
+                size="sm"
                 onClick={() => setIsAutomationModalOpen(true)}
-                className="group border-purple-200 dark:border-purple-500/50 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-gradient-to-r dark:hover:from-purple-950/50 dark:hover:to-pink-950/50 hover:border-purple-400 dark:hover:border-purple-400/70 dark:shadow-md dark:hover:shadow-lg dark:hover:shadow-purple-500/20 transition-all duration-200 font-medium"
+                className="h-8 rounded-xl border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 px-3 flex items-center gap-1.5"
               >
-                <Settings className="h-4 w-4 mr-2 group-hover:rotate-90 transition-transform duration-300" />
-                Automation
+                <Settings className="h-3.5 w-3.5 text-purple-500" />
+                <span>Automation</span>
               </Button>
 
               <Button
-                className="  rounded-md px-3 py-2   text-blue-600 border-blue-200 hover:bg-blue-50"
                 variant="outline"
+                size="sm"
                 onClick={() => setShowActivityLog(true)}
+                className="h-8 rounded-xl border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 px-3 flex items-center gap-1.5"
               >
-                Activity Log
+                <Clock className="h-3.5 w-3.5 text-indigo-500" />
+                <span>Activity Log</span>
               </Button>
             </div>
           </div>
+          {/* Active Filter Chips Bar */}
+          {getActiveFilterCount() > 0 && (
+            <div className="mt-2.5 pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center gap-2 flex-wrap text-xs">
+              <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500">
+                Active Filters ({getActiveFilterCount()}):
+              </span>
+              {selectedStage && (
+                <Badge variant="secondary" className="h-6 rounded-lg bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-900/60 text-[10px] font-bold flex items-center gap-1">
+                  Stage: {stages.find((s) => s.id === selectedStage)?.name || selectedStage}
+                  <X className="h-3 w-3 cursor-pointer hover:text-indigo-900 dark:hover:text-white" onClick={() => setSelectedStage("")} />
+                </Badge>
+              )}
+              {selectedStatusFilter && (
+                <Badge variant="secondary" className="h-6 rounded-lg bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-900/60 text-[10px] font-bold flex items-center gap-1">
+                  Status: {selectedStatusFilter === "completed" ? "Completed" : "In Progress"}
+                  <X className="h-3 w-3 cursor-pointer hover:text-indigo-900 dark:hover:text-white" onClick={() => setSelectedStatusFilter("")} />
+                </Badge>
+              )}
+              {selectedPriority && selectedPriority !== "all" && (
+                <Badge variant="secondary" className="h-6 rounded-lg bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-900/60 text-[10px] font-bold flex items-center gap-1">
+                  Priority: {selectedPriority}
+                  <X className="h-3 w-3 cursor-pointer hover:text-amber-900 dark:hover:text-white" onClick={() => setSelectedPriority("")} />
+                </Badge>
+              )}
+              {dueDateFilter && dueDateFilter !== "all" && (
+                <Badge variant="secondary" className="h-6 rounded-lg bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-900/60 text-[10px] font-bold flex items-center gap-1">
+                  Due: {dueDateFilter}
+                  <X className="h-3 w-3 cursor-pointer hover:text-blue-900 dark:hover:text-white" onClick={() => setDueDateFilter("")} />
+                </Badge>
+              )}
+              {selectedAssignees.length > 0 && (
+                <Badge variant="secondary" className="h-6 rounded-lg bg-purple-50 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300 border border-purple-200 dark:border-purple-900/60 text-[10px] font-bold flex items-center gap-1">
+                  Assignee: {users.find((u) => u.id === selectedAssignees[0])?.name || selectedAssignees[0]}
+                  <X className="h-3 w-3 cursor-pointer hover:text-purple-900 dark:hover:text-white" onClick={() => setSelectedAssignees([])} />
+                </Badge>
+              )}
+              {selectedTags.length > 0 && (
+                <Badge variant="secondary" className="h-6 rounded-lg bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900/60 text-[10px] font-bold flex items-center gap-1">
+                  Tag: {selectedTags[0]}
+                  <X className="h-3 w-3 cursor-pointer hover:text-emerald-900 dark:hover:text-white" onClick={() => setSelectedTags([])} />
+                </Badge>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery("");
+                  setSelectedTags([]);
+                  setSelectedAssignees([]);
+                  setSelectedPriority("");
+                  setDueDateFilter("");
+                  setSelectedStage("");
+                  setSelectedStatusFilter("");
+                }}
+                className="text-[11px] font-bold text-rose-600 dark:text-rose-400 hover:underline ml-1"
+              >
+                Clear All
+              </button>
+            </div>
+          )}
         </div>
       </header>
 
@@ -2735,6 +2772,7 @@ export default function TaskManagement() {
               stages={stages}
               tasksByStage={tasksByStage}
               onTaskMove={moveTask}
+              onTaskReorder={reorderTask}
               onTaskClick={setSelectedTask}
               onCreateTask={handleCreateTask}
               onCreateStage={() => setIsCreateStageOpen(true)}
@@ -2761,41 +2799,44 @@ export default function TaskManagement() {
             onClick={() => setShowActivityLog(false)}
           />
         )}
-        <div
-          className={`
-    fixed top-0 right-0 h-full max-w-[70vw] bg-white border-l border-gray-200 z-50
-    transform transition-transform duration-300 ease-in-out
-    ${showActivityLog ? "translate-x-0" : "translate-x-full"}
-  `}
-        >
-          {/* Header */}
-          <div className="sticky top-0 p-4 border-b  z-10">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-blue-100 rounded-lg">
-                  <Clock className="h-4 w-4 text-blue-600" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-gray-900">Activity Log</h3>
-                  <p className="text-xs text-gray-600">Recent task updates</p>
-                </div>
-              </div>
-
-              {/* Close button */}
-              <button
-                onClick={() => setShowActivityLog(false)}
-                className="text-gray-500 hover:text-gray-700 text-sm"
-              >
-                ✕
-              </button>
+      {/* Activity Log Slide-over Drawer */}
+      <div
+        className={`fixed inset-y-0 right-0 z-50 w-full sm:w-[420px] bg-white dark:bg-slate-900 border-l border-slate-200/80 dark:border-slate-800 shadow-2xl transform transition-transform duration-300 ease-in-out flex flex-col ${
+          showActivityLog ? "translate-x-0" : "translate-x-full"
+        }`}
+      >
+        {/* Header */}
+        <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 flex items-center justify-between gap-4 shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="p-1.5 bg-indigo-50 dark:bg-indigo-950/60 rounded-xl text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/40">
+              <Clock className="h-4 w-4" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-slate-900 dark:text-white leading-tight">
+                Activity Log
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Recent task updates
+              </p>
             </div>
           </div>
 
-          {/* Content */}
-          <div className="p-4 overflow-y-auto h-[calc(100%-72px)]">
-            <ActivityLog activities={activityLog} />
-          </div>
+          {/* Close button */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setShowActivityLog(false)}
+            className="h-8 w-8 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
+          >
+            <X className="h-4 w-4" />
+          </Button>
         </div>
+
+        {/* Content */}
+        <div className="p-4 overflow-y-auto flex-1 bg-slate-50/30 dark:bg-slate-950/20">
+          <ActivityLog activities={activityLog} showHeader={false} />
+        </div>
+      </div>
       </div>
 
       {/* Task Detail Modal */}
@@ -2813,13 +2854,22 @@ export default function TaskManagement() {
 
       {/* Create Stage Dialog */}
       <Dialog open={isCreateStageOpen} onOpenChange={setIsCreateStageOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Create New Stage</DialogTitle>
+        <DialogContent className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl p-0 overflow-hidden max-w-md">
+          <DialogHeader className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40">
+            <DialogTitle className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <div className="p-1.5 bg-indigo-50 dark:bg-indigo-950/60 rounded-lg text-indigo-600 dark:text-indigo-400">
+                <LayoutGrid className="h-4 w-4" />
+              </div>
+              Create New Stage
+            </DialogTitle>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+              Add a new column stage to organize your records
+            </p>
           </DialogHeader>
-          <div className="space-y-4">
+
+          <div className="space-y-4 p-5">
             <div>
-              <label className="block text-sm font-medium mb-2">
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
                 Stage Name
               </label>
               <Input
@@ -2827,43 +2877,54 @@ export default function TaskManagement() {
                 onChange={(e) =>
                   setNewStage({ ...newStage, name: e.target.value })
                 }
-                placeholder="Enter stage name"
+                placeholder="e.g. In Review, QA, Completed"
+                className="h-9 rounded-xl text-xs bg-slate-50/60 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700"
               />
             </div>
+
             <div>
-              <label className="block text-sm font-medium mb-2">
-                Assigned Team
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                Assigned Team (Optional)
               </label>
               <Input
                 value={newStage.assignedTeam}
                 onChange={(e) =>
                   setNewStage({ ...newStage, assignedTeam: e.target.value })
                 }
-                placeholder="Enter team name"
+                placeholder="e.g. Frontend, Operations"
+                className="h-9 rounded-xl text-xs bg-slate-50/60 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700"
               />
             </div>
+
             <div>
-              <label className="block text-sm font-medium mb-2">Color</label>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                Stage Accent Color
+              </label>
               <Select
                 value={newStage.color}
                 onValueChange={(value) =>
                   setNewStage({ ...newStage, color: value })
                 }
               >
-                <SelectTrigger>
-                  <SelectValue />
+                <SelectTrigger className="h-9 rounded-xl text-xs bg-slate-50/60 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700">
+                  <SelectValue placeholder="Select color accent" />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="bg-blue-100">Blue</SelectItem>
-                  <SelectItem value="bg-green-100">Green</SelectItem>
-                  <SelectItem value="bg-yellow-100">Yellow</SelectItem>
-                  <SelectItem value="bg-purple-100">Purple</SelectItem>
-                  <SelectItem value="bg-pink-100">Pink</SelectItem>
-                  <SelectItem value="bg-gray-100">Gray</SelectItem>
+                <SelectContent className="rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xl">
+                  <SelectItem value="bg-blue-100">🔷 Blue</SelectItem>
+                  <SelectItem value="bg-green-100">🟢 Green</SelectItem>
+                  <SelectItem value="bg-yellow-100">🟡 Yellow</SelectItem>
+                  <SelectItem value="bg-purple-100">🟣 Purple</SelectItem>
+                  <SelectItem value="bg-pink-100">🌸 Pink</SelectItem>
+                  <SelectItem value="bg-gray-100">⚪ Gray</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            <Button onClick={handleCreateStageSubmit} className="w-full">
+
+            <Button
+              onClick={handleCreateStageSubmit}
+              disabled={!newStage.name}
+              className="w-full h-9 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs shadow-xs transition-all mt-2"
+            >
               Create Stage
             </Button>
           </div>
@@ -2872,13 +2933,22 @@ export default function TaskManagement() {
 
       {/* Edit Stage Dialog */}
       <Dialog open={isEditStageOpen} onOpenChange={setIsEditStageOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Edit Stage</DialogTitle>
+        <DialogContent className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl p-0 overflow-hidden max-w-md">
+          <DialogHeader className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40">
+            <DialogTitle className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <div className="p-1.5 bg-indigo-50 dark:bg-indigo-950/60 rounded-lg text-indigo-600 dark:text-indigo-400">
+                <Edit3 className="h-4 w-4" />
+              </div>
+              Edit Stage
+            </DialogTitle>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+              Modify stage details or remove column
+            </p>
           </DialogHeader>
-          <div className="space-y-4">
+
+          <div className="space-y-4 p-5">
             <div>
-              <label className="block text-sm font-medium mb-2">
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
                 Stage Name
               </label>
               <Input
@@ -2887,10 +2957,12 @@ export default function TaskManagement() {
                   setNewStage({ ...newStage, name: e.target.value })
                 }
                 placeholder="Enter stage name"
+                className="h-9 rounded-xl text-xs bg-slate-50/60 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700"
               />
             </div>
+
             <div>
-              <label className="block text-sm font-medium mb-2">
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
                 Assigned Team
               </label>
               <Input
@@ -2899,42 +2971,47 @@ export default function TaskManagement() {
                   setNewStage({ ...newStage, assignedTeam: e.target.value })
                 }
                 placeholder="Enter team name"
+                className="h-9 rounded-xl text-xs bg-slate-50/60 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700"
               />
             </div>
+
             <div>
-              <label className="block text-sm font-medium mb-2">Color</label>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                Stage Accent Color
+              </label>
               <Select
                 value={newStage.color}
                 onValueChange={(value) =>
                   setNewStage({ ...newStage, color: value })
                 }
               >
-                <SelectTrigger>
+                <SelectTrigger className="h-9 rounded-xl text-xs bg-slate-50/60 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="bg-blue-100">Blue</SelectItem>
-                  <SelectItem value="bg-green-100">Green</SelectItem>
-                  <SelectItem value="bg-yellow-100">Yellow</SelectItem>
-                  <SelectItem value="bg-purple-100">Purple</SelectItem>
-                  <SelectItem value="bg-pink-100">Pink</SelectItem>
-                  <SelectItem value="bg-gray-100">Gray</SelectItem>
+                <SelectContent className="rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xl">
+                  <SelectItem value="bg-blue-100">🔷 Blue</SelectItem>
+                  <SelectItem value="bg-green-100">🟢 Green</SelectItem>
+                  <SelectItem value="bg-yellow-100">🟡 Yellow</SelectItem>
+                  <SelectItem value="bg-purple-100">🟣 Purple</SelectItem>
+                  <SelectItem value="bg-pink-100">🌸 Pink</SelectItem>
+                  <SelectItem value="bg-gray-100">⚪ Gray</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex gap-2">
+
+            <div className="flex gap-2.5 pt-2">
               <Button
-                variant="destructive"
+                variant="outline"
                 onClick={() =>
                   editingStage && handleDeleteStage(editingStage.id)
                 }
-                className="flex-1"
+                className="flex-1 h-9 rounded-xl text-xs font-bold text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-900/60 hover:bg-rose-50 dark:hover:bg-rose-950/40"
               >
-                Delete
+                Delete Stage
               </Button>
               <Button
                 onClick={handleUpdateStage}
-                className="flex-1"
+                className="flex-1 h-9 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs shadow-xs"
                 disabled={isUpdating}
               >
                 {isUpdating ? "Saving..." : "Save Changes"}

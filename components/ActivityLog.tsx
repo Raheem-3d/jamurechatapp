@@ -1,179 +1,131 @@
+"use client";
 
-
-import type { ActivityLog as ActivityLogType } from "@/types/task"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
-import { Plus, Edit, Trash2, ArrowRight, UserCheck, Clock, Activity } from "lucide-react"
-import { formatDistanceToNow } from "date-fns"
+import type { ActivityLog as ActivityLogType } from "@/types/task";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Plus, Edit, Trash2, ArrowRight, UserCheck, Clock, Activity } from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
 
 interface ActivityLogProps {
-  activities: ActivityLogType[]
+  activities: ActivityLogType[];
+  showHeader?: boolean;
 }
 
-export function ActivityLog({ activities }: ActivityLogProps) {
+export function ActivityLog({ activities, showHeader = false }: ActivityLogProps) {
   const getActivityIcon = (type: string) => {
     switch (type) {
       case "task_created":
-        return <Plus className="h-4 w-4 text-emerald-600" />
+        return <Plus className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />;
       case "task_updated":
-        return <Edit className="h-4 w-4 text-blue-600" />
+        return <Edit className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />;
       case "task_deleted":
-        return <Trash2 className="h-4 w-4 text-rose-600" />
+        return <Trash2 className="h-3.5 w-3.5 text-rose-600 dark:text-rose-400" />;
       case "stage_moved":
-        return <ArrowRight className="h-4 w-4 text-violet-600" />
+        return <ArrowRight className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400" />;
       case "assignment_changed":
-        return <UserCheck className="h-4 w-4 text-amber-600" />
+        return <UserCheck className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />;
       default:
-        return <Clock className="h-4 w-4 text-slate-600" />
+        return <Clock className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400" />;
     }
-  }
+  };
 
-  const getActivityColor = (type: string) => {
+  const getActivityBadgeStyles = (type: string) => {
     switch (type) {
       case "task_created":
-        return "bg-emerald-50 text-emerald-700 border-emerald-200"
+        return "bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-900/60";
       case "task_updated":
-        return "bg-blue-50 text-blue-700 border-blue-200"
+        return "bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-900/60";
       case "task_deleted":
-        return "bg-rose-50 text-rose-700 border-rose-200"
+        return "bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-900/60";
       case "stage_moved":
-        return "bg-violet-50 text-violet-700 border-violet-200"
+        return "bg-violet-50 dark:bg-violet-950/60 text-violet-700 dark:text-violet-300 border-violet-200 dark:border-violet-900/60";
       case "assignment_changed":
-        return "bg-amber-50 text-amber-700 border-amber-200"
+        return "bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-900/60";
       default:
-        return "bg-slate-50 text-slate-700 border-slate-200"
+        return "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700";
     }
-  }
-
-  const getActivityIconBg = (type: string) => {
-    switch (type) {
-      case "task_created":
-        return "bg-emerald-100 border-emerald-200"
-      case "task_updated":
-        return "bg-blue-100 border-blue-200"
-      case "task_deleted":
-        return "bg-rose-100 border-rose-200"
-      case "stage_moved":
-        return "bg-violet-100 border-violet-200"
-      case "assignment_changed":
-        return "bg-amber-100 border-amber-200"
-      default:
-        return "bg-slate-100 border-slate-200"
-    }
-  }
+  };
 
   return (
-    <Card className="shadow-lg border-0  h-full ">
-      <CardHeader className="pb-4">
-        <CardTitle className="flex items-center gap-3 text-xl font-bold dark:text-gray-300 bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text
-         text-transparent">
-          <div className="p-2 rounded-lg bg-gradient-to-br from-blue-500 to-violet-600 text-white shadow-md">
-            <Activity className="h-5 w-5" />
+    <div className="w-full space-y-4">
+      {showHeader && (
+        <div className="flex items-center gap-3 pb-3 border-b border-slate-200/80 dark:border-slate-800">
+          <div className="p-2 bg-indigo-50 dark:bg-indigo-950/60 rounded-xl text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/40">
+            <Activity className="h-4 w-4" />
           </div>
-          Activity Log
-        </CardTitle>
-        <div className="h-1 w-16 bg-gradient-to-r from-blue-500 to-violet-600 rounded-full"></div>
-      </CardHeader>
-      <CardContent className="pt-0">
-        <div className="space-y-3 max-h-screen overflow-y-auto scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent">
-          {activities.length === 0 ? (
-            <div className="text-center py-12">
-              <div className="mx-auto w-16 h-16  rounded-full flex items-center justify-center mb-4">
-                <Activity className="h-8 w-8 text-slate-400" />
-              </div>
-              <p className="text-slate-500 font-medium">No recent activity</p>
-              <p className="text-slate-400 text-sm mt-1">Activities will appear here as they happen</p>
-            </div>
-          ) : (
-            <>
-              {activities.map((activity, index) => (
-                <div 
-                  key={activity.id} 
-                  className="group relative flex items-start gap-4 p-4 rounded-xl bg-white border border-slate-200 hover:border-slate-300 hover:shadow-md transition-all duration-200 hover:-translate-y-0.5"
-                  style={{
-                    animationDelay: `${index * 100}ms`,
-                    animation: 'fadeInUp 0.5s ease-out forwards'
-                  }}
-                >
-                  {/* Timeline line */}
-                  {index < activities.length - 1 && (
-                    <div className="absolute left-8 top-16 w-px h-6 bg-gradient-to-b from-slate-200 to-transparent"></div>
-                  )}
-
-                  {/* Icon */}
-                  {/* <div className={` rounded-xl border-2 ${getActivityIconBg(activity.type)} shadow-sm `}>
-                    {getActivityIcon(activity.type)}
-                  </div> */}
-
-                  <div className="flex-1 min-w-0">
-                    {/* Header */}
-                    <div className="flex items-center gap-3 mb-2">
-                      <Avatar className="h-7 w-7 ring-2 ring-white shadow-sm">
-                        {/* <AvatarImage src={activity.user.avatar || "/placeholder.svg"} alt={activity.user.name} /> */}
-                        <AvatarFallback className="text-xs font-semibold bg-gradient-to-br from-slate-100 to-slate-200">
-                          {activity.user.name
-                            .split(" ")
-                            .map((n) => n[0])
-                            .join("")}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className=" items-center gap-4 flex-1">
-                        <span className="text-sm font-semibold text-slate-800 group-hover:text-slate-900 transition-colors">
-                          {activity.user.name}
-                        </span>
-                        <span className={`text-xs mx-2 font-medium px-2.5 py-1 border rounded-lg ${getActivityColor(activity.type)} group-hover:shadow-sm transition-all`}>
-                          {activity.type.replace("_", " ").replace(/\b\w/g, l => l.toUpperCase())}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Description */}
-                    <p className="text-sm text-slate-700 leading-relaxed mb-2 group-hover:text-slate-800 transition-colors">
-                      {activity.description}
-                    </p>
-
-                    {/* Timestamp */}
-                    <div className="flex items-center gap-1.5 text-xs text-slate-500">
-                      <Clock className="h-3 w-3" />
-                      <span className="group-hover:text-slate-600 transition-colors">
-                        {formatDistanceToNow(activity.timestamp, { addSuffix: true })}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </>
-          )}
+          <div>
+            <h3 className="text-base font-bold text-slate-900 dark:text-white leading-tight">
+              Activity Log
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+              Recent task updates
+            </p>
+          </div>
         </div>
-      </CardContent>
-      
-      {/* Custom styles for animations and scrollbar */}
-      <style jsx>{`
-        @keyframes fadeInUp {
-          from {
-            opacity: 0;
-            transform: translateY(20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-        
-        .scrollbar-thin::-webkit-scrollbar {
-          width: 4px;
-        }
-        
-        .scrollbar-thumb-slate-300::-webkit-scrollbar-thumb {
-          background-color: rgb(203 213 225);
-          border-radius: 2px;
-        }
-        
-        // .scrollbar-track-transparent::-webkit-scrollbar-track {
-        //   background: transparent;
-        // }
-      `}</style>
-    </Card>
-  )
+      )}
+
+      <div className="space-y-3">
+        {activities.length === 0 ? (
+          <div className="text-center py-12 px-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800">
+            <div className="mx-auto w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center mb-3">
+              <Clock className="h-6 w-6 text-slate-400 dark:text-slate-500" />
+            </div>
+            <p className="text-xs font-bold text-slate-700 dark:text-slate-300">
+              No recent activity
+            </p>
+            <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">
+              Activities will appear here as tasks are updated
+            </p>
+          </div>
+        ) : (
+          activities.map((activity) => (
+            <div
+              key={activity.id}
+              className="group relative flex items-start gap-3 p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 hover:border-indigo-300 dark:hover:border-indigo-800 hover:shadow-xs transition-all"
+            >
+              {/* Type Icon Badge */}
+              <div className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200/60 dark:border-slate-800 shrink-0">
+                {getActivityIcon(activity.type)}
+              </div>
+
+              <div className="flex-1 min-w-0">
+                {/* Header row: User + Type Badge */}
+                <div className="flex items-center justify-between gap-2 mb-1 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <Avatar className="h-5 w-5 shrink-0 ring-1 ring-slate-200 dark:ring-slate-700">
+                      <AvatarFallback className="text-[9px] font-extrabold bg-indigo-50 text-indigo-600 dark:bg-indigo-950 dark:text-indigo-300">
+                        {(activity.user?.name || "U")
+                          .split(" ")
+                          .map((n) => n[0])
+                          .join("")
+                          .slice(0, 2)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">
+                      {activity.user?.name || "User"}
+                    </span>
+                  </div>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 border rounded-lg shrink-0 ${getActivityBadgeStyles(activity.type)}`}>
+                    {activity.type.replace("_", " ").replace(/\b\w/g, (l) => l.toUpperCase())}
+                  </span>
+                </div>
+
+                {/* Description */}
+                <p className="text-xs font-medium text-slate-600 dark:text-slate-300 leading-relaxed">
+                  {activity.description}
+                </p>
+
+                {/* Timestamp */}
+                <div className="flex items-center gap-1 text-[10px] font-semibold text-slate-400 dark:text-slate-500 mt-1.5">
+                  <Clock className="h-3 w-3 text-slate-400" />
+                  <span>
+                    {formatDistanceToNow(new Date(activity.timestamp), { addSuffix: true })}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
 }

@@ -7,6 +7,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Clock,
   Play,
@@ -107,7 +108,14 @@ export default function TaskCard({
   viewMode = "grid",
   compact = false,
 }: TaskCardProps) {
+  const router = useRouter();
   const [isHovered, setIsHovered] = useState(false);
+
+  const prefetchTask = () => {
+    if (task?.id) {
+      router.prefetch(`/dashboard/tasks/${task.id}`);
+    }
+  };
 
   const daysUntilDeadline = task.deadline
     ? differenceInDays(new Date(task.deadline), new Date())
@@ -129,6 +137,7 @@ export default function TaskCard({
       <motion.div
         whileHover={{ scale: 1.002 }}
         transition={{ duration: 0.15 }}
+        onMouseEnter={prefetchTask}
         className="w-full"
       >
         <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-xl p-2.5 px-3.5 shadow-2xs hover:border-indigo-300 dark:hover:border-indigo-700 transition-all duration-150 flex flex-col md:flex-row md:items-center justify-between gap-2.5 group">
@@ -140,6 +149,8 @@ export default function TaskCard({
             <div className="flex-1 min-w-0">
               <Link
                 href={`/dashboard/tasks/${task.id}`}
+                prefetch={true}
+                onMouseEnter={prefetchTask}
                 className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors truncate block"
               >
                 {task.title}
@@ -161,8 +172,8 @@ export default function TaskCard({
                   isOverdue
                     ? "bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900"
                     : isUrgent
-                    ? "bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-900"
-                    : "text-slate-500 dark:text-slate-400"
+                      ? "bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-900"
+                      : "text-slate-500 dark:text-slate-400"
                 )}
               >
                 <Clock className="h-3 w-3" />

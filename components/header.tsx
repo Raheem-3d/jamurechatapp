@@ -111,10 +111,9 @@ export default function Header() {
     if (!isConnected || !socket) return;
 
     const handleNewNotification = (notification: Notification) => {
-      setNotifications((prev) => [notification, ...prev]);
-      toast({
-        title: "New Notification",
-        description: notification.content,
+      setNotifications((prev) => {
+        if (prev.some((n) => n.id === notification.id)) return prev;
+        return [notification, ...prev];
       });
     };
 
@@ -123,7 +122,7 @@ export default function Header() {
     return () => {
       socket.off("notification", handleNewNotification);
     };
-  }, [isConnected, socket, toast]);
+  }, [isConnected, socket]);
 
   const handleLogout = async () => {
     await signOut({ callbackUrl: "/login" });
@@ -273,7 +272,7 @@ export default function Header() {
         </div>
 
         {/* Center Section - Modern Floating Search Bar */}
-        <div className="hidden lg:flex flex-1 max-w-md mx-4">
+        {/* <div className="hidden lg:flex flex-1 max-w-md mx-4">
           <form onSubmit={handleSearch} className="relative w-full">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
@@ -297,7 +296,7 @@ export default function Header() {
               )}
             </div>
 
-            {/* Search Results Dropdown */}
+          
             <AnimatePresence>
               {showSearchResults && searchResults.length > 0 && (
                 <motion.div
@@ -392,12 +391,12 @@ export default function Header() {
               )}
             </AnimatePresence>
           </form>
-        </div>
+        </div> */}
 
         {/* Right Section - Sleek Action Widgets & User Profile */}
         <div className="flex items-center gap-1.5 shrink-0">
           {/* Mobile search dropdown button */}
-          <DropdownMenu>
+          {/* <DropdownMenu>
             <DropdownMenuTrigger asChild className="lg:hidden">
               <Button
                 variant="outline"
@@ -423,7 +422,7 @@ export default function Header() {
                 )}
               </form>
             </DropdownMenuContent>
-          </DropdownMenu>
+          </DropdownMenu> */}
 
           {/* Task Calendar Widget */}
           <div className="hidden sm:block">
@@ -538,7 +537,7 @@ export default function Header() {
                     src={user?.image || ""}
                     alt={user?.name || ""}
                   />
-                  <AvatarFallback className=" text-white text-xs font-bold rounded-full">
+                  <AvatarFallback className="text-white text-xs font-bold rounded-full">
                     {user?.name?.charAt(0)?.toUpperCase() || "U"}
                   </AvatarFallback>
                 </Avatar>

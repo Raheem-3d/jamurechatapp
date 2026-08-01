@@ -1,6 +1,5 @@
-
-
 "use client";
+
 import { DragDropContext, Droppable, Draggable, type DropResult } from "@hello-pangea/dnd";
 import type { Stage, Task } from "@/types/task";
 import { TaskCard } from "./TaskCard";
@@ -16,6 +15,7 @@ import {
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 interface TaskBoardProps {
   stages: Stage[];
@@ -29,10 +29,69 @@ interface TaskBoardProps {
   onCompleteTask: (taskId: string) => Promise<void>;
 }
 
+const getStageColorStyles = (color?: string) => {
+  const c = (color || "").toLowerCase();
+  if (c.includes("blue")) {
+    return {
+      columnBg: "bg-blue-50/80 dark:bg-blue-950/40 border-blue-200 dark:border-blue-900/60",
+      dot: "bg-blue-500",
+      badge: "bg-blue-100 dark:bg-blue-900/60 text-blue-800 dark:text-blue-200",
+      button: "text-blue-700 dark:text-blue-300 bg-blue-100/60 dark:bg-blue-900/40 border-blue-200 dark:border-blue-800/60 hover:bg-blue-200/70 dark:hover:bg-blue-900/70",
+    };
+  }
+  if (c.includes("green") || c.includes("emerald")) {
+    return {
+      columnBg: "bg-emerald-50/80 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-900/60",
+      dot: "bg-emerald-500",
+      badge: "bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-200",
+      button: "text-emerald-700 dark:text-emerald-300 bg-emerald-100/60 dark:bg-emerald-900/40 border-emerald-200 dark:border-emerald-800/60 hover:bg-emerald-200/70 dark:hover:bg-emerald-900/70",
+    };
+  }
+  if (c.includes("yellow") || c.includes("amber")) {
+    return {
+      columnBg: "bg-amber-50/80 dark:bg-amber-950/40 border-amber-200 dark:border-amber-900/60",
+      dot: "bg-amber-500",
+      badge: "bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200",
+      button: "text-amber-700 dark:text-amber-300 bg-amber-100/60 dark:bg-amber-900/40 border-amber-200 dark:border-amber-800/60 hover:bg-amber-200/70 dark:hover:bg-amber-900/70",
+    };
+  }
+  if (c.includes("purple") || c.includes("violet")) {
+    return {
+      columnBg: "bg-purple-50/80 dark:bg-purple-950/40 border-purple-200 dark:border-purple-900/60",
+      dot: "bg-purple-500",
+      badge: "bg-purple-100 dark:bg-purple-900/60 text-purple-800 dark:text-purple-200",
+      button: "text-purple-700 dark:text-purple-300 bg-purple-100/60 dark:bg-purple-900/40 border-purple-200 dark:border-purple-800/60 hover:bg-purple-200/70 dark:hover:bg-purple-900/70",
+    };
+  }
+  if (c.includes("pink") || c.includes("rose")) {
+    return {
+      columnBg: "bg-pink-50/80 dark:bg-pink-950/40 border-pink-200 dark:border-pink-900/60",
+      dot: "bg-pink-500",
+      badge: "bg-pink-100 dark:bg-pink-900/60 text-pink-800 dark:text-pink-200",
+      button: "text-pink-700 dark:text-pink-300 bg-pink-100/60 dark:bg-pink-900/40 border-pink-200 dark:border-pink-800/60 hover:bg-pink-200/70 dark:hover:bg-pink-900/70",
+    };
+  }
+  if (c.includes("red")) {
+    return {
+      columnBg: "bg-rose-50/80 dark:bg-rose-950/40 border-rose-200 dark:border-rose-900/60",
+      dot: "bg-rose-500",
+      badge: "bg-rose-100 dark:bg-rose-900/60 text-rose-800 dark:text-rose-200",
+      button: "text-rose-700 dark:text-rose-300 bg-rose-100/60 dark:bg-rose-900/40 border-rose-200 dark:border-rose-800/60 hover:bg-rose-200/70 dark:hover:bg-rose-900/70",
+    };
+  }
+  return {
+    columnBg: "bg-slate-100/70 dark:bg-slate-900/60 border-slate-200/80 dark:border-slate-800",
+    dot: "bg-indigo-500",
+    badge: "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300",
+    button: "text-indigo-600 dark:text-indigo-400 bg-indigo-50/50 dark:bg-indigo-950/40 border-indigo-100 dark:border-indigo-900/40 hover:bg-indigo-100/70 dark:hover:bg-indigo-900/50",
+  };
+};
+
 export function TaskBoard({
   stages,
   tasksByStage,
   onTaskMove,
+  onTaskReorder,
   onTaskClick,
   onCreateTask,
   onCreateStage,
@@ -42,8 +101,8 @@ export function TaskBoard({
 }: TaskBoardProps) {
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [isCompleting, setIsCompleting] = useState<string | null>(null);
+  const [expandedStages, setExpandedStages] = useState<Record<string, boolean>>({});
   const [mounted, setMounted] = useState(false);
-  const router = useRouter();
 
   useEffect(() => {
     setMounted(true);
@@ -53,9 +112,32 @@ export function TaskBoard({
     return null;
   }
 
+  const toggleStageExpand = (stageId: string) => {
+    setExpandedStages((prev) => ({
+      ...prev,
+      [stageId]: !prev[stageId],
+    }));
+  };
+
   const handleDragEnd = async (result: DropResult) => {
     if (!result.destination) return;
-    const { draggableId, destination } = result;
+    const { draggableId, source, destination } = result;
+
+    // 🛑 1. Dropped in exact same position: no-op
+    if (
+      source.droppableId === destination.droppableId &&
+      source.index === destination.index
+    ) {
+      return;
+    }
+
+    // 🔄 2. Reordering within the SAME stage:
+    if (source.droppableId === destination.droppableId) {
+      onTaskReorder?.(source.droppableId, source.index, destination.index);
+      return;
+    }
+
+    // 🚚 3. Moving to a DIFFERENT stage:
     try {
       await onTaskMove(draggableId, destination.droppableId);
     } catch (error) {
@@ -82,7 +164,7 @@ export function TaskBoard({
   };
 
   const isTaskComplete = (task: Task) => {
-    const taskStage = stages.find(s => s.id === task.stageId);
+    const taskStage = stages.find((s) => s.id === task.stageId);
     return taskStage?.isCompleted || (task as any).isComplete;
   };
 
@@ -100,7 +182,7 @@ export function TaskBoard({
   };
 
   const getNextStageId = (currentStageId: string) => {
-    const currentStageIndex = stages.findIndex(s => s.id === currentStageId);
+    const currentStageIndex = stages.findIndex((s) => s.id === currentStageId);
     if (currentStageIndex === -1 || currentStageIndex === stages.length - 1) {
       return null;
     }
@@ -108,87 +190,108 @@ export function TaskBoard({
   };
 
   return (
-    <div className="h-full overflow-x-auto scrollbar-thin scrollbar-thumb-gray-400 dark:scrollbar-thumb-slate-600 scrollbar-track-transparent">
+    <div className="h-full overflow-x-auto p-4 sm:p-5">
       <DragDropContext onDragEnd={handleDragEnd}>
-        <div className="flex gap-6 p-6 min-w-max">
+        <div className="flex gap-4 min-w-max items-start">
           {stages.map((stage) => {
             if (!stage || !stage.id) return null;
+            const stageTasks = tasksByStage[stage.id] || [];
+            const isExpanded = !!expandedStages[stage.id];
+            const displayedTasks =
+              stageTasks.length > 10 && !isExpanded
+                ? stageTasks.slice(0, 10)
+                : stageTasks;
+            const colorStyles = getStageColorStyles(stage.color);
+
             return (
-            <div key={stage.id} className="w-80 flex-shrink-0">
-              <div className={`relative rounded-xl ${stage?.color} dark:bg-gradient-to-br dark:from-slate-800 dark:via-slate-800/95 dark:to-slate-900/90 p-4 mb-4 border border-transparent dark:border-slate-700/50 shadow-md dark:shadow-xl dark:shadow-purple-500/5 transition-all duration-300 hover:shadow-lg dark:hover:shadow-2xl dark:hover:shadow-purple-500/10 dark:hover:border-purple-500/30`}>
-                {/* Gradient overlay */}
-                <div className="absolute inset-0 bg-gradient-to-br from-blue-500/0 via-purple-500/0 to-pink-500/0 dark:hover:from-blue-500/5 dark:hover:via-purple-500/5 dark:hover:to-pink-500/5 rounded-xl transition-all duration-300 pointer-events-none"></div>
-                
-                <div className="relative z-10 flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-bold text-gray-800 dark:text-slate-100 text-base transition-colors">
+              <div
+                key={stage.id}
+                className={cn(
+                  "w-80 flex-shrink-0 rounded-2xl p-3.5 border space-y-3 shadow-2xs transition-all",
+                  colorStyles.columnBg
+                )}
+              >
+                {/* Stage Header */}
+                <div className="flex items-center justify-between pb-1 border-b border-slate-200/60 dark:border-slate-800">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className={cn("h-3 w-3 rounded-full shrink-0 shadow-2xs", colorStyles.dot)} />
+                    <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">
                       {stage.name}
                     </h3>
-                    <Badge variant="secondary" className="text-xs font-semibold bg-white/80 dark:bg-slate-700/80 dark:text-slate-200 border dark:border-slate-600 shadow-sm">
-                      {tasksByStage[stage.id]?.length || 0}
+                    <Badge
+                      variant="secondary"
+                      onClick={() => stageTasks.length > 10 && toggleStageExpand(stage.id)}
+                      title={stageTasks.length > 10 ? (isExpanded ? "Click to collapse" : "Click to view all records") : undefined}
+                      className={cn(
+                        "text-[10px] font-extrabold px-2 py-0.5 shadow-2xs shrink-0 transition-all select-none",
+                        colorStyles.badge,
+                        stageTasks.length > 10 && "cursor-pointer hover:scale-105 hover:ring-2 hover:ring-indigo-400"
+                      )}
+                    >
+                      {stageTasks.length} {stageTasks.length > 10 && (!isExpanded ? "(10 shown)" : "(All)")}
                     </Badge>
                     {stage.isCompleted && (
-                      <Badge variant="default" className="bg-gradient-to-r from-green-100 to-emerald-100 dark:from-green-900/50 dark:to-emerald-900/50 text-green-800 dark:text-green-300 border-green-200 dark:border-green-500/50 text-xs font-semibold shadow-sm dark:shadow-green-500/20">
+                      <Badge
+                        variant="default"
+                        className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 text-[10px] font-bold shrink-0"
+                      >
                         Completed
                       </Badge>
                     )}
                   </div>
 
-                  <div className="group-hover:opacity-100 transition-all text-gray-700 dark:text-slate-300">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 w-7 p-0 hover:bg-white/50 dark:hover:bg-slate-700/70 dark:hover:text-white rounded-lg transition-all hover:scale-110"
-                        >
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent
-                        align="end"
-                        className="dark:bg-gradient-to-br dark:from-slate-800 dark:to-slate-900 dark:border-slate-700/50 backdrop-blur-xl dark:shadow-2xl dark:shadow-purple-500/20"
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-6 p-0 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-md transition-all text-slate-500"
                       >
-                        <DropdownMenuItem
-                          onClick={() => {
-                            setTimeout(() => handleEditStage(stage), 10); // 10ms delay
-                          }}
-                          className="dark:text-slate-200 dark:hover:bg-gradient-to-r dark:hover:from-blue-900/40 dark:hover:to-purple-900/40 dark:hover:text-white cursor-pointer transition-all font-medium"
-                        >
-                          <Edit className="h-4 w-4 mr-2 text-blue-500 dark:text-blue-400" />
-                          Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => handleDeleteStage(stage.id)}
-                          className="dark:text-slate-200 dark:hover:bg-gradient-to-r dark:hover:from-red-900/40 dark:hover:to-rose-900/40 text-red-700 dark:hover:text-red-300 cursor-pointer transition-all font-medium"
-                          disabled={isDeleting === stage.id}
-                        >
-                          <Trash className="h-4 w-4 mr-2 text-red-500 dark:text-red-400" />
-                          {isDeleting === stage.id ? "Deleting..." : "Delete"}
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
+                        <MoreHorizontal className="h-3.5 w-3.5" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent
+                      align="end"
+                      className="rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xl"
+                    >
+                      <DropdownMenuItem
+                        onClick={() => setTimeout(() => handleEditStage(stage), 10)}
+                        className="text-xs font-semibold cursor-pointer"
+                      >
+                        <Edit className="h-3.5 w-3.5 mr-2 text-indigo-500" />
+                        Edit Stage
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => handleDeleteStage(stage.id)}
+                        className="text-xs font-semibold text-rose-600 dark:text-rose-400 cursor-pointer"
+                        disabled={isDeleting === stage.id}
+                      >
+                        <Trash className="h-3.5 w-3.5 mr-2 text-rose-500" />
+                        {isDeleting === stage.id ? "Deleting..." : "Delete Stage"}
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
 
                 {stage.assignedTeam && (
-                  <p className="relative z-10 text-sm text-gray-600 dark:text-slate-400 mb-3 px-2 py-1 rounded-md bg-white/50 dark:bg-slate-700/30 border border-gray-200 dark:border-slate-600/30 font-medium">
-                    <span className="text-purple-600 dark:text-purple-400">Team:</span> {stage.assignedTeam}
+                  <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 px-2 py-0.5 rounded-md bg-white/60 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-800 inline-block">
+                    <span className="text-indigo-600 dark:text-indigo-400">Team:</span> {stage.assignedTeam}
                   </p>
                 )}
 
+                {/* Droppable Task List Container */}
                 <Droppable droppableId={stage.id}>
                   {(provided, snapshot) => (
                     <div
                       ref={provided.innerRef}
                       {...provided.droppableProps}
-                      className={`relative z-10 min-h-[200px] space-y-3 rounded-xl transition-all duration-300 ${
-                        snapshot.isDraggingOver
-                          ? "bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 p-2 border-2 border-blue-300 dark:border-blue-500/50 shadow-lg dark:shadow-blue-500/20"
-                          : ""
-                      }"`}
+                      className={cn(
+                        "min-h-[160px] space-y-2.5 transition-colors rounded-xl p-1",
+                        snapshot.isDraggingOver &&
+                          "bg-indigo-50/50 dark:bg-indigo-950/20 border border-dashed border-indigo-300 dark:border-indigo-800"
+                      )}
                     >
-                      {tasksByStage[stage.id]?.map((task, index) => (
+                      {displayedTasks.map((task, index) => (
                         <Draggable
                           key={task.id}
                           draggableId={task.id}
@@ -199,16 +302,19 @@ export function TaskBoard({
                               ref={provided.innerRef}
                               {...provided.draggableProps}
                               {...provided.dragHandleProps}
-                              className={
-                                snapshot.isDragging ? "rotate-2 scale-105" : ""
-                              }
+                              className={cn(
+                                snapshot.isDragging && "rotate-1 scale-102"
+                              )}
                             >
                               <TaskCard
                                 task={task}
                                 onClick={() => onTaskClick(task)}
                                 isComplete={isTaskComplete(task)}
                                 onComplete={() => handleCompleteTask(task.id)}
-                                showCompleteButton={!isTaskComplete(task) && !!getNextStageId(task.stageId)}
+                                showCompleteButton={
+                                  !isTaskComplete(task) &&
+                                  !!getNextStageId(task.stageId)
+                                }
                                 isCompleting={isCompleting === task.id}
                                 stages={stages}
                               />
@@ -220,27 +326,44 @@ export function TaskBoard({
                     </div>
                   )}
                 </Droppable>
+
+                {stageTasks.length > 10 && (
+                  <button
+                    type="button"
+                    onClick={() => toggleStageExpand(stage.id)}
+                    className="w-full py-1 text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center justify-center gap-1"
+                  >
+                    {isExpanded
+                      ? `Collapse to 10 records`
+                      : `+${stageTasks.length - 10} more records (Click count to view)`}
+                  </button>
+                )}
+
+                {/* Add Record Button */}
                 <Button
                   variant="ghost"
-                  className="relative z-10 w-full mt-3 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-white hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 dark:hover:from-blue-900/30 dark:hover:to-indigo-900/30 dark:border dark:border-slate-700/50 dark:hover:border-blue-500/50 transition-all duration-200 font-medium rounded-lg dark:shadow-md dark:hover:shadow-lg dark:hover:shadow-blue-500/20"
+                  className={cn(
+                    "h-8 text-xs font-bold rounded-xl border w-full transition-all flex items-center justify-center gap-1 mt-2",
+                    colorStyles.button
+                  )}
                   onClick={() => onCreateTask(stage.id)}
                 >
-                  <Plus className="h-4 w-4 mr-2 transition-transform hover:scale-110" />
+                  <Plus className="h-3.5 w-3.5" />
                   Add Record
                 </Button>
               </div>
-            </div>
             );
           })}
 
+          {/* Add New Stage Column */}
           <div className="w-80 flex-shrink-0">
             <Button
               variant="outline"
-              className="w-full h-32 border-dashed border-2 border-gray-300 dark:border-slate-600 hover:border-blue-400 dark:hover:border-purple-500 hover:bg-gradient-to-br hover:from-blue-50/50 hover:to-purple-50/50 dark:hover:from-blue-950/20 dark:hover:to-purple-950/20 dark:bg-slate-800/30 dark:text-slate-300 dark:hover:text-white transition-all duration-300 rounded-xl dark:shadow-lg dark:hover:shadow-2xl dark:hover:shadow-purple-500/20 font-semibold text-base"
+              className="w-full h-32 rounded-2xl border-2 border-dashed border-slate-300 dark:border-slate-800 hover:border-indigo-500 text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 bg-white/40 dark:bg-slate-900/40 text-xs font-bold transition-all flex items-center justify-center gap-2"
               onClick={onCreateStage}
             >
-              <Plus className="h-6 w-6 mr-2 transition-all duration-300 hover:scale-110 hover:rotate-90" />
-              Add Stage
+              <Plus className="h-5 w-5" />
+              Add Stage Column
             </Button>
           </div>
         </div>

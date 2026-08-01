@@ -12,6 +12,7 @@ import { useState, useEffect } from "react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Dialog } from "@/components/ui/dialog";
 import { SocketProvider } from "@/lib/socket-client";
+import { NavigationLoader } from "@/components/navigation-loader";
 
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -53,6 +54,7 @@ export default function DashboardLayout({
   return (
     <SocketProvider>
       <NotificationsProvider>
+        <NavigationLoader />
         <div className="flex h-screen bg-slate-50/60 dark:bg-slate-950">
           {/* Desktop Sidebar */}
           <div

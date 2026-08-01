@@ -20,7 +20,8 @@ type Task = {
   title: string;
   status: string;
   priority: string;
-  deadline: string;
+  deadline?: string;
+  updatedAt?: string;
 };
 
 export function TaskCalendarWidget() {
@@ -29,6 +30,13 @@ export function TaskCalendarWidget() {
   const [tasksForDate, setTasksForDate] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showPopover, setShowPopover] = useState(false);
+
+  const getTaskCalendarDate = (task: Task) => {
+    if (task.status === "DONE") {
+      return task.updatedAt ? new Date(task.updatedAt) : new Date();
+    }
+    return task.deadline ? new Date(task.deadline) : null;
+  };
 
   // fetch tasks with deadlines
   useEffect(() => {
@@ -64,17 +72,19 @@ export function TaskCalendarWidget() {
   useEffect(() => {
     if (!date) return;
 
-    const filtered = tasks.filter(
-      (task) => task.deadline && isSameDay(new Date(task.deadline), date)
-    );
+    const filtered = tasks.filter((task) => {
+      const tDate = getTaskCalendarDate(task);
+      return tDate ? isSameDay(tDate, date) : false;
+    });
     setTasksForDate(filtered);
   }, [date, tasks]);
 
   // Function to check if a date has tasks
   const hasTasksOnDate = (day: Date) => {
-    return tasks.some(
-      (task) => task.deadline && isSameDay(new Date(task.deadline), day)
-    );
+    return tasks.some((task) => {
+      const tDate = getTaskCalendarDate(task);
+      return tDate ? isSameDay(tDate, day) : false;
+    });
   };
 
   const getPriorityColor = (priority: string) => {
@@ -107,9 +117,9 @@ export function TaskCalendarWidget() {
     }
   };
 
-  // Count upcoming tasks
+  // Count upcoming tasks (excluding DONE tasks)
   const upcomingTasksCount = tasks.filter(
-    (task) => task.deadline && new Date(task.deadline) >= new Date()
+    (task) => task.status !== "DONE" && task.deadline && new Date(task.deadline) >= new Date()
   ).length;
 
   return (
@@ -178,7 +188,7 @@ export function TaskCalendarWidget() {
                                 task.status
                               )}`}
                             >
-                              {task.status}
+                              {task.status === "DONE" ? "Completed ✓" : task.status}
                             </Badge>
                           </div>
                         </div>

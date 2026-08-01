@@ -94,6 +94,11 @@ export async function PATCH(req: Request, { params }: { params: { taskId: string
       data: { status },
     })
 
+    if (updatedTask.status === "DONE") {
+      const { silenceTaskReminders } = await import("@/lib/reminder-processor")
+      await silenceTaskReminders(params.taskId)
+    }
+
     // Notify all assignees except the one who made the update
     for (const assignment of task.assignments) {
       if (assignment.userId === user.id) continue // skip self
@@ -189,6 +194,11 @@ export async function PUT(req: Request, { params }: { params: { taskId: string }
         deadline: deadline ? new Date(deadline) : null,
       },
     })
+
+    if (updatedTask.status === "DONE") {
+      const { silenceTaskReminders } = await import("@/lib/reminder-processor")
+      await silenceTaskReminders(params.taskId)
+    }
 
     const currentAssigneeIds = task.assignments.map((a: any) => a.userId)
     const assigneesToRemove = currentAssigneeIds.filter((id: any) => !assignees.includes(id))

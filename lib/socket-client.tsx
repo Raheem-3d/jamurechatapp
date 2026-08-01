@@ -130,21 +130,30 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
 
 
   const shouldShowOnce = (notif: any) => {
-    const key =
-      notif.id ??
-      `${notif.type}:${notif.userId}:${notif.messageId ?? ""}:${notif.channelId ?? ""}`
-    const now = Date.now()
-    const prev = seenNotificationsRef.current.get(key) ?? 0
-    if (now - prev < 5000) return false
-    seenNotificationsRef.current.set(key, now)
-    // cleanup old
+    const contentKey = (notif.content || notif.title || "").trim();
+    const key = notif.id
+      ? `id:${notif.id}`
+      : `${notif.type}:${notif.userId}:${contentKey}`;
+    const now = Date.now();
+    const prev = seenNotificationsRef.current.get(key) ?? 0;
+    if (now - prev < 15000) return false;
+
+    // Secondary content-based deduplication window per user
+    const contentUserKey = `user:${notif.userId || ""}:${contentKey}`;
+    const prevContent = seenNotificationsRef.current.get(contentUserKey) ?? 0;
+    if (now - prevContent < 15000) return false;
+
+    seenNotificationsRef.current.set(key, now);
+    seenNotificationsRef.current.set(contentUserKey, now);
+
+    // cleanup old entries
     if (seenNotificationsRef.current.size > 200) {
       for (const [k, ts] of seenNotificationsRef.current) {
-        if (now - ts > 60000) seenNotificationsRef.current.delete(k)
+        if (now - ts > 60000) seenNotificationsRef.current.delete(k);
       }
     }
-    return true
-  }
+    return true;
+  };
 
 
   useEffect(() => {
@@ -154,6 +163,12 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
       // show only if for this user
       if (!session?.user?.id || notification.userId !== session.user.id) return
       if (!shouldShowOnce(notification)) return
+
+      // Suppress notifications if channel is muted by user
+      if (notification.channelId && typeof window !== "undefined") {
+        const isChannelMuted = localStorage.getItem(`muted_channel_${notification.channelId}`) === "true";
+        if (isChannelMuted) return;
+      }
 
       const priorityEmoji =
         ({ LOW: "🟢", MEDIUM: "🟡", HIGH: "🟠", URGENT: "🔴" } as any)[notification.priority] || "🔔"
