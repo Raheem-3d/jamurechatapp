@@ -1,24 +1,24 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useEffect, useRef, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Loader2, Users, Hash, Globe, Lock, ArrowLeft, Search } from "lucide-react"
+import { Loader2, Users, Hash, Globe, Lock, ArrowLeft, Search, Building2, CheckCircle2, X } from "lucide-react"
 import { toast } from "sonner"
 import { usePermissions } from "@/lib/rbac-utils"
 import { useTeamUsers } from "@/hooks/use-team-users"
 import Link from "next/link"
-import { ScrollArea } from "@/components/ui/scroll-area"
+import { Badge } from "@/components/ui/badge"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { cn } from "@/lib/utils"
 
 type Department = {
   id: string
@@ -44,12 +44,12 @@ export default function NewChannelPage() {
   const router = useRouter()
 
   const perms = usePermissions()
-const [search, setSearch] = useState("")
+  const [search, setSearch] = useState("")
   const [debouncedSearch, setDebouncedSearch] = useState("")
-    const debounceRef = useRef<number | undefined>(undefined)
-  
-  // const { users, loading: usersLoading } = useTeamUsers()
- const { users, loading: isfetchingUsers } = useTeamUsers()
+  const debounceRef = useRef<number | undefined>(undefined)
+
+  const { users, loading: isfetchingUsers } = useTeamUsers()
+
   // Check if user has permission to manage channels
   useEffect(() => {
     if (session?.user) {
@@ -82,6 +82,12 @@ const [search, setSearch] = useState("")
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    if (!name.trim()) {
+      toast.error("Channel name is required")
+      return
+    }
+
     setIsLoading(true)
 
     try {
@@ -91,7 +97,7 @@ const [search, setSearch] = useState("")
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          name,
+          name: name.toLowerCase().replace(/\s+/g, "-"),
           description,
           isPublic,
           departmentId: !departmentId || departmentId === 'none' ? null : departmentId,
@@ -104,7 +110,7 @@ const [search, setSearch] = useState("")
       }
 
       const channel = await response.json()
-      
+
       toast.success("Channel created successfully", {
         description: "Your new channel is ready for collaboration",
       })
@@ -123,84 +129,99 @@ const [search, setSearch] = useState("")
     }
   }
 
+  useEffect(() => {
+    window.clearTimeout(debounceRef.current)
+    debounceRef.current = window.setTimeout(() => {
+      setDebouncedSearch(search.trim())
+    }, 300)
 
+    return () => window.clearTimeout(debounceRef.current)
+  }, [search])
 
-    useEffect(() => {
-      window.clearTimeout(debounceRef.current)
-      debounceRef.current = window.setTimeout(() => {
-        setDebouncedSearch(search.trim())
-      }, 300)
-  
-      return () => window.clearTimeout(debounceRef.current)
-    }, [search])
-  
-    const filteredPeople = useMemo(() => {
-      const q = debouncedSearch.toLowerCase()
-      if (!q) return users ?? []
-      return (users ?? []).filter((u) => 
-        u.name.toLowerCase().includes(q) || 
-        u.email.toLowerCase().includes(q)
-      )
-    }, [users, debouncedSearch])
+  const filteredPeople = useMemo(() => {
+    const q = debouncedSearch.toLowerCase()
+    if (!q) return users ?? []
+    return (users ?? []).filter((u) => 
+      u.name.toLowerCase().includes(q) || 
+      u.email.toLowerCase().includes(q)
+    )
+  }, [users, debouncedSearch])
 
   const toggleAssignee = (userId: string) => {
     setAssignees((prev) => (prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]))
   }
 
-  const currentUser = session?.user as User;
+  const selectedDepartment = departments.find(d => d.id === departmentId)
 
   return (
-    <div className="min-h-screen bg-gray-50/50 dark:bg-gray-900 py-4">
-      <div className="max-w-2xl mx-auto px-4">
-        {/* Header - Compact */}
-        <div className="flex items-center gap-3 mb-6">
-          <Link href="/dashboard">
-            <Button variant="outline" size="sm" className="h-9 w-9 p-0">
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-          </Link>
-          <div className="flex-1 min-w-0">
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white truncate">
+    <div className="w-full space-y-4">
+      {/* Top Header Strip */}
+      <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5 border border-slate-200/80 dark:border-slate-800 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-3.5 min-w-0 flex-1">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => router.back()}
+            className="h-9 rounded-xl border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200 px-3 shrink-0"
+          >
+            <ArrowLeft className="h-3.5 w-3.5 mr-1.5 text-indigo-500" />
+            Back
+          </Button>
+
+          <div className="min-w-0">
+            <h1 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">
               Create Channel
             </h1>
-            <p className="text-sm text-gray-600 dark:text-gray-400 truncate">
-              Create a new channel for team collaboration
+            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
+              Create a new channel for team communication & collaboration
             </p>
           </div>
         </div>
+      </div>
 
-        <Card className="border border-gray-200 dark:border-gray-700 shadow-sm max-h-[calc(100vh-120px)] flex flex-col dark:bg-gray-900">
-          <CardHeader className="pb-4 border-b border-gray-100 dark:border-gray-700 flex-shrink-0">
-            <CardTitle className="text-lg text-gray-900 dark:text-white flex items-center gap-2">
-              <Hash className="h-5 w-5 text-blue-600" />
-              Channel Details
-            </CardTitle>
-            <CardDescription className="text-gray-600 dark:text-gray-400">
-              Configure your new channel settings and members
-            </CardDescription>
-          </CardHeader>
-          
-          <ScrollArea className="flex-1">
-            <form onSubmit={handleSubmit}>
-              <CardContent className="space-y-4 p-6">
+      {/* Form Content — 2-Column Widescreen Layout */}
+      <form onSubmit={handleSubmit}>
+        <div className="w-full grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+
+          {/* LEFT COLUMN (7 cols): Channel Information */}
+          <div className="lg:col-span-7 space-y-5 min-w-0">
+            <Card className="w-full rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs overflow-hidden">
+              <CardHeader className="pb-3 pt-4 px-4 sm:px-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40">
+                <CardTitle className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <div className="p-1.5 bg-indigo-50 dark:bg-indigo-950/60 rounded-lg text-indigo-600 dark:text-indigo-400">
+                    <Hash className="h-4 w-4" />
+                  </div>
+                  Channel Details
+                </CardTitle>
+              </CardHeader>
+
+              <CardContent className="p-4 sm:p-5 space-y-4">
                 {/* Channel Name */}
-                <div className="space-y-2">
-                  <Label htmlFor="name" className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Channel Name *
+                <div className="space-y-1.5">
+                  <Label htmlFor="name" className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                    Channel Name <span className="text-rose-500">*</span>
                   </Label>
-                  <Input
-                    id="name"
-                    placeholder="e.g., marketing-team, project-alpha"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    required
-                    className="h-10 bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-blue-500"
-                  />
+                  <div className="relative">
+                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-extrabold text-sm select-none">
+                      #
+                    </div>
+                    <Input
+                      id="name"
+                      placeholder="e.g. marketing-team, announcements, project-alpha"
+                      value={name}
+                      onChange={(e) => setName(e.target.value.toLowerCase().replace(/\s+/g, "-"))}
+                      required
+                      className="pl-7 h-10 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-xl text-sm font-medium focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                    />
+                  </div>
+                  <p className="text-[11px] text-slate-400 dark:text-slate-500">
+                    Channel names are lowercase with hyphens instead of spaces
+                  </p>
                 </div>
 
                 {/* Description */}
-                <div className="space-y-2">
-                  <Label htmlFor="description" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                <div className="space-y-1.5">
+                  <Label htmlFor="description" className="text-xs font-bold text-slate-700 dark:text-slate-300">
                     Description
                   </Label>
                   <Textarea
@@ -208,25 +229,27 @@ const [search, setSearch] = useState("")
                     placeholder="Describe the purpose of this channel..."
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
-                    rows={2}
-                    className="min-h-[80px] bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-blue-500 resize-none"
+                    rows={3}
+                    className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-xl text-sm min-h-[80px] max-h-[140px] focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 resize-none"
                   />
                 </div>
 
-                {/* Department and Privacy */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                {/* Department & Privacy Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                  {/* Department */}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                      <Building2 className="h-3.5 w-3.5 text-indigo-500" />
                       Department
                     </Label>
                     <Select value={departmentId} onValueChange={setDepartmentId}>
-                      <SelectTrigger className="h-10 bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700">
-                        <SelectValue placeholder="Select department" />
+                      <SelectTrigger className="h-10 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-xl text-xs font-semibold">
+                        <SelectValue placeholder="Select department (optional)" />
                       </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">No department</SelectItem>
+                      <SelectContent className="rounded-xl">
+                        <SelectItem value="none" className="text-xs font-semibold">No department</SelectItem>
                         {departments.map((dept) => (
-                          <SelectItem key={dept.id} value={dept.id}>
+                          <SelectItem key={dept.id} value={dept.id} className="text-xs font-semibold">
                             {dept.name}
                           </SelectItem>
                         ))}
@@ -234,164 +257,207 @@ const [search, setSearch] = useState("")
                     </Select>
                   </div>
 
-                  {/* <div className="space-y-2">
-                    <Label className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                  {/* Privacy Toggle Card */}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
                       {isPublic ? (
-                        <Globe className="h-4 w-4 text-green-600" />
+                        <Globe className="h-3.5 w-3.5 text-emerald-500" />
                       ) : (
-                        <Lock className="h-4 w-4 text-orange-600" />
+                        <Lock className="h-3.5 w-3.5 text-amber-500" />
                       )}
-                      Channel Type
+                      Privacy Mode
                     </Label>
-                    <div className="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 h-10">
-                      <div>
-                        <p className="text-sm font-medium text-gray-900 dark:text-white">
-                          {isPublic ? "Public Channel" : "Private Channel"}
-                        </p>
-                      </div>
+
+                    <div className="flex items-center justify-between p-2.5 border border-slate-200 dark:border-slate-800 rounded-xl bg-slate-50/60 dark:bg-slate-800/40 h-10">
+                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                        {isPublic ? "Public Channel" : "Private Channel"}
+                      </span>
                       <Switch 
                         checked={isPublic} 
                         onCheckedChange={setIsPublic}
-                        className="data-[state=checked]:bg-green-600 scale-90"
-                      />
-                    </div>
-                  </div> */}
-
-
-                </div>
-
-                {/* Team Members */}
-                <div className="space-y-3">
-                  <Label className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
-                    <Users className="h-4 w-4" />
-                    Add Team Members
-                  </Label>
-
-
- <div className="space-y-2">
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                      <Input
-                        type="text"
-                        placeholder="Search team members..."
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        className="pl-10 h-9 bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700"
+                        className="data-[state=checked]:bg-emerald-600 scale-90"
                       />
                     </div>
                   </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
 
-   {isfetchingUsers ? (
-                    <div className="flex items-center justify-center py-4">
-                      <Loader2 className="h-5 w-5 animate-spin text-gray-400 mr-2" />
-                      <span className="text-sm text-gray-500">Loading team members...</span>
+          {/* RIGHT COLUMN (5 cols): Team Members & Submit */}
+          <div className="lg:col-span-5 space-y-5 min-w-0">
+            {/* Team Members Selection Card */}
+            <Card className="w-full rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs overflow-hidden">
+              <CardHeader className="pb-3 pt-4 px-4 sm:px-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <div className="p-1.5 bg-blue-50 dark:bg-blue-950/60 rounded-lg text-blue-600 dark:text-blue-400">
+                      <Users className="h-4 w-4" />
                     </div>
-                  ) : (
-                    <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-3 space-y-2 max-h-40 overflow-y-auto bg-gray-50/50 dark:bg-gray-800/50">
-                      {filteredPeople.length === 0 ? (
-                        <div className="text-center py-3 text-gray-500 text-sm">
-                          {search ? "No team members found" : "No team members available"}
+                    Add Channel Members
+                  </CardTitle>
+                  {assignees.length > 0 && (
+                    <Badge variant="secondary" className="bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-extrabold text-xs px-2 py-0.5">
+                      {assignees.length} selected
+                    </Badge>
+                  )}
+                </div>
+              </CardHeader>
+
+              <CardContent className="p-4 sm:p-5 space-y-3">
+                {/* Selected Members Chips */}
+                {assignees.length > 0 && (
+                  <div className="flex items-center gap-1.5 flex-wrap pb-2 border-b border-slate-100 dark:border-slate-800">
+                    {assignees.map((id) => {
+                      const u = (users ?? []).find((x) => x.id === id)
+                      if (!u) return null
+                      return (
+                        <div
+                          key={id}
+                          className="flex items-center gap-1 px-2 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 text-[11px] font-bold"
+                        >
+                          <span className="truncate max-w-[100px]">{u.name}</span>
+                          <button type="button" onClick={() => toggleAssignee(id)} className="ml-0.5 hover:text-rose-600 transition-colors">
+                            <X className="h-3 w-3" />
+                          </button>
                         </div>
-                      ) : (
-                        filteredPeople.map((user) => (
-                          <div key={user.id} className="flex items-center gap-2 p-2 rounded-lg hover:bg-white dark:hover:bg-gray-700 transition-colors">
-                            <Checkbox
-                              id={`user-${user.id}`}
-                              checked={assignees.includes(user.id)}
-                              onCheckedChange={() => toggleAssignee(user.id)}
-                              className="data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
-                            />
+                      )
+                    })}
+                  </div>
+                )}
+
+                {/* Search */}
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                  <Input
+                    type="text"
+                    placeholder="Search team members..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="pl-9 h-9 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-xl text-xs font-medium"
+                  />
+                </div>
+
+                {/* Users List */}
+                {isfetchingUsers ? (
+                  <div className="flex items-center justify-center py-6">
+                    <Loader2 className="h-5 w-5 animate-spin text-indigo-500 mr-2" />
+                    <span className="text-xs text-slate-500 font-medium">Loading team members...</span>
+                  </div>
+                ) : (
+                  <div className="space-y-1.5 max-h-[240px] overflow-y-auto pr-1">
+                    {filteredPeople.length === 0 ? (
+                      <div className="text-center py-6">
+                        <div className="w-9 h-9 mx-auto bg-slate-100 dark:bg-slate-800 rounded-xl flex items-center justify-center text-slate-400 mb-2">
+                          <Users className="h-4 w-4" />
+                        </div>
+                        <p className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                          {search ? "No members found" : "No team members available"}
+                        </p>
+                      </div>
+                    ) : (
+                      filteredPeople.map((user) => {
+                        const isSelected = assignees.includes(user.id)
+                        return (
+                          <button
+                            type="button"
+                            key={user.id}
+                            onClick={() => toggleAssignee(user.id)}
+                            className={cn(
+                              "w-full flex items-center gap-2.5 p-2.5 rounded-xl border transition-all text-left",
+                              isSelected
+                                ? "bg-indigo-50/60 dark:bg-indigo-950/40 border-indigo-200 dark:border-indigo-800 ring-1 ring-indigo-500/20"
+                                : "bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/60"
+                            )}
+                          >
+                            <Avatar className="h-8 w-8 shrink-0">
+                              <AvatarFallback className={cn(
+                                "font-bold text-xs",
+                                isSelected
+                                  ? "bg-indigo-600 text-white"
+                                  : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300"
+                              )}>
+                                {user.name?.charAt(0) || "U"}
+                              </AvatarFallback>
+                            </Avatar>
                             <div className="flex-1 min-w-0">
-                              <Label
-                                htmlFor={`user-${user.id}`}
-                                className="text-sm font-medium text-gray-900 dark:text-white cursor-pointer flex items-center gap-2"
-                              >
+                              <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
                                 {user.name}
-                               
-                              </Label>
-                              <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                              </p>
+                              <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
                                 {user.email}
                               </p>
                             </div>
-                          </div>
-                        ))
-                      )}
-                  
-                  {/* {!isfetchingUsers ? (
-                    <div className="flex items-center justify-center py-6">
-                      <Loader2 className="h-5 w-5 animate-spin text-gray-400 mr-2" />
-                      <span className="text-sm text-gray-500">Loading team members...</span>
-                    </div>
-                  ) : (
-                   
-                    <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-3 space-y-2 max-h-48 overflow-y-auto bg-gray-50/50 dark:bg-gray-800/50">
-  {users
-    .filter(user => user.id !== currentUser.id)
-    .map((user) => (
-      <div
-        key={user.id}
-        className="flex items-center gap-2 p-2 rounded-lg hover:bg-white dark:hover:bg-gray-700 transition-colors"
-      >
-        <Checkbox
-          id={`user-${user.id}`}
-          checked={assignees.includes(user.id)}
-          onCheckedChange={() => toggleAssignee(user.id)}
-          className="data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
-        />
-        <div className="flex-1 min-w-0">
-          <Label
-            htmlFor={`user-${user.id}`}
-            className="text-sm font-medium text-gray-900 dark:text-white cursor-pointer"
-          >
-            {user.name}
-          </Label>
-          <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-            {user.email}
-          </p>
-        </div>
-      </div>
-    ))} */}
-</div>
-
-                  )}
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    {assignees.length} member{assignees.length !== 1 ? 's' : ''} selected
-                  </p>
-                </div>
+                            {isSelected && (
+                              <CheckCircle2 className="h-4 w-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                            )}
+                          </button>
+                        )
+                      })
+                    )}
+                  </div>
+                )}
               </CardContent>
+            </Card>
 
-              <CardFooter className="flex flex-col sm:flex-row gap-2 pt-4 border-t border-gray-100 dark:border-gray-700 flex-shrink-0">
-                <Link href="/dashboard" className="flex-1 order-2 sm:order-1">
-                  <Button 
-                    type="button" 
-                    variant="outline" 
-                    className="w-full h-9 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
+            {/* Summary & Submit Card */}
+            <Card className="w-full rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs overflow-hidden">
+              <CardContent className="p-4 sm:p-5 space-y-3">
+                {/* Summary */}
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="p-2.5 rounded-xl bg-slate-50/60 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800">
+                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">Type</p>
+                    <p className="text-xs font-extrabold text-slate-900 dark:text-white mt-0.5">
+                      {isPublic ? "Public" : "Private"}
+                    </p>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-slate-50/60 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800">
+                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">Dept</p>
+                    <p className="text-xs font-extrabold text-slate-900 dark:text-white mt-0.5 truncate">
+                      {selectedDepartment ? selectedDepartment.name : "None"}
+                    </p>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-slate-50/60 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800">
+                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">Members</p>
+                    <p className="text-xs font-extrabold text-slate-900 dark:text-white mt-0.5">
+                      {assignees.length}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex gap-2.5">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => router.back()}
+                    className="flex-1 h-10 rounded-xl border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
                   >
                     Cancel
                   </Button>
-                </Link>
-                <Button 
-                  type="submit" 
-                  disabled={isLoading}
-                  className="flex-1 order-1 sm:order-2 h-9 bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
-                >
-                  {isLoading ? (
-                    <div className="flex items-center gap-2">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Creating...
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      <Hash className="h-4 w-4" />
-                      Create Channel
-                    </div>
-                  )}
-                </Button>
-              </CardFooter>
-            </form>
-          </ScrollArea>
-        </Card>
-      </div>
+                  <Button 
+                    type="submit" 
+                    disabled={isLoading || !name.trim()}
+                    className="flex-1 h-10 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-xs disabled:opacity-50"
+                  >
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
+                        Creating...
+                      </>
+                    ) : (
+                      <>
+                        <Hash className="h-4 w-4 mr-1.5" />
+                        Create Channel
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </form>
     </div>
   )
 }
