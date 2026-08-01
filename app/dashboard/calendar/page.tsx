@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useSession } from "next-auth/react"
 import { usePermissions } from "@/lib/rbac-utils"
 import Link from "next/link"
@@ -44,6 +44,8 @@ export default function TaskCalendarPage() {
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date())
   const [tasks, setTasks] = useState<Task[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [expandedDayKey, setExpandedDayKey] = useState<string | null>(null)
+  const popoverRef = useRef<HTMLDivElement>(null)
 
   const { canCreateTasks } = usePermissions()
 
@@ -197,20 +199,24 @@ export default function TaskCalendarPage() {
             const isToday = isSameDay(day, today)
             const isSelected = date && isSameDay(day, date)
             const dayTasks = tasks.filter((task) => dayInRange(day, task))
+            const dayKey = `${day.getFullYear()}-${day.getMonth()}-${day.getDate()}`
+            const isExpanded = expandedDayKey === dayKey
+            const MAX_VISIBLE = 3
+            const overflow = dayTasks.length - MAX_VISIBLE
 
             return (
               <div
                 key={index}
                 onClick={() => setDate(day)}
                 className={`
-                  min-h-[95px] p-2.5 rounded-2xl border transition-all duration-150 cursor-pointer flex flex-col justify-between group relative overflow-hidden
+                  min-h-[110px] p-2.5 rounded-2xl border transition-all duration-150 cursor-pointer flex flex-col group relative
                   ${isCurrentMonth ? "bg-white dark:bg-slate-900 border-slate-200/80 dark:border-slate-800 hover:border-indigo-300 dark:hover:border-indigo-700 shadow-xs" : "bg-slate-50/50 dark:bg-slate-950/40 border-slate-100 dark:border-slate-900 text-slate-400 opacity-60"}
                   ${isToday ? "ring-2 ring-indigo-500/80 border-indigo-300 dark:border-indigo-800 bg-indigo-50/30 dark:bg-indigo-950/30" : ""}
                   ${isSelected ? "ring-2 ring-indigo-600 border-indigo-400 dark:border-indigo-600 bg-indigo-50/50 dark:bg-indigo-950/50 shadow-sm" : ""}
                 `}
               >
                 {/* Date Header */}
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between mb-1">
                   <span
                     className={`text-xs font-bold ${
                       isToday
@@ -224,18 +230,18 @@ export default function TaskCalendarPage() {
                   </span>
                   {dayTasks.length > 0 && (
                     <Badge variant="secondary" className="bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-[10px] px-1.5 py-0 font-extrabold">
-                      {dayTasks.length} {dayTasks.length === 1 ? "task" : "tasks"}
+                      {dayTasks.length}
                     </Badge>
                   )}
                 </div>
 
-                {/* Day Tasks Micro List */}
-                <div className="mt-1 space-y-1 overflow-hidden max-h-[50px]">
-                  {dayTasks.slice(0, 2).map((t) => (
+                {/* Day Tasks Micro List — Max 3 visible */}
+                <div className="flex-1 space-y-0.5 overflow-hidden">
+                  {dayTasks.slice(0, MAX_VISIBLE).map((t) => (
                     <div
                       key={t.id}
                       className={cn(
-                        "px-2 py-0.5 rounded-md text-[10px] font-semibold truncate flex items-center gap-1",
+                        "px-1.5 py-0.5 rounded-md text-[10px] font-semibold truncate flex items-center gap-1",
                         t.status === "DONE"
                           ? "bg-emerald-50 dark:bg-emerald-950/70 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 font-bold"
                           : "bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-100 dark:border-indigo-900/60 text-indigo-700 dark:text-indigo-300"
@@ -250,12 +256,73 @@ export default function TaskCalendarPage() {
                       </span>
                     </div>
                   ))}
-                  {dayTasks.length > 2 && (
-                    <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500 pl-1">
-                      +{dayTasks.length - 2} more
-                    </p>
+
+                  {/* Clickable +X more button */}
+                  {overflow > 0 && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setExpandedDayKey(isExpanded ? null : dayKey)
+                      }}
+                      className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 pl-1 pt-0.5 hover:underline transition-colors cursor-pointer"
+                    >
+                      +{overflow} more
+                    </button>
                   )}
                 </div>
+
+                {/* Expandable Popover for overflowed tasks */}
+                {isExpanded && overflow > 0 && (
+                  <div
+                    ref={popoverRef}
+                    onClick={(e) => e.stopPropagation()}
+                    className="absolute left-0 right-0 top-full mt-1 z-50 bg-white dark:bg-slate-900 rounded-xl border border-indigo-200 dark:border-indigo-800 shadow-xl p-2.5 space-y-1.5 min-w-[180px] animate-in fade-in slide-in-from-top-1 duration-150"
+                    style={{ maxHeight: 220, overflowY: "auto" }}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="text-[10px] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                        All tasks — {format(day, "MMM d")}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setExpandedDayKey(null)
+                        }}
+                        className="text-[10px] font-bold text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    {dayTasks.map((t) => (
+                      <Link
+                        key={t.id}
+                        href={`/dashboard/tasks/${t.id}/record`}
+                        onClick={(e) => e.stopPropagation()}
+                        className={cn(
+                          "flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-[11px] font-semibold transition-all hover:bg-slate-50 dark:hover:bg-slate-800/60 group/item",
+                          t.status === "DONE"
+                            ? "text-emerald-700 dark:text-emerald-300"
+                            : "text-slate-800 dark:text-slate-200"
+                        )}
+                      >
+                        {t.status === "DONE" ? (
+                          <CheckCircle2 className="h-3 w-3 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                        ) : (
+                          <div className={cn(
+                            "h-2 w-2 rounded-full shrink-0",
+                            t.priority === "URGENT" ? "bg-rose-500" : t.priority === "HIGH" ? "bg-amber-500" : t.priority === "MEDIUM" ? "bg-blue-500" : "bg-slate-400"
+                          )} />
+                        )}
+                        <span className={cn("truncate flex-1", t.status === "DONE" && "line-through opacity-75")}>
+                          {t.title}
+                        </span>
+                        <ArrowRight className="h-3 w-3 text-slate-300 group-hover/item:text-indigo-500 transition-colors shrink-0" />
+                      </Link>
+                    ))}
+                  </div>
+                )}
               </div>
             )
           })}
