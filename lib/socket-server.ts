@@ -69,8 +69,11 @@ export function initializeSocketIO(server: HTTPServer) {
 
   // Ensure reminder system background processor is running
   try {
-    const { initializeReminderSystem } = require("./reminder-init");
-    initializeReminderSystem();
+    const reminderInit = require("./reminder-init");
+    const fn = reminderInit.initializeReminderSystem || reminderInit.default?.initializeReminderSystem || reminderInit.default;
+    if (typeof fn === "function") {
+      fn();
+    }
   } catch (e) {
     console.error("Failed to initialize reminder system:", e);
   }
