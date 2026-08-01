@@ -190,7 +190,7 @@ export function TaskBoard({
   };
 
   return (
-    <div className="h-full overflow-x-auto p-4 sm:p-5">
+    <div className="h-full overflow-x-auto custom-scrollbar-x p-4 sm:p-5">
       <DragDropContext onDragEnd={handleDragEnd}>
         <div className="flex gap-4 min-w-max items-start">
           {stages.map((stage) => {
@@ -207,12 +207,12 @@ export function TaskBoard({
               <div
                 key={stage.id}
                 className={cn(
-                  "w-80 flex-shrink-0 rounded-2xl p-3.5 border space-y-3 shadow-2xs transition-all",
+                  "w-80 flex-shrink-0 rounded-2xl p-3.5 border shadow-2xs transition-all flex flex-col max-h-[calc(100vh-210px)]",
                   colorStyles.columnBg
                 )}
               >
                 {/* Stage Header */}
-                <div className="flex items-center justify-between pb-1 border-b border-slate-200/60 dark:border-slate-800">
+                <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-200/60 dark:border-slate-800 flex-shrink-0">
                   <div className="flex items-center gap-2 min-w-0">
                     <div className={cn("h-3 w-3 rounded-full shrink-0 shadow-2xs", colorStyles.dot)} />
                     <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">
@@ -274,19 +274,21 @@ export function TaskBoard({
                 </div>
 
                 {stage.assignedTeam && (
-                  <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 px-2 py-0.5 rounded-md bg-white/60 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-800 inline-block">
-                    <span className="text-indigo-600 dark:text-indigo-400">Team:</span> {stage.assignedTeam}
-                  </p>
+                  <div className="flex-shrink-0 mb-2">
+                    <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 px-2 py-0.5 rounded-md bg-white/60 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-800 inline-block">
+                      <span className="text-indigo-600 dark:text-indigo-400">Team:</span> {stage.assignedTeam}
+                    </p>
+                  </div>
                 )}
 
-                {/* Droppable Task List Container */}
+                {/* Droppable Task List Container with Independent Vertical Scroll */}
                 <Droppable droppableId={stage.id}>
                   {(provided, snapshot) => (
                     <div
                       ref={provided.innerRef}
                       {...provided.droppableProps}
                       className={cn(
-                        "min-h-[160px] space-y-2.5 transition-colors rounded-xl p-1",
+                        "flex-1 min-h-[160px] overflow-y-auto custom-scrollbar space-y-2.5 transition-colors rounded-xl p-1 pr-1.5",
                         snapshot.isDraggingOver &&
                           "bg-indigo-50/50 dark:bg-indigo-950/20 border border-dashed border-indigo-300 dark:border-indigo-800"
                       )}
@@ -327,30 +329,33 @@ export function TaskBoard({
                   )}
                 </Droppable>
 
-                {stageTasks.length > 10 && (
-                  <button
-                    type="button"
-                    onClick={() => toggleStageExpand(stage.id)}
-                    className="w-full py-1 text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center justify-center gap-1"
-                  >
-                    {isExpanded
-                      ? `Collapse to 10 records`
-                      : `+${stageTasks.length - 10} more records (Click count to view)`}
-                  </button>
-                )}
-
-                {/* Add Record Button */}
-                <Button
-                  variant="ghost"
-                  className={cn(
-                    "h-8 text-xs font-bold rounded-xl border w-full transition-all flex items-center justify-center gap-1 mt-2",
-                    colorStyles.button
+                {/* Column Footer */}
+                <div className="flex-shrink-0 pt-2 space-y-2">
+                  {stageTasks.length > 10 && (
+                    <button
+                      type="button"
+                      onClick={() => toggleStageExpand(stage.id)}
+                      className="w-full py-1 text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center justify-center gap-1"
+                    >
+                      {isExpanded
+                        ? `Collapse to 10 records`
+                        : `+${stageTasks.length - 10} more records (Click count to view)`}
+                    </button>
                   )}
-                  onClick={() => onCreateTask(stage.id)}
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  Add Record
-                </Button>
+
+                  {/* Add Record Button */}
+                  <Button
+                    variant="ghost"
+                    className={cn(
+                      "h-8 text-xs font-bold rounded-xl border w-full transition-all flex items-center justify-center gap-1",
+                      colorStyles.button
+                    )}
+                    onClick={() => onCreateTask(stage.id)}
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Add Record
+                  </Button>
+                </div>
               </div>
             );
           })}
