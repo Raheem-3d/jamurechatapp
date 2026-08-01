@@ -407,13 +407,19 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
       });
 
       // === BUZZ RECEIVE ===
-      const onBuzz = (payload: { channelId?: string; fromUserId?: string; message?: string }) => {
+      const onBuzz = (payload: { channelId?: string; fromUserId?: string; senderName?: string; message?: string }) => {
         document.documentElement.classList.add("shake");
         setTimeout(() => document.documentElement.classList.remove("shake"), 600);
         try { new Audio("/sounds/buzz.mp3").play().catch(() => { }); } catch { }
-        if (document.visibilityState === "hidden") tabNotifier.startNotification("Buzz!");
-        // dispatch for legacy consumer
-        window.dispatchEvent(new CustomEvent("buzz:received", { detail: payload }));
+        if (document.visibilityState === "hidden") tabNotifier.startNotification(`Buzz from ${payload.senderName || "Someone"}!`);
+        // dispatch for overlay consumer — include senderName so it shows in the popup
+        window.dispatchEvent(new CustomEvent("buzz:received", {
+          detail: {
+            ...payload,
+            senderName: payload.senderName || "Someone",
+            title: `Buzz from ${payload.senderName || "Someone"}`,
+          }
+        }));
       };
 
       socketInstance.on("buzz", onBuzz);

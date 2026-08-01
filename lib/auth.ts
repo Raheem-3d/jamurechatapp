@@ -126,7 +126,7 @@ export const authOptions: NextAuthOptions = {
       // 2. Cache session token in Redis for 5 minutes (300 seconds)
       try {
         const { cacheSet } = require("./redis");
-        cacheSet(`user:${token.email}:jwt`, tokenPayload, 300).catch(() => {});
+        cacheSet(`user:${token.email}:jwt`, tokenPayload, 300).catch(() => { });
       } catch (e) {
         // non-fatal fallback
       }
@@ -134,6 +134,6 @@ export const authOptions: NextAuthOptions = {
       return tokenPayload;
     },
   },
-debug: false,
-  
+  debug: false,
+
 }

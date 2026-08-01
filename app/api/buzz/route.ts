@@ -65,16 +65,41 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Rate limited" }, { status: 429 });
     }
 
+    // Fetch sender's name
+    const sender = await db.user.findUnique({
+      where: { id: userId },
+      select: { name: true, email: true },
+    });
+    const senderName = sender?.name || sender?.email || "Someone";
+
+    const buzzMessage = typeof message === "string" && message.trim() ? message : "Buzz!";
+
     const payload = {
       channelId: channelId as string | undefined,
       fromUserId: userId,
-      message: typeof message === "string" && message.trim() ? message : "Buzz!",
+      senderName,
+      message: buzzMessage,
     };
 
     if (receiverId) {
       if (receiverId !== userId) {
         emitToUser(receiverId, "buzz", payload);
       }
+
+      // Post buzz as a system message in the DM conversation
+      try {
+        await db.message.create({
+          data: {
+            content: `🔔 **${senderName}** sent a Buzz!`,
+            senderId: userId,
+            receiverId,
+            isBuzz: true,
+          } as any,
+        });
+      } catch (_) {
+        // isBuzz field may not exist in schema yet — ignore silently
+      }
+
       return NextResponse.json({ ok: true });
     }
 
@@ -86,7 +111,34 @@ export async function POST(req: Request) {
       targets.forEach((uid) => emitToUser(uid, "buzz", payload));
     }
 
-    // optional: also emit to channel room (open tabs listening to the room)  
+    // Post buzz as a system message in the channel
+    try {
+      const buzzMsg = await db.message.create({
+        data: {
+          content: `🔔 **${senderName}** sent a Buzz!`,
+          senderId: userId,
+          channelId,
+          isBuzz: true,
+        } as any,
+        include: {
+          sender: { select: { id: true, name: true, email: true, image: true } },
+        },
+      });
+      // Broadcast the buzz message to the channel so it appears in chat
+      emitToChannel(channelId, "new-message", buzzMsg);
+    } catch (_) {
+      // isBuzz field may not exist — fallback: just emit without DB record
+      emitToChannel(channelId, "new-message", {
+        id: `buzz_${Date.now()}`,
+        content: `🔔 **${senderName}** sent a Buzz!`,
+        senderId: userId,
+        channelId,
+        createdAt: new Date().toISOString(),
+        sender: { id: userId, name: senderName, email: sender?.email || "", image: null },
+      });
+    }
+
+    // Also emit buzz overlay event to channel
     emitToChannel(channelId, "buzz", payload);
 
     return NextResponse.json({ ok: true });

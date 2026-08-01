@@ -146,11 +146,15 @@ export function BuzzOverlay() {
         </div>
 
         <h2 className="text-2xl font-bold text-white mb-2">
-          {activeBuzz.title || activeBuzz.senderName ? `Buzz from ${activeBuzz.senderName}` : "High-Priority Buzz!"}
+          {activeBuzz.senderName
+            ? `Buzz from ${activeBuzz.senderName}!`
+            : activeBuzz.title || "High-Priority Buzz!"}
         </h2>
 
         <p className="text-gray-300 text-sm mb-6 max-w-xs">
-          {activeBuzz.message || "Someone is trying to get your attention immediately!"}
+          {activeBuzz.message && activeBuzz.message !== "Buzz!"
+            ? activeBuzz.message
+            : "Someone is trying to get your attention immediately!"}
         </p>
 
         {/* Actions */}
