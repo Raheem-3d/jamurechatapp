@@ -6,9 +6,9 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { taskId: string } }
+  { params }: { params: Promise<{ taskId: string }> | { taskId: string } }
 ) {
-  const taskId = params.taskId;
+  const { taskId } = await params;
 
   try {
     const session = await getServerSession(authOptions);
@@ -51,9 +51,9 @@ export async function POST(
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { taskId: string } }
+  { params }: { params: Promise<{ taskId: string }> | { taskId: string } }
 ) {
-  const { taskId } = params;
+  const { taskId } = await params;
 
   try {
     const session = await getServerSession(authOptions);
@@ -91,9 +91,9 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { taskId: string } }
+  { params }: { params: Promise<{ taskId: string }> | { taskId: string } }
 ) {
-  const taskId = params.taskId;
+  const { taskId } = await params;
   const { searchParams } = new URL(request.url);
   const stageId = searchParams.get("id");
 
@@ -148,9 +148,9 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { taskId: string } }
+  { params }: { params: Promise<{ taskId: string }> | { taskId: string } }
 ) {
-  const taskId = params.taskId;
+  const { taskId } = await params;
   const { searchParams } = new URL(request.url);
   const stageId = searchParams.get("id");
 

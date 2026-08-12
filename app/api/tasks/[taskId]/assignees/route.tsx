@@ -7,7 +7,7 @@ import { db } from "@/lib/db"
 // GET: Fetch task assignees
 export async function GET(
   request: NextRequest,
-  { params }: { params: { taskId: string } }
+  { params }: { params: Promise<{ taskId: string }> | { taskId: string } }
 ) {
   try {
     const session = await getServerSession(authOptions)
@@ -16,7 +16,7 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const taskId = params.taskId
+    const { taskId } = await params
 
     // Fetch users assigned to the given task
     const assignees = await db.user.findMany({
@@ -53,7 +53,7 @@ export async function GET(
 
 // POST: Assign user to task
 
-export async function POST(request: NextRequest, { params }: { params: { taskId: string } }) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ taskId: string }> | { taskId: string } }) {
   try {
     const session = await getServerSession(authOptions)
     const user: any = (session as any)?.user || {}
@@ -61,7 +61,7 @@ export async function POST(request: NextRequest, { params }: { params: { taskId:
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const taskId = params.taskId
+    const { taskId } = await params
     const { userId } = await request.json()
 
     if (!userId) {
@@ -100,7 +100,7 @@ export async function POST(request: NextRequest, { params }: { params: { taskId:
 }
 
 // DELETE: Unassign user from task
-export async function DELETE(request: NextRequest, { params }: { params: { taskId: string } }) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ taskId: string }> | { taskId: string } }) {
   try {
     const session = await getServerSession(authOptions)
     const user: any = (session as any)?.user || {}
@@ -108,7 +108,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { taskI
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const taskId = params.taskId
+    const { taskId } = await params
     const { userId } = await request.json()
 
     if (!userId) {

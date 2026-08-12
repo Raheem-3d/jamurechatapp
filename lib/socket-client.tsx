@@ -12,6 +12,7 @@ import {
 import { io, type Socket } from "socket.io-client";
 import { useSession } from "next-auth/react";
 import { toast } from "sonner";
+import { isBuzzMessage } from "@/lib/buzz-utils";
 import { tabNotifier } from "./tabBlinker";
 
 type Reminder = {
@@ -31,8 +32,12 @@ type ReactionUpdatePayload = {
   reactions: { emoji: string; userId: string; userName?: string }[];
 };
 
-
-type BuzzParams = { channelId?: string; receiverId?: string };
+type BuzzParams = {
+  channelId?: string;
+  receiverId?: string;
+  message?: string;
+  clientId?: string;
+};
 
 type SocketContextType = {
   // Connection state
@@ -67,7 +72,6 @@ type SocketContextType = {
   snoozeReminder: (reminderId: string, minutes: number) => Promise<boolean>;
 
   sendBuzz: (params: BuzzParams) => Promise<boolean>;
-
 };
 
 const SocketContext = createContext<SocketContextType>({
@@ -77,21 +81,21 @@ const SocketContext = createContext<SocketContextType>({
   onlineUsers: [],
   lastSeenMap: {},
   buzzerEnabled: true,
-  toggleBuzzer: () => { },
+  toggleBuzzer: () => {},
 
   // Message defaults
   sendMessage: async () => false,
   deleteMessage: async () => false,
   editMessage: async () => false,
-  updateMessageStatus: () => { },
-  markMessageAsRead: () => { },
+  updateMessageStatus: () => {},
+  markMessageAsRead: () => {},
   addReaction: async () => false,
   removeReaction: async () => false,
 
   // Channel defaults
-  joinChannel: () => { },
-  leaveChannel: () => { },
-  sendTyping: () => { },
+  joinChannel: () => {},
+  leaveChannel: () => {},
+  sendTyping: () => {},
 
   // Notification defaults
   sendNotification: async () => false,
@@ -111,14 +115,14 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
   const { data: session } = useSession();
   const userId = (session as any)?.user?.id;
   const userName = (session as any)?.user?.name;
-  const seenNotificationsRef = useRef<Map<string, number>>(new Map())
+  const seenNotificationsRef = useRef<Map<string, number>>(new Map());
 
   useEffect(() => {
     if (!socket) return;
     const handler = (payload: ReactionUpdatePayload) => {
       console.log("🎭 Reaction update received:", payload);
       window.dispatchEvent(
-        new CustomEvent("message:reaction-update", { detail: payload })
+        new CustomEvent("message:reaction-update", { detail: payload }),
       );
     };
 
@@ -127,7 +131,6 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
       socket.off("reaction:update", handler);
     };
   }, [socket]);
-
 
   const shouldShowOnce = (notif: any) => {
     const contentKey = (notif.content || notif.title || "").trim();
@@ -155,71 +158,82 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
     return true;
   };
 
-
   useEffect(() => {
-    if (!socket) return
+    if (!socket) return;
 
     const onNewNotification = (notification: any) => {
       // show only if for this user
-      if (!session?.user?.id || notification.userId !== session.user.id) return
-      if (!shouldShowOnce(notification)) return
+      if (!session?.user?.id || notification.userId !== session.user.id) return;
+      if (!shouldShowOnce(notification)) return;
 
       // Suppress notifications if channel is muted by user
       if (notification.channelId && typeof window !== "undefined") {
-        const isChannelMuted = localStorage.getItem(`muted_channel_${notification.channelId}`) === "true";
+        const isChannelMuted =
+          localStorage.getItem(`muted_channel_${notification.channelId}`) ===
+          "true";
         if (isChannelMuted) return;
       }
 
       const priorityEmoji =
-        ({ LOW: "🟢", MEDIUM: "🟡", HIGH: "🟠", URGENT: "🔴" } as any)[notification.priority] || "🔔"
+        ({ LOW: "🟢", MEDIUM: "🟡", HIGH: "🟠", URGENT: "🔴" } as any)[
+          notification.priority
+        ] || "🔔";
 
-      const notifTitle = notification.type === "REMINDER" ? "🔔 Reminder Notification" : (notification.title ?? "New Notification")
-      const notifContent = notification.content || notification.title || "You have a new notification"
+      const notifTitle =
+        notification.type === "REMINDER"
+          ? "🔔 Reminder Notification"
+          : (notification.title ?? "New Notification");
+      const notifContent =
+        notification.content ||
+        notification.title ||
+        "You have a new notification";
 
       // 1. Audio sound
-      try { new Audio("/sounds/notification.mp3").play().catch(() => { }); } catch { }
+      try {
+        new Audio("/sounds/notification.mp3").play().catch(() => {});
+      } catch {}
 
       // 2. Toast UI alert
       toast(`${priorityEmoji} ${notifTitle}`, {
         description: notifContent,
         duration: 10000,
-      })
+      });
 
       // 3. Dispatch for active UI components
       try {
-        window.dispatchEvent(new CustomEvent("socket-notification", { detail: notification }))
+        window.dispatchEvent(
+          new CustomEvent("socket-notification", { detail: notification }),
+        );
       } catch {}
 
       // 4. Native OS / Desktop Notification
-      const electronAPI = (window as any).electronAPI
+      const electronAPI = (window as any).electronAPI;
       if (electronAPI?.notify) {
-        electronAPI.notify(
-          notifTitle,
-          notifContent,
-          undefined,
-          {
-            senderName: notification.senderName || "System Reminder",
-            messagePreview: notifContent,
-            channelId: notification.channelId,
-            userId: notification.userId,
-          }
-        )
-      } else if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
+        electronAPI.notify(notifTitle, notifContent, undefined, {
+          senderName: notification.senderName || "System Reminder",
+          messagePreview: notifContent,
+          channelId: notification.channelId,
+          userId: notification.userId,
+        });
+      } else if (
+        typeof window !== "undefined" &&
+        "Notification" in window &&
+        Notification.permission === "granted"
+      ) {
         try {
           new Notification(notifTitle, {
             body: notifContent,
             icon: "/Desktopicon.ico",
-          })
-        } catch { }
+          });
+        } catch {}
       }
-    }
+    };
 
-    socket.on("new-notification", onNewNotification)
-    return () => { socket.off("new-notification", onNewNotification) }
-  }, [socket, session?.user?.id])
-
-
-
+    socket.on("new-notification", onNewNotification);
+    return () => {
+      socket.off("new-notification", onNewNotification);
+    };
+  }, [socket, session?.user?.id]);
 
   const socketRef = useRef<Socket | null>(null);
   const disconnectDebounceRef = useRef<NodeJS.Timeout | null>(null);
@@ -318,30 +332,35 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
         // Skip messages sent by current user - they're already handled via optimistic update
         // This prevents duplicate messages when socket broadcasts back our own sent message
         const currentUserId = (session as any)?.user?.id;
-        if (currentUserId && message.senderId === currentUserId) {
+        const buzzMessage = isBuzzMessage(message as any);
+        if (
+          currentUserId &&
+          message.senderId === currentUserId &&
+          !buzzMessage
+        ) {
           return;
         }
         window.dispatchEvent(
-          new CustomEvent("message:received", { detail: message })
+          new CustomEvent("message:received", { detail: message }),
         );
       });
 
       // Listen for message edits
       socketInstance.on("message:edited", (data) => {
-        window.dispatchEvent(new CustomEvent("message:edited", { detail: data }));
+        window.dispatchEvent(
+          new CustomEvent("message:edited", { detail: data }),
+        );
       });
 
       // Listen for message deletions
       socketInstance.on("message:deleted", (data) => {
         window.dispatchEvent(
-          new CustomEvent("message:deleted", { detail: data })
+          new CustomEvent("message:deleted", { detail: data }),
         );
       });
 
       // Listen for reminder notifications
       socketInstance.on("reminder:notification", (reminder: Reminder) => {
-
-
         // Show toast notification
         const priorityEmoji =
           {
@@ -356,11 +375,11 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
           duration: 10000,
           action: reminder.task
             ? {
-              label: "View Task",
-              onClick: () => {
-                window.location.href = `/tasks/${reminder.task.id}`;
-              },
-            }
+                label: "View Task",
+                onClick: () => {
+                  window.location.href = `/tasks/${reminder.task.id}`;
+                },
+              }
             : undefined,
         });
 
@@ -380,7 +399,7 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
 
         // Dispatch custom event
         window.dispatchEvent(
-          new CustomEvent("reminder:notification", { detail: reminder })
+          new CustomEvent("reminder:notification", { detail: reminder }),
         );
       });
 
@@ -389,7 +408,7 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
         console.log("📡 Received channel assignment:", data);
         // Dispatch window event for sidebar and other components to listen
         window.dispatchEvent(
-          new CustomEvent("channel:assigned", { detail: data })
+          new CustomEvent("channel:assigned", { detail: data }),
         );
         // Show toast notification
         toast.success(`Added to channel: ${data.channelName}`);
@@ -400,37 +419,58 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
         console.log("📡 Received task assignment:", data);
         // Dispatch window event for sidebar and other components to listen
         window.dispatchEvent(
-          new CustomEvent("task:assigned", { detail: data })
+          new CustomEvent("task:assigned", { detail: data }),
         );
         // Show toast notification
         toast.success(`Assigned to task: ${data.taskTitle}`);
       });
 
       // === BUZZ RECEIVE ===
-      const onBuzz = (payload: { channelId?: string; fromUserId?: string; senderName?: string; message?: string }) => {
+      const onBuzz = (payload: {
+        channelId?: string;
+        fromUserId?: string;
+        senderName?: string;
+        message?: string;
+        title?: string;
+      }) => {
         document.documentElement.classList.add("shake");
-        setTimeout(() => document.documentElement.classList.remove("shake"), 600);
-        try { new Audio("/sounds/buzz.mp3").play().catch(() => { }); } catch { }
-        if (document.visibilityState === "hidden") tabNotifier.startNotification(`Buzz from ${payload.senderName || "Someone"}!`);
+        setTimeout(
+          () => document.documentElement.classList.remove("shake"),
+          600,
+        );
+        try {
+          new Audio("/sounds/buzz.mp3").play().catch(() => {});
+        } catch {}
+        const senderName = payload.senderName || "Someone";
+        const message = payload.message || "Buzz!";
+        if (document.visibilityState === "hidden")
+          tabNotifier.startNotification(`Buzz from ${senderName}!`);
         // dispatch for overlay consumer — include senderName so it shows in the popup
-        window.dispatchEvent(new CustomEvent("buzz:received", {
-          detail: {
-            ...payload,
-            senderName: payload.senderName || "Someone",
-            title: `Buzz from ${payload.senderName || "Someone"}`,
-          }
-        }));
+        window.dispatchEvent(
+          new CustomEvent("buzz:received", {
+            detail: {
+              ...payload,
+              senderName,
+              message,
+              title: payload.title || `Buzz from ${senderName}`,
+            },
+          }),
+        );
       };
 
       socketInstance.on("buzz", onBuzz);
 
       // Register message status and read events at socket initialization level
       socketInstance.on("message:status-updated", (data) => {
-        window.dispatchEvent(new CustomEvent("message:status-update", { detail: data }));
+        window.dispatchEvent(
+          new CustomEvent("message:status-update", { detail: data }),
+        );
       });
 
       socketInstance.on("messages:read", (data) => {
-        window.dispatchEvent(new CustomEvent("messages:read", { detail: data }));
+        window.dispatchEvent(
+          new CustomEvent("messages:read", { detail: data }),
+        );
       });
 
       socketInstance.on("messages:delivered", (data) => {
@@ -441,7 +481,7 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
             window.dispatchEvent(
               new CustomEvent("message:status-update", {
                 detail: { messageId, status: "delivered" },
-              })
+              }),
             );
           }
         }
@@ -472,11 +512,9 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
     return () => clearInterval(interval);
   }, [socket, isConnected, userId]);
 
-
   // Note: single socket instance is created above in the primary useEffect.
   // The duplicate initialization that previously created `s = io(...)` was removed to ensure
   // status/read handlers are registered only once and delivered promptly to the client.
-
 
   const sendMessage = useCallback(
     async (messageData: any): Promise<boolean> => {
@@ -492,7 +530,7 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
           if (response.ok) {
             const newMessage = await response.json();
             window.dispatchEvent(
-              new CustomEvent("message:received", { detail: newMessage })
+              new CustomEvent("message:received", { detail: newMessage }),
             );
             return true;
           }
@@ -509,7 +547,7 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
         });
       });
     },
-    [socket, isConnected]
+    [socket, isConnected],
   );
 
   const createReminder = useCallback(
@@ -535,7 +573,7 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
         });
       });
     },
-    [socket, isConnected]
+    [socket, isConnected],
   );
 
   const dismissReminder = useCallback(
@@ -559,7 +597,7 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
         });
       });
     },
-    [socket, isConnected]
+    [socket, isConnected],
   );
 
   const snoozeReminder = useCallback(
@@ -585,11 +623,11 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
           { reminderId, minutes },
           (success: boolean) => {
             resolve(success);
-          }
+          },
         );
       });
     },
-    [socket, isConnected]
+    [socket, isConnected],
   );
 
   const joinChannel = useCallback(
@@ -598,7 +636,7 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
         socket.emit("join-channel", channelId);
       }
     },
-    [socket, isConnected]
+    [socket, isConnected],
   );
 
   // const leaveChannel = useCallback(
@@ -610,14 +648,13 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
   //   [socket, isConnected]
   // );
 
-
   const leaveChannel = useCallback(
     (channelId: string) => {
       if (socket && isConnected) {
         socket.emit("leave-channel", channelId);
       }
     },
-    [socket, isConnected]
+    [socket, isConnected],
   );
 
   const sendTyping = useCallback(
@@ -630,7 +667,7 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
         });
       }
     },
-    [socket, isConnected, session?.user?.id]
+    [socket, isConnected, session?.user?.id],
   );
 
   const editMessage = useCallback(
@@ -655,7 +692,7 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
         return false;
       }
     },
-    []
+    [],
   );
 
   const deleteMessage = useCallback(
@@ -679,7 +716,7 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
         window.dispatchEvent(
           new CustomEvent("message:deleted", {
             detail: { messageId },
-          })
+          }),
         );
 
         return true;
@@ -688,7 +725,7 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
         return false;
       }
     },
-    [socket, isConnected]
+    [socket, isConnected],
   );
 
   const updateMessageStatus = useCallback(
@@ -697,7 +734,7 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
         socket.emit("message:status-update", { messageId, status });
       }
     },
-    [socket, isConnected]
+    [socket, isConnected],
   );
 
   const markMessageAsRead = (messageIds: string[]) => {
@@ -719,20 +756,23 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
             userId: session.user.id,
             userName: session.user.name || "Unknown",
           },
-          (response: { success: boolean; reactions?: ReactionUpdatePayload["reactions"] }) => {
+          (response: {
+            success: boolean;
+            reactions?: ReactionUpdatePayload["reactions"];
+          }) => {
             if (response.success && response.reactions) {
               window.dispatchEvent(
                 new CustomEvent("message:reaction-update", {
                   detail: { messageId, reactions: response.reactions },
-                })
+                }),
               );
             }
             resolve(response.success);
-          }
+          },
         );
       });
     },
-    [socket, isConnected, session?.user?.id, session?.user?.name]
+    [socket, isConnected, session?.user?.id, session?.user?.name],
   );
 
   const removeReaction = useCallback(
@@ -742,33 +782,47 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
         socket.emit(
           "remove-reaction",
           { messageId, emoji, userId: session.user.id },
-          (response: { success: boolean; reactions?: ReactionUpdatePayload["reactions"] }) => {
+          (response: {
+            success: boolean;
+            reactions?: ReactionUpdatePayload["reactions"];
+          }) => {
             if (response.success && response.reactions) {
               window.dispatchEvent(
                 new CustomEvent("message:reaction-update", {
                   detail: { messageId, reactions: response.reactions },
-                })
+                }),
               );
             }
             resolve(response.success);
-          }
+          },
         );
       });
     },
-    [socket, isConnected, session?.user?.id]
+    [socket, isConnected, session?.user?.id],
   );
 
-
-  const sendBuzz = useCallback(async ({ channelId, receiverId }: BuzzParams) => {
-    if (!socket || !isConnected || !session?.user?.id) return false;
-    return new Promise<boolean>((resolve) => {
-      socket.emit("buzz:send", { channelId, receiverId }, (resp: { ok: boolean; reason?: string }) => {
-        if (!resp?.ok && resp?.reason === "rate_limited") toast.error("Too many buzzes. Try later.");
-        resolve(!!resp?.ok);
+  const sendBuzz = useCallback(
+    async ({ channelId, receiverId, message, clientId }: BuzzParams) => {
+      if (!socket || !isConnected || !session?.user?.id) return false;
+      return new Promise<boolean>((resolve) => {
+        socket.emit(
+          "buzz:send",
+          {
+            channelId,
+            receiverId,
+            message: message || "Buzz!",
+            clientId,
+          },
+          (resp: { ok: boolean; reason?: string }) => {
+            if (!resp?.ok && resp?.reason === "rate_limited")
+              toast.error("Too many buzzes. Try later.");
+            resolve(!!resp?.ok);
+          },
+        );
       });
-    });
-  }, [socket, isConnected, session?.user?.id]);
-
+    },
+    [socket, isConnected, session?.user?.id],
+  );
 
   return (
     <SocketContext.Provider

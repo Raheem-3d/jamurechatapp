@@ -19,11 +19,8 @@ const PUBLIC_PATHS = [
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl
   
-  // ⚠️ CRITICAL: Skip middleware entirely for upload routes to avoid body size limits
-  // Middleware has a 10MB limit that can't be configured in Next.js
-  if (pathname.startsWith("/api/upload")) {
-    // Let the request pass directly to the handler without any middleware processing
-    // This is necessary because middleware applies Next.js's 10MB default limit
+  // ⚠️ CRITICAL: Skip middleware entirely for upload routes and uploaded static files to avoid body limits & billing redirects
+  if (pathname.startsWith("/api/upload") || (pathname.startsWith("/u/") && !["billing", "settings", "profile"].includes(pathname.split("/")[2] || ""))) {
     return NextResponse.next()
   }
 
@@ -72,7 +69,12 @@ export async function middleware(req: NextRequest) {
     return response
   }
 
-  const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET })
+  const isSecure = process.env.NEXTAUTH_URL?.startsWith("https://") ?? false
+  const token = await getToken({
+    req,
+    secret: process.env.NEXTAUTH_SECRET,
+    secureCookie: isSecure,
+  })
   if (!token) {
     // Not signed in — redirect to login
     const url = req.nextUrl.clone()
@@ -94,7 +96,7 @@ export async function middleware(req: NextRequest) {
   }
 
   // Read subscription snapshot from token (set in auth callbacks)
-  const status = (token as any).subscriptionStatus as string | null
+  const status = ((token as any).subscriptionStatus as string | null) || "ACTIVE"
   const suspended = !!(token as any).organizationSuspended
 
   // Suspended or expired organizations: only allow billing/settings pages

@@ -1,5 +1,3 @@
-
-
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
@@ -39,9 +37,12 @@ import TaskCard from "@/components/task-card";
 import ProjectPage from "@/components/ProjectPage";
 import { cn } from "@/lib/utils";
 import SubscriptionBanner from "@/components/subscription-banner";
-import DashboardCharts, { PerformanceRadarChart } from "@/components/dashboard-charts";
+import DashboardCharts, {
+  PerformanceRadarChart,
+} from "@/components/dashboard-charts";
 import { RecentChannelsWidget } from "@/components/recent-channels-widget";
 import { RecentContactsWidget } from "@/components/recent-contacts-widget";
+import TaskAnalyticsSection from "@/components/task-analytics-section";
 
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions);
@@ -119,6 +120,21 @@ export default async function DashboardPage() {
     recentChannels = recentChannelsForAssignee;
   }
 
+  // Attach channel image via raw SQL to bypass Prisma client schema stripping
+  try {
+    const channelImages: any[] = await db.$queryRawUnsafe(
+      `SELECT id, image FROM \`Channel\``,
+    );
+    const imageMap = new Map(
+      channelImages.map((row: any) => [row.id, row.image]),
+    );
+    for (const ch of recentChannels) {
+      (ch as any).image = imageMap.get(ch.id) || null;
+    }
+  } catch (e) {
+    console.error("Error fetching recentChannels images:", e);
+  }
+
   // fetch recent tasks
   const recentTasks = await db.task.findMany({
     where: {
@@ -178,7 +194,8 @@ export default async function DashboardPage() {
       message.senderId === session.user.id
         ? message.receiverId
         : message.senderId;
-    const otherUser = message.senderId === session.user.id ? message.receiver : message.sender;
+    const otherUser =
+      message.senderId === session.user.id ? message.receiver : message.sender;
 
     if (otherUserId && otherUser && !uniqueUsers.has(otherUserId)) {
       uniqueUsers.set(otherUserId, {
@@ -198,33 +215,38 @@ export default async function DashboardPage() {
     ? []
     : user?.departmentId
       ? await db.user.findMany({
-        where: {
-          departmentId: user.departmentId,
-          id: { not: userId },
-          organizationId: user.organizationId,
-        },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-        },
-        orderBy: {
-          name: "asc",
-        },
-      })
+          where: {
+            departmentId: user.departmentId,
+            id: { not: userId },
+            organizationId: user.organizationId,
+          },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+          orderBy: {
+            name: "asc",
+          },
+        })
       : [];
 
   // Calculate stats
-  const completedTasksCount = recentTasks.filter((t) => t.status === "DONE").length;
+  const completedTasksCount = recentTasks.filter(
+    (t) => t.status === "DONE",
+  ).length;
 
   //  asassign to me completed tasks
   const assignedTasksCount = recentTasks.filter((t) =>
-    t.assignments.some((a) => a.userId === session.user.id)
+    t.assignments.some((a) => a.userId === session.user.id),
   ).length;
 
-
-  const pendingTasksCount = recentTasks.filter((t) => t.status === "PENDING").length;
-  const inProgressTasksCount = recentTasks.filter((t) => t.status === "IN_PROGRESS").length;
+  const pendingTasksCount = recentTasks.filter(
+    (t) => t.status === "PENDING",
+  ).length;
+  const inProgressTasksCount = recentTasks.filter(
+    (t) => t.status === "IN_PROGRESS",
+  ).length;
 
   // fetch analytics data for charts
   // 1. Task completion trend (last 7 days)
@@ -267,11 +289,14 @@ export default async function DashboardPage() {
       });
 
       return {
-        date: date.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+        date: date.toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+        }),
         completed,
         created,
       };
-    })
+    }),
   );
 
   // 2. Task status distribution for Pie Chart
@@ -283,17 +308,37 @@ export default async function DashboardPage() {
 
   // 3. Performance metrics for Radar Chart
   const totalTasks = recentTasks.length;
-  const completionRate = totalTasks > 0 ? (completedTasksCount / totalTasks) * 100 : 0;
+  const completionRate =
+    totalTasks > 0 ? (completedTasksCount / totalTasks) * 100 : 0;
   const activeChannelsCount = recentChannels.length;
-  const messagesCount = recentChannels.reduce((sum, ch) => sum + (ch._count?.messages || 0), 0);
+  const messagesCount = recentChannels.reduce(
+    (sum, ch) => sum + (ch._count?.messages || 0),
+    0,
+  );
   const contactsCount = recentContacts.length;
 
   const performanceData = [
     { metric: "Task Completion", value: Math.min(completionRate, 100) },
-    { metric: "Active Channels", value: Math.min((activeChannelsCount / 10) * 100, 100) },
-    { metric: "Communication", value: Math.min((messagesCount / 50) * 100, 100) },
-    { metric: "Collaboration", value: Math.min((contactsCount / 10) * 100, 100) },
-    { metric: "Productivity", value: Math.min(((completedTasksCount + inProgressTasksCount) / (totalTasks || 1)) * 100, 100) },
+    {
+      metric: "Active Channels",
+      value: Math.min((activeChannelsCount / 10) * 100, 100),
+    },
+    {
+      metric: "Communication",
+      value: Math.min((messagesCount / 50) * 100, 100),
+    },
+    {
+      metric: "Collaboration",
+      value: Math.min((contactsCount / 10) * 100, 100),
+    },
+    {
+      metric: "Productivity",
+      value: Math.min(
+        ((completedTasksCount + inProgressTasksCount) / (totalTasks || 1)) *
+          100,
+        100,
+      ),
+    },
   ];
 
   const greetingMessage = () => {
@@ -334,17 +379,25 @@ export default async function DashboardPage() {
                     <div className="text-center">
                       <div className="flex items-center gap-2 mb-2">
                         <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-                        <p className="text-blue-200 text-sm font-medium">Active Projects</p>
+                        <p className="text-blue-200 text-sm font-medium">
+                          Active Projects
+                        </p>
                       </div>
-                      <p className="text-3xl font-bold text-white">{recentTasks.length}</p>
+                      <p className="text-3xl font-bold text-white">
+                        {recentTasks.length}
+                      </p>
                     </div>
                     <div className="w-px h-12 bg-blue-400/30"></div>
                     <div className="text-center">
                       <div className="flex items-center gap-2 mb-2">
                         <CheckCircle className="h-3 w-3 text-green-400" />
-                        <p className="text-blue-200 text-sm font-medium">Completed</p>
+                        <p className="text-blue-200 text-sm font-medium">
+                          Completed
+                        </p>
                       </div>
-                      <p className="text-3xl font-bold text-white">{completedTasksCount}</p>
+                      <p className="text-3xl font-bold text-white">
+                        {completedTasksCount}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -363,8 +416,14 @@ export default async function DashboardPage() {
                     Overview of your recent projects and progress
                   </p>
                 </div>
-                <Button asChild className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl px-6 py-3">
-                  <Link href="/dashboard/tasks" className="flex items-center gap-2 font-semibold">
+                <Button
+                  asChild
+                  className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl px-6 py-3"
+                >
+                  <Link
+                    href="/dashboard/tasks"
+                    className="flex items-center gap-2 font-semibold"
+                  >
                     View All Projects
                     <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
                   </Link>
@@ -378,7 +437,10 @@ export default async function DashboardPage() {
                     <div>
                       <CardTitle className="text-gray-900 dark:text-white text-xl flex items-center gap-2">
                         Recent Projects
-                        <Badge variant="secondary" className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-0">
+                        <Badge
+                          variant="secondary"
+                          className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-0"
+                        >
                           {recentTasks.length} total
                         </Badge>
                       </CardTitle>
@@ -407,12 +469,17 @@ export default async function DashboardPage() {
                           <Briefcase className="h-10 w-10 text-blue-600 dark:text-blue-400" />
                         </div>
                         <div>
-                          <p className="text-gray-500 dark:text-gray-400 text-xl font-semibold">No projects found</p>
+                          <p className="text-gray-500 dark:text-gray-400 text-xl font-semibold">
+                            No projects found
+                          </p>
                           <p className="text-gray-400 dark:text-gray-500 text-base mt-2">
                             Get started by creating your first project
                           </p>
                         </div>
-                        <Button asChild className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl px-8">
+                        <Button
+                          asChild
+                          className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl px-8"
+                        >
                           <Link href="/dashboard/tasks/new">
                             Create Project
                           </Link>
@@ -449,14 +516,29 @@ export default async function DashboardPage() {
                 <div className="flex items-center gap-2">
                   {isAdmin && (
                     <>
-                      <Button asChild variant="outline" size="sm" className="h-8 rounded-xl border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 px-3">
-                        <Link href="/dashboard/new-channel" className="flex items-center gap-1">
+                      <Button
+                        asChild
+                        variant="outline"
+                        size="sm"
+                        className="h-8 rounded-xl border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 px-3"
+                      >
+                        <Link
+                          href="/dashboard/new-channel"
+                          className="flex items-center gap-1"
+                        >
                           <PlusCircle className="h-3.5 w-3.5 text-indigo-500" />
                           New Channel
                         </Link>
                       </Button>
-                      <Button asChild size="sm" className="h-8 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl text-xs px-3 shadow-xs">
-                        <Link href="/dashboard/tasks/new" className="flex items-center gap-1">
+                      <Button
+                        asChild
+                        size="sm"
+                        className="h-8 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl text-xs px-3 shadow-xs"
+                      >
+                        <Link
+                          href="/dashboard/tasks/new"
+                          className="flex items-center gap-1"
+                        >
                           <PlusCircle className="h-3.5 w-3.5" />
                           New Project
                         </Link>
@@ -469,7 +551,6 @@ export default async function DashboardPage() {
 
             {/* Master 2-Column Grid (Eliminating Unnecessary Scroll) */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-
               {/* Left Column (8 cols): Projects & Analytics */}
               <div className="lg:col-span-8 space-y-5 min-w-0">
                 {/* Projects Section */}
@@ -477,19 +558,19 @@ export default async function DashboardPage() {
                   <ProjectPage />
                 </div>
 
-                {/* Analytics Charts */}
-                <div className="w-full">
-                  <DashboardCharts
+                {/* Analytics Charts & Task Reports */}
+                <div className="w-full space-y-6">
+                  {/* <DashboardCharts
                     taskTrendData={taskTrendData}
                     taskStatusData={taskStatusData}
                     performanceData={performanceData}
-                  />
+                  /> */}
+                  <TaskAnalyticsSection />
                 </div>
               </div>
 
               {/* Right Column (4 cols): Quick Stats + Communication Side Panel */}
               <div className="lg:col-span-4 space-y-5 min-w-0">
-
                 {/* Stats Cards (2x2 Grid) */}
                 <div className="grid grid-cols-2 gap-3">
                   <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs p-3.5">
@@ -565,7 +646,6 @@ export default async function DashboardPage() {
 
                 {/* Performance Radar Chart - Hidden as requested */}
               </div>
-
             </div>
           </div>
         </>

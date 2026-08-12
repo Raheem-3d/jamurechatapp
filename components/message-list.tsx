@@ -25,6 +25,7 @@ import {
   X,
   Check,
   Pin,
+  PinOff,
   Smile,
   Download,
   FileText,
@@ -36,6 +37,7 @@ import {
   Computer,
   Clock,
   Info,
+  BellRing,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -66,6 +68,7 @@ import { createPortal } from "react-dom";
 import { ReactionPicker } from "./ReactionPicker";
 import { DialogDescription } from "@radix-ui/react-dialog";
 import DeliveryReceiptPopover from "./deliveryReceiptPopover";
+import { isBuzzMessage, parseBuzzDisplayData } from "@/lib/buzz-utils";
 
 // ------------------ TYPES ------------------
 export type MessageStatus = "sending" | "sent" | "delivered" | "read";
@@ -280,12 +283,14 @@ const renderMessageWithLinks = (text: string) => {
   if (typeof window === "undefined" || !text) return null;
 
   // Regex patterns:
-  // 1. Web URLs (https?://...)
-  // 2. File URLs (file://...)
-  // 3. Drive letter absolute paths (e.g. C:\folder\subfolder or D:/folder)
-  // 4. UNC / Network share paths (e.g. \\server\share or //server/share)
-  // 5. User mentions (@username)
-  const combinedRegex = /(https?:\/\/[^\s]+)|(file:\/\/\/[^\s]+)|([a-zA-Z]:[\\/][^\s<>"'\`]+)|(\\\\[^\s<>"'\`]+)|(\/\/[^\s<>"'\`]+)|(@\w+)/g;
+  // 1. Quoted folder paths: "C:\path with spaces" or 'C:\path with spaces' or `file:///C:/path with spaces`
+  // 2. Web URLs (https?://...)
+  // 3. File URLs (file:///[^\n<>"'`]+)
+  // 4. Windows paths with spaces (C:\path\subfolder or C:/path/subfolder)
+  // 5. UNC network share paths (\\server\share with spaces)
+  // 6. User mentions (@username)
+  const combinedRegex =
+    /(["'\`](?:[a-zA-Z]:[\\/]|file:\/\/\/?|\\\\|\/\/)[^\n"'\`]+["'\`])|(https?:\/\/[^\s]+)|(file:\/\/\/[^\n<>"'\`]+)|([a-zA-Z]:[\\/](?:(?!\s{2,}|["'\`<>]|\s+(?:and|or|is|to|in|for|the|a|an)\s+|[.,;:!?](\s|$))[^\n<>"'\`])+)|(\\\\[^\n<>"'\`]+)|(\/\/[^\n<>"'\`]+)|(@\w+)/g;
 
   const parts: string[] = [];
   let lastIndex = 0;
@@ -307,8 +312,15 @@ const renderMessageWithLinks = (text: string) => {
     e.preventDefault();
     e.stopPropagation();
 
-    // Clean quotes and trailing punctuation like period or comma at end of sentence
-    const cleanPath = pathStr.replace(/^["']|["']$/g, "").replace(/[.,;:!?]+$/, "").trim();
+    // Clean surrounding quotes and trailing punctuation
+    let cleanPath = pathStr
+      .replace(/^["'`]|["'`]$/g, "")
+      .replace(/[.,;:!?]+$/, "")
+      .trim();
+
+    try {
+      cleanPath = decodeURIComponent(cleanPath);
+    } catch {}
 
     const electronAPI = (window as any).electronAPI;
     if (electronAPI?.openPath) {
@@ -372,38 +384,41 @@ const renderMessageWithLinks = (text: string) => {
   };
 
   return parts.map((part, index) => {
+    // Clean part for testing match type
+    const unquotedPart = part.replace(/^["'`]|["'`]$/g, "").trim();
+
     // 1. Web URLs
-    if (part.match(/^https?:\/\//i)) {
+    if (unquotedPart.match(/^https?:\/\//i)) {
       return (
         <a
           key={index}
-          href={part}
-          onClick={(e) => handleLinkClick(e, part)}
+          href={unquotedPart}
+          onClick={(e) => handleLinkClick(e, unquotedPart)}
           className="text-[#027EB5] dark:text-[#53BDEB] hover:underline inline-flex items-center gap-1 cursor-pointer font-medium"
         >
           <LinkIcon className="h-3.5 w-3.5 inline-block" />
-          {part}
+          {unquotedPart}
         </a>
       );
     }
 
     // 2. Folder / File paths (C:\..., D:/..., \\server\..., //server/..., file:///...)
     if (
-      part.match(/^file:\/\/\//i) ||
-      part.match(/^[a-zA-Z]:[\\/]/) ||
-      part.match(/^\\\\[^\s]+/) ||
-      part.match(/^\/\/[^\s]+/)
+      unquotedPart.match(/^file:\/\/\//i) ||
+      unquotedPart.match(/^[a-zA-Z]:[\\/]/) ||
+      unquotedPart.match(/^\\\\[^\n<>"']+/) ||
+      unquotedPart.match(/^\/\/[^\n<>"']+/)
     ) {
       return (
         <a
           key={index}
-          href={`file:///${part.replace(/\\/g, "/")}`}
+          href={`file:///${unquotedPart.replace(/\\/g, "/")}`}
           onClick={(e) => handleOpenFolder(e, part)}
           className="text-[#027EB5] dark:text-[#53BDEB] hover:underline inline-flex items-center gap-1 cursor-pointer font-medium bg-[#027EB5]/10 dark:bg-[#53BDEB]/10 px-1.5 py-0.5 rounded"
-          title={`Click to open folder: ${part}`}
+          title={`Click to open folder: ${unquotedPart}`}
         >
           <FolderIcon className="h-3.5 w-3.5 inline-block text-[#027EB5] dark:text-[#53BDEB]" />
-          {part}
+          {unquotedPart}
         </a>
       );
     }
@@ -712,33 +727,39 @@ export default function MessageList({
       typeof isPinnedParam === "boolean"
         ? isPinnedParam
         : !!pinnedMessages[messageId];
+    const newPinnedState = !currentlyPinned;
     setIsPinning(messageId);
-    setPinnedMessages((prev) => ({ ...prev, [messageId]: !currentlyPinned }));
+    setPinnedMessages((prev) => ({ ...prev, [messageId]: newPinnedState }));
     try {
-      if (currentlyPinned) {
-        await unpinMessage?.(messageId);
-        toast.success("Message unpinned");
-      } else {
-        await pinMessage?.(messageId);
-        toast.success("Message pinned");
-        const pinnedMsg = messages.find((m) => m.id === messageId);
-        if (pinnedMsg) {
-          window.dispatchEvent(
-            new CustomEvent("message:pinned", {
-              detail: {
-                id: pinnedMsg.id,
-                content: pinnedMsg.content,
-                senderName: pinnedMsg.sender?.name,
-              },
-            }),
-          );
-        }
+      const response = await fetch("/api/messages/pin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messageId, pin: newPinnedState }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to update pinned status");
       }
-    } catch (error) {
+
+      toast.success(newPinnedState ? "Message pinned 📌" : "Message unpinned");
+
+      // Notify parent/components
+      const targetMsg = messages.find((m) => m.id === messageId);
+      if (targetMsg) {
+        window.dispatchEvent(
+          new CustomEvent("message:pinned-updated", {
+            detail: {
+              messageId,
+              isPinned: newPinnedState,
+              message: { ...targetMsg, isPinned: newPinnedState },
+            },
+          }),
+        );
+      }
+    } catch (error: any) {
       setPinnedMessages((prev) => ({ ...prev, [messageId]: currentlyPinned }));
-      toast.error(
-        currentlyPinned ? "Failed to unpin message" : "Failed to pin message",
-      );
+      toast.error(error.message || (currentlyPinned ? "Failed to unpin message" : "Failed to pin message"));
     } finally {
       setIsPinning(null);
     }
@@ -852,7 +873,7 @@ export default function MessageList({
     {},
   );
 
-  const reactionButtonRef = useRef<HTMLButtonElement | null>(null);
+  const reactionButtonRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     const map: Record<string, any[]> = {};
@@ -1078,8 +1099,8 @@ export default function MessageList({
         const orig = messages.find((m) => m.id === parsed!.messageId);
         const att = orig
           ? (attachmentsMap[orig.id] ?? orig.attachments ?? [])[
-          parsed.attachmentIndex ?? 0
-          ]
+              parsed.attachmentIndex ?? 0
+            ]
           : null;
 
         const preview = att ? (
@@ -1453,7 +1474,8 @@ export default function MessageList({
     ) {
       const attachmentTexts = message.attachments.map(
         (att: any, index: number) =>
-          `Attachment ${index + 1}: ${att.fileName || "File"} (${att.fileType || "Unknown type"
+          `Attachment ${index + 1}: ${att.fileName || "File"} (${
+            att.fileType || "Unknown type"
           })`,
       );
       text = attachmentTexts.join("\n");
@@ -1461,8 +1483,9 @@ export default function MessageList({
 
     // If no text content but has fileUrl, create descriptive text
     if (!text && message.fileUrl) {
-      text = `File: ${message.fileName || "File"} (${message.fileType || "Unknown type"
-        })`;
+      text = `File: ${message.fileName || "File"} (${
+        message.fileType || "Unknown type"
+      })`;
     }
 
     if (!text.trim()) {
@@ -1773,21 +1796,46 @@ export default function MessageList({
               );
 
               const showDateSeparator = shouldShowDateSeparator(message, prev);
+              const isBuzzMessageItem = isBuzzMessage(message as any);
+
+              if (isBuzzMessageItem) {
+                const buzzData = parseBuzzDisplayData(message as any);
+                return (
+                  <div key={message.id}>
+                    {showDateSeparator && <DateSeparator date={createdAt} />}
+                    <div className="flex justify-center my-3 px-2">
+                      <div className="max-w-[90%] rounded-2xl border border-red-200/80 bg-red-50/90 px-3 py-2.5 text-sm text-red-800 shadow-sm dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-200">
+                        <div className="flex items-center gap-2 font-semibold">
+                          <BellRing className="h-4 w-4 shrink-0" />
+                          <span>Buzz</span>
+                        </div>
+                        <div className="mt-1 whitespace-pre-wrap break-words">
+                          <div className="font-medium text-red-900 dark:text-red-200">
+                            {buzzData.senderName}
+                          </div>
+                          <div className="mt-0.5">{buzzData.message}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
 
               return (
                 <div key={message.id}>
                   {/* Date separator */}
                   {showDateSeparator && <DateSeparator date={createdAt} />}
 
-                  {/* Message */}
                   <div
                     id={`msg-${message.id}`}
-                    className={`flex ${isCurrentUser ? "justify-end" : "justify-start"
-                      } group relative mb-[2px]`}
+                    className={`flex ${
+                      isCurrentUser ? "justify-end" : "justify-start"
+                    } group relative mb-[2px]`}
                   >
                     <div
-                      className={`flex ${isCurrentUser ? "flex-row-reverse" : "flex-row"
-                        } gap-2 max-w-[85%] sm:max-w-[75%] md:max-w-[65%] lg:max-w-[60%]`}
+                      className={`flex ${
+                        isCurrentUser ? "flex-row-reverse" : "flex-row"
+                      } gap-2 max-w-[85%] sm:max-w-[75%] md:max-w-[65%] lg:max-w-[60%]`}
                     >
                       {/* Avatar - WhatsApp style: 40px, only on first in group */}
                       {isFirstInGroup ? (
@@ -1827,20 +1875,20 @@ export default function MessageList({
                                 : "bg-white dark:bg-[#202C33] text-[#111B21] dark:text-[#E9EDEF] rounded-[7.5px] rounded-tl-[0px]",
                               // First in group gets full radius on own side
                               isFirstInGroup &&
-                              isCurrentUser &&
-                              "rounded-tr-[7.5px]",
+                                isCurrentUser &&
+                                "rounded-tr-[7.5px]",
                               isFirstInGroup &&
-                              !isCurrentUser &&
-                              "rounded-tl-[7.5px]",
+                                !isCurrentUser &&
+                                "rounded-tl-[7.5px]",
                               // Last in group gets tail effect
                               isLastInGroup &&
-                              isCurrentUser &&
-                              "rounded-br-[0px]",
+                                isCurrentUser &&
+                                "rounded-br-[0px]",
                               isLastInGroup &&
-                              !isCurrentUser &&
-                              "rounded-bl-[0px]",
+                                !isCurrentUser &&
+                                "rounded-bl-[0px]",
                               isPinned &&
-                              "border-l-4 border-l-[#FFD700] dark:border-l-[#FFD700]",
+                                "border-l-4 border-l-[#FFD700] dark:border-l-[#FFD700]",
                             )}
                             onDoubleClick={() => {
                               if (editingMessageId) return;
@@ -1851,6 +1899,12 @@ export default function MessageList({
                               boxShadow: "0 1px 0.5px rgba(11, 20, 26, 0.13)",
                             }}
                           >
+                            {isPinned && (
+                              <div className="flex items-center gap-1 text-amber-600 dark:text-amber-400 text-[10px] font-bold mb-1 pb-0.5 border-b border-amber-500/20">
+                                <Pin className="h-3 w-3 fill-current" />
+                                Pinned Message
+                              </div>
+                            )}
                             {editingMessageId === message.id ? (
                               <div className="space-y-3">
                                 <Textarea
@@ -1954,9 +2008,9 @@ export default function MessageList({
                                         (att as any).reactions,
                                       )
                                         ? ((att as any).reactions as {
-                                          emoji: string;
-                                          userId: string;
-                                        }[])
+                                            emoji: string;
+                                            userId: string;
+                                          }[])
                                         : [];
                                       const byEmoji: Record<string, string[]> =
                                         {};
@@ -2073,8 +2127,8 @@ export default function MessageList({
                                               </div>
                                             </div>
                                           ) : att.fileType?.startsWith(
-                                            "video/",
-                                          ) ? (
+                                              "video/",
+                                            ) ? (
                                             <MessageVideoComponent
                                               videoUrl={att.fileUrl}
                                               fileName={
@@ -2199,8 +2253,8 @@ export default function MessageList({
                                                     active={
                                                       currentUserId
                                                         ? userIds.includes(
-                                                          currentUserId,
-                                                        )
+                                                            currentUserId,
+                                                          )
                                                         : false
                                                     }
                                                     onClick={() =>
@@ -2255,8 +2309,8 @@ export default function MessageList({
                                         </button>
                                       </div>
                                     ) : message.fileType?.startsWith(
-                                      "audio/",
-                                    ) ? (
+                                        "audio/",
+                                      ) ? (
                                       <div className="mt-1">
                                         <audio
                                           controls
@@ -2273,8 +2327,8 @@ export default function MessageList({
                                         )}
                                       </div>
                                     ) : message.fileType?.startsWith(
-                                      "video/",
-                                    ) ? (
+                                        "video/",
+                                      ) ? (
                                       <MessageVideoComponent
                                         videoUrl={message.fileUrl}
                                         fileName={
@@ -2358,11 +2412,29 @@ export default function MessageList({
                           {/* Message Actions - WhatsApp style hover actions */}
                           <div
                             className={cn(
-                              "absolute top-0 opacity-0 group-hover:opacity-100 transition-opacity duration-150 flex items-center gap-0.5",
+                              "absolute top-0 opacity-0 group-hover:opacity-100 transition-opacity duration-150 flex items-center gap-0.5 z-30",
                               "bg-white dark:bg-[#202C33] shadow-md rounded-md border border-[#E9EDEF] dark:border-[#2A3942] p-0.5",
-                              isCurrentUser ? "-left-8" : "-right-8",
+                              isCurrentUser ? "-left-16" : "-right-16",
                             )}
                           >
+                            {/* Quick Pin/Unpin Action Button */}
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handlePinMessage(message.id);
+                              }}
+                              className="h-7 w-7 rounded-sm hover:bg-[#F0F2F5] dark:hover:bg-[#2A3942] p-0 text-[#54656F]"
+                              title={isPinned ? "Unpin message" : "Pin message"}
+                            >
+                              {isPinned ? (
+                                <PinOff className="h-3.5 w-3.5 text-amber-500 fill-amber-500/20" />
+                              ) : (
+                                <Pin className="h-3.5 w-3.5 hover:text-amber-500" />
+                              )}
+                            </Button>
+
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
                                 <Button
@@ -2379,6 +2451,23 @@ export default function MessageList({
                                 className="w-48 bg-white dark:bg-[#111B21] border-[#D1D7DB] dark:border-[#2A3942]"
                               >
                                 <DropdownMenuItem
+                                  onClick={() => handlePinMessage(message.id)}
+                                  className="text-[#111B21] dark:text-[#E9EDEF] focus:bg-[#F0F2F5] dark:focus:bg-[#2A3942] cursor-pointer font-semibold"
+                                >
+                                  {isPinned ? (
+                                    <>
+                                      <PinOff className="h-4 w-4 mr-2 text-amber-500" />
+                                      Unpin Message
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Pin className="h-4 w-4 mr-2 text-amber-500" />
+                                      Pin Message
+                                    </>
+                                  )}
+                                </DropdownMenuItem>
+
+                                <DropdownMenuItem
                                   onClick={() => handleCopyMessage(message)}
                                   className="text-[#111B21] dark:text-[#E9EDEF] focus:bg-[#F0F2F5] dark:focus:bg-[#2A3942] cursor-pointer"
                                 >
@@ -2387,7 +2476,10 @@ export default function MessageList({
                                 </DropdownMenuItem>
 
                                 <DropdownMenuItem
-                                  ref={reactionButtonRef}
+                                  ref={(node) => {
+                                    reactionButtonRef.current =
+                                      node as HTMLElement;
+                                  }}
                                   onClick={() => {
                                     setOpenReactionFor(message.id);
                                   }}
@@ -2396,6 +2488,7 @@ export default function MessageList({
                                   <Smile className="h-4 w-4 mr-2 text-[#8696A0]" />{" "}
                                   React
                                 </DropdownMenuItem>
+
                                 <DropdownMenuItem
                                   onClick={() =>
                                     handleReplyByDoubleClick(message)
@@ -2419,31 +2512,6 @@ export default function MessageList({
                                   <Info className="h-4 w-4 mr-2 text-[#8696A0]" />{" "}
                                   Info
                                 </DropdownMenuItem>
-
-                                {/* 
-                              {isCurrentUser && (
-                                <>
-                                  <DropdownMenuSeparator className="bg-[#E9EDEF] dark:bg-[#2A3942]" />
-                                  <DropdownMenuItem
-                                    onClick={() => handleEditMessage(message)}
-                                    className="text-[#111B21] dark:text-[#E9EDEF] focus:bg-[#F0F2F5] dark:focus:bg-[#2A3942] cursor-pointer"
-                                  >
-                                    <Edit className="h-4 w-4 mr-2 text-[#8696A0]" /> Edit
-                                  </DropdownMenuItem>
-                                  <DropdownMenuItem
-                                    onClick={() =>
-                                      handleDeleteMessage(message.id)
-                                    }
-                                    disabled={isDeleting === message.id}
-                                    className="text-red-600 dark:text-red-400 focus:bg-red-50 dark:focus:bg-red-900/20 cursor-pointer"
-                                  >
-                                    <Trash className="h-4 w-4 mr-2" />
-                                    {isDeleting === message.id
-                                      ? "Deleting..."
-                                      : "Delete"}
-                                  </DropdownMenuItem>
-                                </>
-                              )} */}
                               </DropdownMenuContent>
                             </DropdownMenu>
                           </div>

@@ -1,0 +1,1 @@
+SELECT TABLE_NAME, CONSTRAINT_NAME, REFERENCED_TABLE_NAME FROM information_schema.key_column_usage WHERE table_schema='chatApp' AND referenced_table_name IS NOT NULL ORDER BY TABLE_NAME, CONSTRAINT_NAME;

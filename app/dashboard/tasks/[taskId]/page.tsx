@@ -42,8 +42,9 @@ import { cn } from "@/lib/utils";
 export default async function TaskDetailPage({
   params,
 }: {
-  params: { taskId: string };
+  params: Promise<{ taskId: string }> | { taskId: string };
 }) {
+  const { taskId } = await params;
   const session = await getServerSession(authOptions);
 
   if (!session) {
@@ -52,7 +53,7 @@ export default async function TaskDetailPage({
 
   const task = await db.task.findUnique({
     where: {
-      id: params.taskId,
+      id: taskId,
     },
     include: {
       creator: true,
@@ -93,7 +94,7 @@ export default async function TaskDetailPage({
     const taskClient = await db.taskClient.findUnique({
       where: {
         taskId_userId: {
-          taskId: params.taskId,
+          taskId,
           userId,
         },
       },
@@ -351,7 +352,7 @@ export default async function TaskDetailPage({
               {/* Status Updater */}
               {(isAssignee || canEdit) && (
                 <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
-                  <TaskStatusUpdate taskId={params.taskId} currentStatus={task.status} />
+                  <TaskStatusUpdate taskId={taskId} currentStatus={task.status} />
                 </div>
               )}
             </CardContent>

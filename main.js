@@ -1372,15 +1372,17 @@ ipcMain.handle('open-external-link', async (event, url) => {
 ipcMain.handle('open-path', async (event, targetPath) => {
   try {
     const path = require('path');
-    let cleanPath = targetPath.trim();
-    cleanPath = cleanPath.replace(/^["']|["']$/g, '');
+    let cleanPath = (targetPath || '').trim();
+    cleanPath = cleanPath.replace(/^["'`]|["'`]$/g, '');
     cleanPath = cleanPath.replace(/^file:\/\/\/?/i, '');
-    cleanPath = decodeURIComponent(cleanPath);
+    try {
+      cleanPath = decodeURIComponent(cleanPath);
+    } catch (e) {}
 
     const normalized = path.normalize(cleanPath);
     console.log('📂 Opening folder path in Electron:', normalized);
 
-    // 1. Try shell.openPath
+    // 1. Try shell.openPath (handles folders with spaces if path exists)
     const err = await shell.openPath(normalized);
     if (!err) {
       return { success: true };
@@ -1394,7 +1396,9 @@ ipcMain.handle('open-path', async (event, targetPath) => {
   } catch (error) {
     console.error('Failed to open path:', error);
     try {
-      const fileUrl = `file:///${targetPath.replace(/^["']|["']$/g, '').replace(/^file:\/\/\/?/i, '').replace(/\\/g, '/')}`;
+      let rawPath = (targetPath || '').replace(/^["'`]|["'`]$/g, '').replace(/^file:\/\/\/?/i, '').replace(/\\/g, '/');
+      try { rawPath = decodeURIComponent(rawPath); } catch (e) {}
+      const fileUrl = `file:///${rawPath}`;
       await shell.openExternal(fileUrl);
       return { success: true };
     } catch (e) {

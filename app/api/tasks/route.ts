@@ -26,62 +26,65 @@ export async function GET(req: Request) {
     const assignedTo = searchParams.get("assignedTo")
     const createdBy = searchParams.get("createdBy")
 
-    // Check if user is super admin
+    // Check if user is admin / super admin or has view all perms
     const userWithPerms = await getSessionUserWithPermissions(req as any)
     const isSuperAdmin = userWithPerms.isSuperAdmin
 
-    // Parse user permissions
     let userPerms: any[] = []
     try {
       userPerms = JSON.parse(String(userWithPerms.permissions || '[]'))
     } catch {}
 
+    const isAdminUser = Boolean(
+      isSuperAdmin ||
+      userWithPerms.role === "SUPER_ADMIN" ||
+      userWithPerms.role === "ORG_ADMIN" ||
+      userPerms.includes("TASK_VIEW_ALL") ||
+      userPerms.includes("PROJECT_VIEW_ALL") ||
+      userPerms.includes("PROJECT_MANAGE")
+    )
+
     let whereClause: any = {}
 
-    // Super admins can see all tasks
-    // All other users (including ORG_ADMIN) only see tasks they created or are assigned to
-    if (!isSuperAdmin) {
-      whereClause.organizationId = user?.organizationId || undefined
-      // Always restrict to tasks the user is involved in
-      whereClause.OR = [
-        { creatorId: user.id },
-        { assignments: { some: { userId: user.id } } }
-      ]
+    if (user?.organizationId) {
+      whereClause.organizationId = user.organizationId
     }
 
-    // If assignedTo is specified, filter by assignments
-    if (assignedTo) {
-      whereClause.assignments = {
-        some: {
-          userId: assignedTo,
-        },
-      }
-    }
-    // If createdBy is specified, filter by creator
-    else if (createdBy) {
-      whereClause.creatorId = createdBy
-    }
-    // Otherwise, for non-super-admins, always scope to user's own tasks
-    else if (!isSuperAdmin) {
-      whereClause.OR = [
-        { creatorId: user.id },
+    // STRICT USER ACCESS CONTROL: Non-admins can ONLY view tasks they created or are assigned to
+    if (!isAdminUser) {
+      whereClause.AND = [
         {
-          assignments: {
-            some: {
-              userId: user.id,
-            },
-          },
+          OR: [
+            { creatorId: user.id },
+            { assignments: { some: { userId: user.id } } },
+          ],
         },
       ]
     }
 
-    // Add additional filters
+    // Additional filters requested in query parameters
     if (status) {
       whereClause.status = status
     }
 
     if (priority) {
       whereClause.priority = priority
+    }
+
+    if (assignedTo) {
+      if (!isAdminUser) {
+        whereClause.AND.push({ assignments: { some: { userId: assignedTo } } })
+      } else {
+        whereClause.assignments = { some: { userId: assignedTo } }
+      }
+    }
+
+    if (createdBy) {
+      if (!isAdminUser) {
+        whereClause.AND.push({ creatorId: createdBy })
+      } else {
+        whereClause.creatorId = createdBy
+      }
     }
 
     const tasks = await db.task.findMany({
@@ -117,6 +120,13 @@ export async function GET(req: Request) {
           select: {
             id: true,
             name: true,
+          },
+        },
+        Stage: {
+          select: {
+            id: true,
+            name: true,
+            color: true,
           },
         },
       },
@@ -831,7 +841,18 @@ async function generateInvitationToken(email: string, taskId: string) {
 
 
 
-async function createAutomaticTaskReminders(taskId: string, taskTitle: string, deadline: Date, assigneeIds: string[]) {
+async function createAutomaticTaskReminders(targetTaskId: string, taskTitle: string, deadline: Date, assigneeIds: string[]) {
+  let validTaskId: string | null = null;
+  if (targetTaskId) {
+    const existingTask = await db.task.findUnique({
+      where: { id: targetTaskId },
+      select: { id: true },
+    });
+    if (existingTask) {
+      validTaskId = existingTask.id;
+    }
+  }
+
   const reminderIntervals = [
     { days: 4, hours: 0, label: "4 days before" },
     { days: 2, hours: 0, label: "2 days before" },
@@ -865,7 +886,7 @@ async function createAutomaticTaskReminders(taskId: string, taskTitle: string, d
               type: "TASK_DEADLINE",
               creatorId: assigneeId, // System-created, but assigned to user
               assigneeId: assigneeId,
-              taskId: taskId,
+              taskId: validTaskId,
               isAutomatic: true,
             },
           }),

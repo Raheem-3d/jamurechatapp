@@ -5,8 +5,8 @@ import { db } from "@/lib/db" // adjust path to your prisma/db instance
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 
-export async function GET(req: Request, { params }: { params: { taskId: string } }) {
-  const { taskId } = params
+export async function GET(req: Request, { params }: { params: Promise<{ taskId: string }> | { taskId: string } }) {
+  const { taskId } = await params;
 
   try {
    

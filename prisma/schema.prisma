@@ -43,6 +43,7 @@ model User {
   TaskClient            TaskClient[]
   taskComments          TaskComment[]
   TaskInvitation        TaskInvitation[]
+  TaskTimeLog           TaskTimeLog[]
   department            Department?             @relation(fields: [departmentId], references: [id])
   manager               User?                   @relation("ManagerTeam", fields: [managerId], references: [id])
   subordinates          User[]                  @relation("ManagerTeam")
@@ -167,6 +168,7 @@ model Channel {
   creatorId       String
   type            String?         @default("GENERAL")
   departmentId    String?
+  image           String?
   createdAt       DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
   creator         User            @relation("ChannelCreator", fields: [creatorId], references: [id])
@@ -240,6 +242,7 @@ model Task {
   updatedAt       DateTime          @updatedAt
   deadlineEnd     DateTime?
   deadlineStart   DateTime?
+  timeSpent       Int               @default(0)
   AutomationRule  AutomationRule[]
   channel         Channel?
   InvitationToken InvitationToken[]
@@ -252,10 +255,26 @@ model Task {
   TaskClient      TaskClient[]
   comments        TaskComment[]
   TaskInvitation  TaskInvitation[]
+  timeLogs        TaskTimeLog[]
 
   @@index([organizationId, status, deadline])
   @@index([creatorId])
   @@index([status, priority])
+}
+
+model TaskTimeLog {
+  id          String   @id @default(cuid())
+  taskId      String
+  userId      String
+  duration    Int      @default(0)
+  description String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  task        Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([taskId])
+  @@index([userId])
 }
 
 model Stage {
@@ -345,11 +364,46 @@ model AutomationRule {
   task          Task?     @relation(fields: [taskId], references: [id])
   user          User      @relation(fields: [userId], references: [id])
 
+  AutomationLog AutomationLog[]
+
   @@index([userId])
   @@index([projectId])
   @@index([trigger])
   @@index([stageId], map: "AutomationRule_stageId_fkey")
   @@index([taskId], map: "AutomationRule_taskId_fkey")
+}
+
+model AutomationLog {
+  id              String         @id @default(cuid())
+  ruleId          String
+  ruleName        String
+  taskId          String?
+  recordId        String?
+  userId          String?
+  status          String         // "SUCCESS" | "FAILED" | "SKIPPED"
+  triggerType     String
+  actionSummary   String
+  executionTimeMs Int            @default(0)
+  errorDetails    String?        @db.Text
+  createdAt       DateTime       @default(now())
+  rule            AutomationRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  @@index([ruleId, status, createdAt])
+  @@index([createdAt])
+}
+
+model StageMovementLog {
+  id          String   @id @default(cuid())
+  recordId    String
+  fromStageId String?
+  toStageId   String
+  userId      String
+  durationMs  BigInt?
+  movedAt     DateTime @default(now())
+  record      Record   @relation(fields: [recordId], references: [id], onDelete: Cascade)
+
+  @@index([recordId, movedAt])
+  @@index([toStageId, movedAt])
 }
 
 model TaskAssignment {

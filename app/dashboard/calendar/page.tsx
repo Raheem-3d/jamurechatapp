@@ -20,11 +20,48 @@ import {
   CalendarDays,
   ArrowRight,
   Sparkles,
+  User as UserIcon,
+  Briefcase,
+  Filter,
+  RotateCcw,
+  Search,
+  Layers,
+  UserCheck,
+  ListTodo,
+  CheckSquare,
+  ChevronDown,
+  ShieldAlert,
 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { cn } from "@/lib/utils"
+
+type TaskAssignee = {
+  id?: string
+  user?: {
+    id: string
+    name?: string | null
+    email?: string | null
+    image?: string | null
+  }
+}
 
 type Task = {
   id: string
@@ -36,6 +73,15 @@ type Task = {
   deadlineEnd?: string
   updatedAt?: string
   description?: string
+  creator?: {
+    id: string
+    name?: string | null
+    email?: string | null
+    image?: string | null
+  }
+  assignments?: TaskAssignee[]
+  channel?: { id: string; name: string } | null
+  Stage?: { id: string; name: string; color?: string }[] | null
 }
 
 export default function TaskCalendarPage() {
@@ -47,7 +93,27 @@ export default function TaskCalendarPage() {
   const [expandedDayKey, setExpandedDayKey] = useState<string | null>(null)
   const popoverRef = useRef<HTMLDivElement>(null)
 
-  const { canCreateTasks } = usePermissions()
+  // Filters State
+  const [selectedUser, setSelectedUser] = useState<string>("ALL")
+  const [selectedTaskName, setSelectedTaskName] = useState<string>("ALL")
+  const [searchQuery, setSearchQuery] = useState<string>("")
+
+  // Searchable User Dropdown Popover State
+  const [userSearchTerm, setUserSearchTerm] = useState("")
+  const [userDropdownOpen, setUserDropdownOpen] = useState(false)
+
+  // Permissions & Role Checks
+  const { canCreateTasks, isAdmin, isSuperAdmin, canViewAllTasks, role } = usePermissions()
+
+  // Admin-only check for filter access
+  const canAccessFilter = Boolean(
+    isAdmin ||
+    isSuperAdmin ||
+    canViewAllTasks ||
+    role === "SUPER_ADMIN" ||
+    role === "ORG_ADMIN" ||
+    role === "MANAGER"
+  )
 
   // Fetch tasks with deadlines
   useEffect(() => {
@@ -59,7 +125,7 @@ export default function TaskCalendarPage() {
           const data = await response.json()
           setTasks(data)
         } else {
-          // Fallback mock data for demo
+          // Fallback mock data
           setTasks([
             {
               id: "1",
@@ -69,6 +135,8 @@ export default function TaskCalendarPage() {
               deadlineStart: new Date().toISOString(),
               deadlineEnd: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
               description: "Finalize the quarterly project report with all metrics for stakeholder review",
+              creator: { id: "u1", name: "Rahul Sharma", email: "rahul@example.com" },
+              assignments: [{ user: { id: "u1", name: "Rahul Sharma", email: "rahul@example.com" } }],
             },
             {
               id: "2",
@@ -77,23 +145,8 @@ export default function TaskCalendarPage() {
               priority: "MEDIUM",
               deadline: new Date(Date.now() + 86400000).toISOString(),
               description: "Weekly standup meeting to discuss project progress and plan next sprint tasks",
-            },
-            {
-              id: "3",
-              title: "Code Review Session",
-              status: "TODO",
-              priority: "LOW",
-              deadlineStart: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString(),
-              deadlineEnd: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000).toISOString(),
-              description: "Review pull requests for the new feature implementation and provide feedback",
-            },
-            {
-              id: "4",
-              title: "Client Presentation",
-              status: "TODO",
-              priority: "URGENT",
-              deadline: new Date(Date.now() + 4 * 24 * 60 * 60 * 1000).toISOString(),
-              description: "Present final project deliverables and gather client feedback",
+              creator: { id: "u2", name: "Ananya Roy", email: "ananya@example.com" },
+              assignments: [{ user: { id: "u2", name: "Ananya Roy", email: "ananya@example.com" } }],
             },
           ])
         }
@@ -106,6 +159,99 @@ export default function TaskCalendarPage() {
     fetchTasks()
   }, [])
 
+  // Compile Unique Users from fetched tasks
+  const allAssigneesMap = new Map<string, { id: string; name: string; email?: string; image?: string }>()
+  tasks.forEach((t) => {
+    if (t.assignments && Array.isArray(t.assignments)) {
+      t.assignments.forEach((a) => {
+        if (a.user && a.user.id) {
+          allAssigneesMap.set(a.user.id, {
+            id: a.user.id,
+            name: a.user.name || a.user.email || "Unknown User",
+            email: a.user.email || undefined,
+            image: a.user.image || undefined,
+          })
+        }
+      })
+    }
+    if (t.creator && t.creator.id) {
+      if (!allAssigneesMap.has(t.creator.id)) {
+        allAssigneesMap.set(t.creator.id, {
+          id: t.creator.id,
+          name: t.creator.name || t.creator.email || "Creator",
+          email: t.creator.email || undefined,
+          image: t.creator.image || undefined,
+        })
+      }
+    }
+  })
+
+  const uniqueUsers = Array.from(allAssigneesMap.values())
+
+  // User Task Counts
+  const userTaskCounts = uniqueUsers.map((u) => {
+    const count = tasks.filter((t) => {
+      const isAssigned = t.assignments?.some((a) => a.user?.id === u.id)
+      const isCreator = t.creator?.id === u.id
+      return isAssigned || isCreator
+    }).length
+    return { ...u, taskCount: count }
+  })
+
+  // Filtered Users for Searchable Dropdown
+  const filteredUsersForDropdown = uniqueUsers.filter((u) => {
+    if (!userSearchTerm.trim()) return true
+    const q = userSearchTerm.toLowerCase()
+    return u.name.toLowerCase().includes(q) || (u.email?.toLowerCase().includes(q) ?? false)
+  })
+
+  const selectedUserObj = uniqueUsers.find((u) => u.id === selectedUser)
+
+  // Unique Task Names List
+  const uniqueTaskNames = Array.from(new Set(tasks.map((t) => t.title).filter(Boolean)))
+
+  // Filter Tasks (Admin only filters if canAccessFilter is true; non-admins get all fetched tasks)
+  const filteredTasks = tasks.filter((t) => {
+    if (!canAccessFilter) return true // Non-admins rely strictly on backend security scoping
+
+    // 1. User Filter
+    let userMatch = true
+    if (selectedUser !== "ALL") {
+      const isAssigned = t.assignments?.some((a) => a.user?.id === selectedUser)
+      const isCreator = t.creator?.id === selectedUser
+      userMatch = Boolean(isAssigned || isCreator)
+    }
+
+    // 2. Task Name Filter
+    let taskNameMatch = true
+    if (selectedTaskName !== "ALL") {
+      taskNameMatch = t.title === selectedTaskName
+    }
+
+    // 3. Search Query Filter
+    let searchMatch = true
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase()
+      const inTitle = t.title.toLowerCase().includes(q)
+      const inDesc = t.description?.toLowerCase().includes(q) ?? false
+      searchMatch = inTitle || inDesc
+    }
+
+    return userMatch && taskNameMatch && searchMatch
+  })
+
+  const activeFiltersCount =
+    (selectedUser !== "ALL" ? 1 : 0) +
+    (selectedTaskName !== "ALL" ? 1 : 0) +
+    (searchQuery.trim() ? 1 : 0)
+
+  const clearFilters = () => {
+    setSelectedUser("ALL")
+    setSelectedTaskName("ALL")
+    setSearchQuery("")
+    setUserSearchTerm("")
+  }
+
   // Range helpers & colors
   const normalizeYMD = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate())
   const parseDate = (val?: string) => (val ? new Date(val) : undefined)
@@ -115,8 +261,6 @@ export default function TaskCalendarPage() {
 
     if (t.status === "DONE") {
       const doneDate = parseDate(t.updatedAt) ?? new Date()
-      // Mark completed on calendar for doneDate (and prior start dates up to doneDate).
-      // Completed task will NOT appear on any future dates after doneDate.
       end = doneDate
       if (!start || start > doneDate) {
         start = doneDate
@@ -132,20 +276,20 @@ export default function TaskCalendarPage() {
     return d >= r.start && d <= r.end
   }
 
-  const upcomingTasksCount = tasks.filter((task) => {
+  const upcomingTasksCount = filteredTasks.filter((task) => {
     if (task.status === "DONE") return false
     const r = getTaskRange(task)
     return r ? r.end >= new Date() : false
   }).length
 
-  const completedTasksCount = tasks.filter((task) => task.status === "DONE").length
-  const inProgressTasksCount = tasks.filter((task) => task.status === "IN_PROGRESS").length
+  const completedTasksCount = filteredTasks.filter((task) => task.status === "DONE").length
+  const inProgressTasksCount = filteredTasks.filter((task) => task.status === "IN_PROGRESS").length
 
   const handlePrevMonth = () => setCurrentMonth(subMonths(currentMonth, 1))
   const handleNextMonth = () => setCurrentMonth(addMonths(currentMonth, 1))
 
   // Selected date tasks
-  const selectedDateTasks = date ? tasks.filter((task) => dayInRange(date, task)) : []
+  const selectedDateTasks = date ? filteredTasks.filter((task) => dayInRange(date, task)) : []
 
   // Priority Pill Component
   const getPriorityBadge = (priority: string) => {
@@ -198,7 +342,7 @@ export default function TaskCalendarPage() {
             const isCurrentMonth = day.getMonth() === currentMonth.getMonth()
             const isToday = isSameDay(day, today)
             const isSelected = date && isSameDay(day, date)
-            const dayTasks = tasks.filter((task) => dayInRange(day, task))
+            const dayTasks = filteredTasks.filter((task) => dayInRange(day, task))
             const dayKey = `${day.getFullYear()}-${day.getMonth()}-${day.getDate()}`
             const isExpanded = expandedDayKey === dayKey
             const MAX_VISIBLE = 3
@@ -397,13 +541,188 @@ export default function TaskCalendarPage() {
         </div>
       </div>
 
+      {/* 🔒 ADMIN-ONLY FILTER BAR */}
+      {canAccessFilter && (
+        <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4 text-indigo-500" />
+              <h3 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+                Admin Filters
+              </h3>
+              <Badge variant="outline" className="text-[10px] font-bold border-indigo-200 text-indigo-600">
+                Admin View
+              </Badge>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                Showing <strong className="text-slate-900 dark:text-white">{filteredTasks.length}</strong> of {tasks.length} tasks
+              </span>
+              {activeFiltersCount > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearFilters}
+                  className="h-7 text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl px-2 flex items-center gap-1"
+                >
+                  <RotateCcw className="h-3 w-3" />
+                  Clear Filters
+                </Button>
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {/* 1. Search Input */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+              <Input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search tasks..."
+                className="pl-9 h-9 text-xs bg-slate-50 dark:bg-slate-800/50 border-slate-200/80 dark:border-slate-700/80 rounded-xl"
+              />
+            </div>
+
+            {/* 2. Searchable User Dropdown (Popover with search box inside) */}
+            <div className="relative">
+              <Popover open={userDropdownOpen} onOpenChange={setUserDropdownOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={userDropdownOpen}
+                    className="h-9 w-full justify-between text-xs bg-slate-50 dark:bg-slate-800/50 border-slate-200/80 dark:border-slate-700/80 rounded-xl font-normal"
+                  >
+                    <div className="flex items-center gap-2 truncate">
+                      <UserCheck className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
+                      <span className="truncate">
+                        {selectedUser === "ALL"
+                          ? `All Users (${uniqueUsers.length})`
+                          : selectedUserObj
+                          ? selectedUserObj.name
+                          : "Select User"}
+                      </span>
+                    </div>
+                    <ChevronDown className="h-3.5 w-3.5 text-slate-400 shrink-0 opacity-70" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-64 p-2 rounded-xl shadow-lg border-slate-200 dark:border-slate-800" align="start">
+                  {/* Search Box Inside User Dropdown */}
+                  <div className="relative mb-2">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                    <Input
+                      value={userSearchTerm}
+                      onChange={(e) => setUserSearchTerm(e.target.value)}
+                      placeholder="Search user name or email..."
+                      className="pl-8 h-8 text-xs bg-slate-100/70 dark:bg-slate-800/80 border-none rounded-lg"
+                      autoFocus
+                    />
+                  </div>
+
+                  {/* Users List */}
+                  <div className="max-h-56 overflow-y-auto space-y-1 pr-1 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedUser("ALL")
+                        setUserDropdownOpen(false)
+                      }}
+                      className={cn(
+                        "w-full text-left px-2.5 py-1.5 rounded-lg flex items-center justify-between transition-colors font-medium cursor-pointer",
+                        selectedUser === "ALL"
+                          ? "bg-indigo-50 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400 font-bold"
+                          : "hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300"
+                      )}
+                    >
+                      <span>All Users</span>
+                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-bold">
+                        {tasks.length}
+                      </Badge>
+                    </button>
+
+                    {filteredUsersForDropdown.length > 0 ? (
+                      filteredUsersForDropdown.map((u) => {
+                        const isSel = selectedUser === u.id
+                        const userCount = userTaskCounts.find((item) => item.id === u.id)?.taskCount ?? 0
+                        return (
+                          <button
+                            key={u.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedUser(u.id)
+                              setUserDropdownOpen(false)
+                            }}
+                            className={cn(
+                              "w-full text-left px-2.5 py-1.5 rounded-lg flex items-center justify-between transition-colors font-medium cursor-pointer gap-2",
+                              isSel
+                                ? "bg-indigo-50 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400 font-bold"
+                                : "hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300"
+                            )}
+                          >
+                            <div className="flex items-center gap-2 truncate">
+                              <Avatar className="h-5 w-5 shrink-0">
+                                <AvatarImage src={u.image || undefined} />
+                                <AvatarFallback className="text-[9px] font-extrabold bg-indigo-200 text-indigo-800">
+                                  {u.name.slice(0, 2).toUpperCase()}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div className="truncate">
+                                <p className="truncate font-semibold text-[11px]">{u.name}</p>
+                                {u.email && <p className="text-[9px] text-slate-400 truncate">{u.email}</p>}
+                              </div>
+                            </div>
+                            <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-extrabold shrink-0">
+                              {userCount}
+                            </Badge>
+                          </button>
+                        )
+                      })
+                    ) : (
+                      <div className="py-4 text-center text-xs text-slate-400">No users found</div>
+                    )}
+                  </div>
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            {/* 3. Task Name Dropdown Filter */}
+            <div className="relative">
+              <Select value={selectedTaskName} onValueChange={(val) => setSelectedTaskName(val)}>
+                <SelectTrigger className="h-9 text-xs bg-slate-50 dark:bg-slate-800/50 border-slate-200/80 dark:border-slate-700/80 rounded-xl">
+                  <div className="flex items-center gap-2 truncate">
+                    <ListTodo className="h-3.5 w-3.5 text-purple-500 shrink-0" />
+                    <SelectValue placeholder="Filter by Task Name" />
+                  </div>
+                </SelectTrigger>
+                <SelectContent className="rounded-xl max-h-64">
+                  <SelectItem value="ALL" className="text-xs font-semibold">
+                    All Task Names ({uniqueTaskNames.length})
+                  </SelectItem>
+                  <SelectGroup>
+                    <SelectLabel className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+                      Task Titles
+                    </SelectLabel>
+                    {uniqueTaskNames.map((name) => (
+                      <SelectItem key={name} value={name} className="text-xs">
+                        <span className="truncate">{name}</span>
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Metric Cards Row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs p-4">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Total Deadlines</p>
-              <p className="text-2xl font-black text-slate-900 dark:text-white mt-0.5">{tasks.length}</p>
+              <p className="text-2xl font-black text-slate-900 dark:text-white mt-0.5">{filteredTasks.length}</p>
             </div>
             <div className="h-9 w-9 rounded-xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 flex items-center justify-center border border-blue-100 dark:border-blue-900/40">
               <CalendarIcon className="h-4 w-4" />
@@ -529,7 +848,7 @@ export default function TaskCalendarPage() {
                   <CalendarDays className="h-5 w-5" />
                 </div>
                 <p className="text-xs font-bold text-slate-700 dark:text-slate-300">No tasks on this date</p>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Select another day or add a new task</p>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Select another day or adjust your parameters</p>
               </div>
             )}
           </CardContent>

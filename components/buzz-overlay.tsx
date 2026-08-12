@@ -22,7 +22,8 @@ export function BuzzOverlay() {
   // Play synthesized buzzer sound via Web Audio API
   const playSynthBuzzer = () => {
     try {
-      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      const AudioCtx =
+        window.AudioContext || (window as any).webkitAudioContext;
       if (!AudioCtx) return;
       const ctx = new AudioCtx();
       audioContextRef.current = ctx;
@@ -109,13 +110,27 @@ export function BuzzOverlay() {
     <div className="fixed inset-0 z-[999999] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-200">
       <style jsx global>{`
         @keyframes buzzShake {
-          0% { transform: translate(0, 0) rotate(0deg); }
-          15% { transform: translate(-6px, -4px) rotate(-1.5deg); }
-          30% { transform: translate(6px, 4px) rotate(1.5deg); }
-          45% { transform: translate(-5px, 3px) rotate(-1deg); }
-          60% { transform: translate(5px, -3px) rotate(1deg); }
-          75% { transform: translate(-3px, -2px) rotate(-0.5deg); }
-          100% { transform: translate(0, 0) rotate(0deg); }
+          0% {
+            transform: translate(0, 0) rotate(0deg);
+          }
+          15% {
+            transform: translate(-6px, -4px) rotate(-1.5deg);
+          }
+          30% {
+            transform: translate(6px, 4px) rotate(1.5deg);
+          }
+          45% {
+            transform: translate(-5px, 3px) rotate(-1deg);
+          }
+          60% {
+            transform: translate(5px, -3px) rotate(1deg);
+          }
+          75% {
+            transform: translate(-3px, -2px) rotate(-0.5deg);
+          }
+          100% {
+            transform: translate(0, 0) rotate(0deg);
+          }
         }
         .buzz-shake {
           animation: buzzShake 0.4s ease-in-out infinite;
@@ -146,15 +161,16 @@ export function BuzzOverlay() {
         </div>
 
         <h2 className="text-2xl font-bold text-white mb-2">
-          {activeBuzz.senderName
-            ? `Buzz from ${activeBuzz.senderName}!`
-            : activeBuzz.title || "High-Priority Buzz!"}
+          {activeBuzz.title ||
+            (activeBuzz.senderName
+              ? `Buzz from ${activeBuzz.senderName}!`
+              : "High-Priority Buzz!")}
         </h2>
 
         <p className="text-gray-300 text-sm mb-6 max-w-xs">
           {activeBuzz.message && activeBuzz.message !== "Buzz!"
-            ? activeBuzz.message
-            : "Someone is trying to get your attention immediately!"}
+            ? `${activeBuzz.senderName || "Someone"}: ${activeBuzz.message}`
+            : `${activeBuzz.senderName || "Someone"} is trying to get your attention immediately!`}
         </p>
 
         {/* Actions */}

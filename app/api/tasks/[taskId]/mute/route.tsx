@@ -6,7 +6,7 @@ import { authOptions } from "@/lib/auth"
 import { db } from "@/lib/db"
 // import { prisma } from "@/lib/prisma" // Make sure this is set up properly
 
-export async function GET(request: NextRequest,{ params }: { params: { taskId: string } }
+export async function GET(request: NextRequest, { params }: { params: Promise<{ taskId: string }> | { taskId: string } }
 ) {
   try {
     const session = await getServerSession(authOptions)
@@ -14,7 +14,7 @@ export async function GET(request: NextRequest,{ params }: { params: { taskId: s
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const taskId = params.taskId
+    const { taskId } = await params
 
     const muteSettings = await db.taskMuteSetting.findMany({
       where: { taskId },
@@ -38,7 +38,7 @@ export async function GET(request: NextRequest,{ params }: { params: { taskId: s
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { taskId: string } }
+  { params }: { params: Promise<{ taskId: string }> | { taskId: string } }
 ) {
   try {
     const session = await getServerSession(authOptions)
@@ -46,7 +46,7 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const taskId = params.taskId
+    const { taskId } = await params
     const { userId, isMuted } = await request.json()
 
     if (!userId || typeof isMuted !== "boolean") {

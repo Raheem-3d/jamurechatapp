@@ -5,7 +5,8 @@ import { db } from "@/lib/db"
 import { format } from "date-fns"
 import { ChannelInfoDisplay } from "@/components/channel-info-display"
 
-export default async function ChannelInfoPage({ params }: { params: { channelId: string } }) {
+export default async function ChannelInfoPage({ params }: { params: Promise<{ channelId: string }> | { channelId: string } }) {
+  const { channelId } = await params
   const session = await getServerSession(authOptions)
 
   if (!session) {
@@ -14,7 +15,7 @@ export default async function ChannelInfoPage({ params }: { params: { channelId:
 
   const channel = await db.channel.findUnique({
     where: {
-      id: params.channelId,
+      id: channelId,
     },
     include: {
       department: true,

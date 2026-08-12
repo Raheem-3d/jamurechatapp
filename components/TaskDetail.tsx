@@ -22,6 +22,9 @@ import {
   CheckCircle,
   Clock,
   ArrowRight,
+  Zap,
+  LayoutGrid,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useSocket } from "@/hooks/use-socket";
@@ -40,6 +43,7 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { format, set } from "date-fns";
 import { RangeCalendarPicker } from "./ui/RangeCalendar";
+import { cn } from "@/lib/utils";
 
 interface TaskDetailProps {
   task: Task;
@@ -68,20 +72,20 @@ export function TaskDetail({
     // Initialize date range from start/end if present, else fall back to dueDate
     dueDate:
       (task as any)?.startDate ||
-      (task as any)?.endDate ||
-      (task as any)?.dueDate
+        (task as any)?.endDate ||
+        (task as any)?.dueDate
         ? {
-            startDate: (task as any)?.startDate
-              ? new Date((task as any).startDate as any)
-              : (task as any)?.dueDate
-                ? new Date((task as any).dueDate as any)
-                : null,
-            endDate: (task as any)?.endDate
-              ? new Date((task as any).endDate as any)
-              : (task as any)?.dueDate
-                ? new Date((task as any).dueDate as any)
-                : null,
-          }
+          startDate: (task as any)?.startDate
+            ? new Date((task as any).startDate as any)
+            : (task as any)?.dueDate
+              ? new Date((task as any).dueDate as any)
+              : null,
+          endDate: (task as any)?.endDate
+            ? new Date((task as any).endDate as any)
+            : (task as any)?.dueDate
+              ? new Date((task as any).dueDate as any)
+              : null,
+        }
         : null,
   });
 
@@ -102,6 +106,26 @@ export function TaskDetail({
   const [hasUnreadClientMessages, setHasUnreadClientMessages] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
+  const [newTagName, setNewTagName] = useState("");
+
+  const handleAddCustomTag = () => {
+    const name = newTagName.trim();
+    if (!name) return;
+    const current = Array.isArray(editedTask.tags) ? [...editedTask.tags] : [];
+    const exists = current.some(
+      (t: any) => (t.name || "").toLowerCase() === name.toLowerCase(),
+    );
+    if (!exists) {
+      const tempTag = { id: undefined as any, name } as any;
+      setEditedTask({
+        ...editedTask,
+        tags: [...current, tempTag],
+      });
+      setNewTagName("");
+      toast.success(`Tag "${name}" added`);
+    }
+  };
 
   // Refs for auto-scrolling
   const clientMessagesRef = useRef<HTMLDivElement>(null);
@@ -140,9 +164,9 @@ export function TaskDetail({
       (effective as any)?.assignees,
     )
       ? (effective as any).assignees
-          .map((a: any) => a?.userId || a?.id || a?.value || a)
-          .filter(Boolean)
-          .map((userId: string) => ({ userId }))
+        .map((a: any) => a?.userId || a?.id || a?.value || a)
+        .filter(Boolean)
+        .map((userId: string) => ({ userId }))
       : [];
 
     // Normalize tags to objects with id or name (server will upsert by name if id missing)
@@ -150,10 +174,10 @@ export function TaskDetail({
       (effective as any)?.tags,
     )
       ? ((effective as any).tags
-          .map((t: any) =>
-            t?.id ? { id: t.id } : t?.name ? { name: String(t.name) } : null,
-          )
-          .filter(Boolean) as Array<{ id?: string; name?: string }>)
+        .map((t: any) =>
+          t?.id ? { id: t.id } : t?.name ? { name: String(t.name) } : null,
+        )
+        .filter(Boolean) as Array<{ id?: string; name?: string }>)
       : [];
 
     // Normalize dates to ISO strings; use both start and end
@@ -181,6 +205,7 @@ export function TaskDetail({
     console.log("Normalized update payload:", updates);
 
     try {
+      setIsSaving(true);
       const response = await fetch(`/api/tasks/${taskId}/taskrecord`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -206,20 +231,20 @@ export function TaskDetail({
             // Rebuild local date range from server response for accuracy
             dueDate:
               (updatedTask as any)?.startDate ||
-              (updatedTask as any)?.endDate ||
-              (updatedTask as any)?.dueDate
+                (updatedTask as any)?.endDate ||
+                (updatedTask as any)?.dueDate
                 ? {
-                    startDate: (updatedTask as any)?.startDate
-                      ? new Date((updatedTask as any).startDate)
-                      : (updatedTask as any)?.dueDate
-                        ? new Date((updatedTask as any).dueDate)
-                        : null,
-                    endDate: (updatedTask as any)?.endDate
-                      ? new Date((updatedTask as any).endDate)
-                      : (updatedTask as any)?.dueDate
-                        ? new Date((updatedTask as any).dueDate)
-                        : null,
-                  }
+                  startDate: (updatedTask as any)?.startDate
+                    ? new Date((updatedTask as any).startDate)
+                    : (updatedTask as any)?.dueDate
+                      ? new Date((updatedTask as any).dueDate)
+                      : null,
+                  endDate: (updatedTask as any)?.endDate
+                    ? new Date((updatedTask as any).endDate)
+                    : (updatedTask as any)?.dueDate
+                      ? new Date((updatedTask as any).dueDate)
+                      : null,
+                }
                 : null,
             // Use server tags when available, else keep what we attempted
             tags: Array.isArray((updatedTask as any)?.tags)
@@ -228,9 +253,9 @@ export function TaskDetail({
           }) as any,
       );
 
-      // Notify parent so list views refresh; pass normalized updates to avoid shape mismatches
+      // Notify parent so list views refresh; pass server's updatedTask containing post-automation changes (e.g. stage change)
       if (onUpdateTask) {
-        await onUpdateTask(task.id, updates);
+        await onUpdateTask(task.id, updatedTask, { skipServerCall: true } as any);
       }
 
       addActivity(
@@ -241,12 +266,15 @@ export function TaskDetail({
 
       setIsEditing(false);
       setIsEditingField(null);
+      toast.success("Task updated successfully!");
 
       return true;
     } catch (error) {
       console.error("Error updating task:", error);
       toast.error("Failed to update task");
       return false;
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -574,366 +602,424 @@ export function TaskDetail({
               {/** Using immediate constant below in scope */}
               {/* eslint-disable-next-line */}
               {false && <div />}
-              {/* Title */}
-              <EditableField label="Title" fieldName="title">
-                {isEditingField === "title" ? (
-                  <Input
-                    autoFocus
-                    value={editedTask.title}
-                    onChange={(e) =>
-                      setEditedTask({ ...editedTask, title: e.target.value })
-                    }
-                    onBlur={handleSave}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        handleSave();
-                      }
-                    }}
-                    className="text-2xl font-bold border-2 border-blue-300 "
-                  />
-                ) : (
-                  <h1 className="text-2xl font-bold text-gray-900 min-h-[2rem] flex items-center">
-                    {editedTask.title}
-                  </h1>
-                )}
-              </EditableField>
+              {/* Title Card */}
+              <div className="space-y-1 bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs">
+                <label className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                  Record Title
+                </label>
+                <Input
+                  value={editedTask.title}
+                  onChange={(e) =>
+                    setEditedTask({ ...editedTask, title: e.target.value })
+                  }
+                  placeholder="Task Title..."
+                  className="text-lg font-extrabold border-none shadow-none focus-visible:ring-1 focus-visible:ring-indigo-500 p-0 h-auto text-slate-900 dark:text-white"
+                />
+              </div>
 
-              {/* Description */}
-              <EditableField label="Description" fieldName="description">
-                {isEditingField === "description" ? (
-                  <Input
-                    autoFocus
-                    value={editedTask.description}
-                    onChange={(e) =>
-                      setEditedTask({
-                        ...editedTask,
-                        description: e.target.value,
-                      })
-                    }
-                    onBlur={handleSave}
-                    // rows={4}
-                    className="border-2 border-blue-300"
-                  />
-                ) : (
-                  <p className="text-gray-700 min-h-[1.5rem] ">
-                    {editedTask.description || (
-                      <span className="text-gray-400 ">
-                        Click to add description...
-                      </span>
-                    )}
-                  </p>
-                )}
-              </EditableField>
+              {/* Description Card */}
+              <div className="space-y-1 bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs">
+                <label className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                  Description
+                </label>
+                <Textarea
+                  value={editedTask.description || ""}
+                  onChange={(e) =>
+                    setEditedTask({
+                      ...editedTask,
+                      description: e.target.value,
+                    })
+                  }
+                  placeholder="Click to add description details..."
+                  rows={3}
+                  className="text-xs text-slate-700 dark:text-slate-300 border-none shadow-none focus-visible:ring-1 focus-visible:ring-indigo-500 p-0 resize-none bg-transparent"
+                />
+              </div>
 
-              {/* Task Details Fields */}
-              <div className="space-y-4">
-                {/* Due Date */}
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                    <Calendar className="h-3.5 w-3.5 text-indigo-500" />
+              {/* Properties Grid Card */}
+              <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs space-y-4">
+                <h3 className="text-xs font-extrabold text-slate-900 dark:text-white uppercase tracking-wider flex items-center justify-between">
+                  <span>Task Properties</span>
+                </h3>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Record Status */}
+                  <div className="space-y-1">
+                    <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 flex items-center gap-1">
+                      <CheckCircle className="h-3 w-3 text-emerald-500" />
+                      Status
+                    </label>
+                    <Select
+                      value={editedTask.status || "in_progress"}
+                      onValueChange={(val) => {
+                        setEditedTask({ ...editedTask, status: val });
+                      }}
+                    >
+                      <SelectTrigger className="h-9 rounded-xl text-xs bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-bold">
+                        <SelectValue placeholder="Status" />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-xl">
+                        <SelectItem value="not_started">⚪ Not Started</SelectItem>
+                        <SelectItem value="in_progress">🔵 In Progress</SelectItem>
+                        <SelectItem value="rework">🟠 Re Work</SelectItem>
+                        <SelectItem value="review">🟣 Under Review</SelectItem>
+                        <SelectItem value="completed">🟢 Completed</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Stage Column */}
+                  <div className="space-y-1">
+                    <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 flex items-center gap-1">
+                      <LayoutGrid className="h-3 w-3 text-indigo-500" />
+                      Stage
+                    </label>
+                    <Select
+                      value={editedTask.stageId}
+                      onValueChange={(val) => {
+                        setEditedTask({ ...editedTask, stageId: val });
+                      }}
+                    >
+                      <SelectTrigger className="h-9 rounded-xl text-xs bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 font-bold">
+                        <SelectValue placeholder="Stage" />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-xl">
+                        {stages.map((s) => (
+                          <SelectItem key={s.id} value={s.id}>
+                            {s.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {/* Priority Pills */}
+                <div className="space-y-1.5 pt-1">
+                  <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 flex items-center gap-1">
+                    <Zap className="h-3 w-3 text-amber-500" />
+                    Priority Level
+                  </label>
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {[
+                      { id: "low", label: "Low", style: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border-emerald-300" },
+                      { id: "medium", label: "Med", style: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border-amber-300" },
+                      { id: "high", label: "High", style: "bg-orange-100 text-orange-800 dark:bg-orange-950 dark:text-orange-300 border-orange-300" },
+                      { id: "urgent", label: "Urgent", style: "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 border-rose-300" },
+                    ].map((p) => {
+                      const isSelected = (editedTask.priority || "medium") === p.id;
+                      return (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => {
+                            setEditedTask({ ...editedTask, priority: p.id });
+                          }}
+                          className={cn(
+                            "h-7 rounded-lg border text-[11px] font-extrabold transition-all cursor-pointer",
+                            isSelected
+                              ? `${p.style} ring-2 ring-indigo-500/30 shadow-2xs`
+                              : "bg-slate-50 dark:bg-slate-800/60 text-slate-500 border-slate-200 dark:border-slate-700 hover:bg-slate-100"
+                          )}
+                        >
+                          {p.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Due Date Range */}
+                <div className="space-y-1.5 pt-1">
+                  <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-400 flex items-center gap-1">
+                    <Calendar className="h-3 w-3 text-indigo-500" />
                     Due Date
                   </label>
-                  <div
-                    className="flex items-center gap-2.5 text-xs text-slate-700 dark:text-slate-300 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl p-2.5 border border-slate-200/80 dark:border-slate-700 transition-all"
-                    onClick={() => setIsEditingField("dueDate")}
-                  >
-                    <Calendar className="h-4 w-4 text-indigo-500 shrink-0" />
-                    {isEditingField === "dueDate" ? (
-                      <RangeCalendarPicker
-                        value={
-                          (editedTask.dueDate || {}) as {
-                            startDate?: Date | string;
-                            endDate?: Date | string;
-                          }
+                  <div className="bg-slate-50 dark:bg-slate-800/60 rounded-xl p-2 border border-slate-200 dark:border-slate-700">
+                    <RangeCalendarPicker
+                      value={
+                        (editedTask.dueDate || {}) as {
+                          startDate?: Date | string;
+                          endDate?: Date | string;
                         }
-                        onChange={(value) => {
-                          setEditedTask({ ...editedTask, dueDate: value });
-                          handleSave({ dueDate: value });
-                        }}
-                      />
-                    ) : (
-                      (() => {
-                        const sd = (editedTask as any)?.dueDate?.startDate;
-                        const ed = (editedTask as any)?.dueDate?.endDate;
-                        const start = sd ? new Date(sd) : null;
-                        const end = ed ? new Date(ed) : start;
-                        if (start && end) {
-                          const sameDay =
-                            start.toDateString() === end.toDateString();
-                          return (
-                            <span className="font-bold text-slate-800 dark:text-slate-200">
-                              {sameDay
-                                ? formatDate(start, "MMM dd, yyyy")
-                                : `${formatDate(start, "MMM dd")} - ${formatDate(end, "MMM dd, yyyy")}`}
-                            </span>
-                          );
-                        }
-                        return (
-                          <span className="text-slate-400 italic">
-                            No due date set
-                          </span>
-                        );
-                      })()
-                    )}
-                  </div>
-                </div>
-
-                {/* Assignee */}
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                    <Users className="h-3.5 w-3.5 text-indigo-500" />
-                    Assignees
-                  </label>
-
-                  <div
-                    className="flex items-center gap-2.5 text-xs text-slate-700 dark:text-slate-300 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl p-2.5 border border-slate-200/80 dark:border-slate-700 transition-all"
-                    onClick={() => setIsEditingField("assignees")}
-                  >
-                    {isEditingField === "assignees" ? (
-                      <div className="w-full">
-                        {/* Container */}
-                        <div className="border border-gray-200 rounded-xl shadow-md bg-white overflow-hidden">
-                          {/* Header */}
-                          <div className="px-4 py-2.5 border-b bg-gray-50 text-sm font-semibold text-gray-600 tracking-wide">
-                            Assign Users
-                          </div>
-
-                          {/* Search */}
-                          <div className="px-3 py-2 border-b bg-white">
-                            <Input
-                              placeholder="Search users..."
-                              value={searchQuery}
-                              onChange={(e) => handleSearchUser(e.target.value)}
-                              className="h-8 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-300"
-                              onClick={(e) => e.stopPropagation()}
-                            />
-                          </div>
-
-                          {/* List */}
-                          <div className="max-h-52 overflow-y-auto divide-y divide-gray-100">
-                            {(searchQuery ? filteredUsers : usersList)
-                              .length === 0 ? (
-                              <div className="px-4 py-6 text-center text-sm text-gray-400">
-                                No users found
-                              </div>
-                            ) : (
-                              (searchQuery ? filteredUsers : usersList).map(
-                                (u) => {
-                                  const isSelected = selectedIds.includes(u.id);
-                                  return (
-                                    <div
-                                      key={u.id}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleAssigneeChange(u.id);
-                                      }}
-                                      className={`flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors
-                      ${isSelected ? "bg-blue-50 hover:bg-blue-100" : "hover:bg-gray-50"}
-                    `}
-                                    >
-                                      <div className="flex-1 text-sm font-medium text-gray-800 truncate">
-                                        {u.name}
-                                      </div>
-
-                                      <div
-                                        className={`w-5 h-5 shrink-0 flex items-center justify-center rounded-full border-2 transition-all
-                      ${isSelected ? "bg-blue-500 border-blue-500 text-white" : "border-gray-300"}
-                    `}
-                                      >
-                                        {isSelected && (
-                                          <span className="text-[10px] font-bold">
-                                            ✓
-                                          </span>
-                                        )}
-                                      </div>
-                                    </div>
-                                  );
-                                },
-                              )
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Footer */}
-                        <div className="flex justify-end gap-2 mt-2">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setIsEditingField(null);
-                            }}
-                          >
-                            Cancel
-                          </Button>
-                          <Button
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleSave();
-                            }}
-                          >
-                            Save Changes
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (editedTask.assignees || []).length > 0 ? (
-                      <div className="flex items-center gap-2 flex-wrap">
-                        {(editedTask.assignees || []).map((a: any) => {
-                          const list = Array.isArray(user)
-                            ? (user as User[])
-                            : [user as User];
-                          const u = list.find(
-                            (usr: User) => usr.id === a.userId,
-                          );
-                          return (
-                            <span
-                              key={a.userId}
-                              className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 text-blue-700 text-xs font-medium rounded-full border border-blue-200"
-                            >
-                              <span className="w-4 h-4 rounded-full bg-blue-200 flex items-center justify-center text-[10px] font-bold">
-                                {u?.name?.[0]?.toUpperCase()}
-                              </span>
-                              {u ? u.name : "Unknown"}
-                            </span>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <span className="text-gray-400 text-sm italic">
-                        No assignees
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Tags */}
-                <div className="space-y-2">
-                  <label className="block text-sm font-semibold text-gray-700">
-                    Tags
-                  </label>
-                  <div className="text-sm text-gray-700 rounded-lg p-3 border transition-all duration-200 hover:border-blue-200 hover:bg-blue-50">
-                    <div className="flex items-center gap-2 mb-2">
-                      <TagIcon className="h-4 w-4 text-blue-600" />
-                      <span className="font-medium">Add or remove tags</span>
-                    </div>
-                    <div className="flex flex-wrap gap-2 mb-3">
-                      {tags.map((tag) => {
-                        const isSelected = (editedTask.tags || []).some(
-                          (t: any) => t.id === tag.id,
-                        );
-                        return (
-                          <Badge
-                            key={tag.id}
-                            onClick={() => {
-                              const current = Array.isArray(editedTask.tags)
-                                ? [...editedTask.tags]
-                                : [];
-                              let next;
-                              if (isSelected) {
-                                next = current.filter(
-                                  (t: any) => t.id !== tag.id,
-                                );
-                              } else {
-                                next = [...current, tag];
-                              }
-                              setEditedTask({ ...editedTask, tags: next });
-                            }}
-                            className={`${getTagColor(tag.name)} border cursor-pointer select-none ${
-                              isSelected ? "ring-2 ring-blue-400" : ""
-                            }`}
-                          >
-                            {tag.name}
-                          </Badge>
-                        );
-                      })}
-                    </div>
-                    <div className="flex items-center gap-1.5 pt-1">
-                      <Input
-                        placeholder="Create new tag"
-                        value={(editedTask as any)?.__newTagName || ""}
-                        onChange={(e) =>
-                          setEditedTask({
-                            ...editedTask,
-                            __newTagName: e.target.value,
-                          })
-                        }
-                        className="h-8 text-xs rounded-xl bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 flex-1"
-                      />
-                      <Button
-                        size="sm"
-                        className="h-8 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white px-3 shrink-0"
-                        onClick={() => {
-                          const name = String(
-                            (editedTask as any)?.__newTagName || "",
-                          ).trim();
-                          if (!name) return;
-                          const current = Array.isArray(editedTask.tags)
-                            ? [...editedTask.tags]
-                            : [];
-                          const exists = current.some(
-                            (t: any) =>
-                              (t.name || "").toLowerCase() ===
-                              name.toLowerCase(),
-                          );
-                          if (!exists) {
-                            const tempTag = {
-                              id: undefined as any,
-                              name,
-                            } as any;
-                            const next = [...current, tempTag];
-                            setEditedTask({
-                              ...editedTask,
-                              tags: next,
-                              __newTagName: "",
-                            });
-                          }
-                        }}
-                      >
-                        Add
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-8 rounded-xl text-xs font-bold border-slate-200 dark:border-slate-700 px-3 shrink-0"
-                        onClick={() => handleSave()}
-                      >
-                        Save
-                      </Button>
-                    </div>
+                      }
+                      onChange={(value) => {
+                        setEditedTask({ ...editedTask, dueDate: value });
+                      }}
+                    />
                   </div>
                 </div>
               </div>
 
-              {/* Attachments */}
-              {editedTask?.attachments?.length > 0 && (
-                <div className="bg-white rounded-lg border border-gray-200 p-4">
-                  <h4 className="font-semibold mb-3 flex items-center gap-2 text-gray-900">
-                    <Paperclip className="h-4 w-4" />
-                    Attachments ({editedTask.attachments.length})
-                  </h4>
-                  <div className="space-y-2">
-                    {editedTask.attachments.map((attachment: any) => (
-                      <div
-                        key={attachment.id}
-                        className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50 transition-colors"
-                      >
-                        <span className="text-sm font-medium">
-                          {attachment.name}
-                        </span>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="text-blue-600 hover:text-blue-700"
-                        >
-                          Download
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
+              {/* Assignees Card */}
+              <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-extrabold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-1.5">
+                    <Users className="h-3.5 w-3.5 text-indigo-500" />
+                    Assignees ({(editedTask.assignees || []).length})
+                  </label>
                 </div>
-              )}
+
+                {/* Selected Member Chips */}
+                {(editedTask.assignees || []).length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {(editedTask.assignees || []).map((a: any) => {
+                      const list = Array.isArray(user) ? (user as User[]) : [user as User];
+                      const u = list.find((usr: User) => usr.id === a.userId);
+                      return (
+                        <span
+                          key={a.userId}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-50 dark:bg-indigo-950/70 text-indigo-700 dark:text-indigo-300 text-xs font-bold rounded-xl border border-indigo-200/80 dark:border-indigo-800"
+                        >
+                          <span className="w-4 h-4 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[9px] font-extrabold">
+                            {u?.name?.[0]?.toUpperCase() || "U"}
+                          </span>
+                          {u?.name || "Member"}
+                          <button
+                            type="button"
+                            onClick={() => handleAssigneeChange(a.userId)}
+                            className="ml-1 text-indigo-400 hover:text-rose-600 transition-colors"
+                          >
+                            ✕
+                          </button>
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Member Selector Dropdown */}
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full h-8 text-xs font-bold border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400 rounded-xl hover:bg-indigo-50 dark:hover:bg-indigo-950/50"
+                    >
+                      + Add / Remove Members
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-64 p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl space-y-2">
+                    <Input
+                      placeholder="Search member..."
+                      value={searchQuery}
+                      onChange={(e) => handleSearchUser(e.target.value)}
+                      className="h-8 text-xs rounded-lg bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700"
+                    />
+                    <div className="max-h-48 overflow-y-auto space-y-1 pr-1">
+                      {(searchQuery ? filteredUsers : usersList).map((u) => {
+                        const isSelected = selectedIds.includes(u.id);
+                        return (
+                          <div
+                            key={u.id}
+                            onClick={() => handleAssigneeChange(u.id)}
+                            className={cn(
+                              "flex items-center justify-between p-2 rounded-lg text-xs cursor-pointer font-medium transition-colors",
+                              isSelected
+                                ? "bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 font-bold"
+                                : "hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300"
+                            )}
+                          >
+                            <span>{u.name}</span>
+                            {isSelected && <CheckCircle className="h-3.5 w-3.5 text-indigo-600" />}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              {/* Tags Card */}
+              <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs space-y-3">
+                <label className="text-[11px] font-extrabold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-1.5">
+                  <TagIcon className="h-3.5 w-3.5 text-indigo-500" />
+                  Tags
+                </label>
+
+                {/* Existing Tag Chips */}
+                <div className="flex flex-wrap gap-1.5">
+                  {tags.map((tag) => {
+                    const tagKey = tag.id || tag.tagId || tag.name;
+                    const tagName = tag.name || tagKey;
+                    const isSelected = (editedTask.tags || []).some((t: any) => {
+                      if (!t) return false;
+                      const tKey = typeof t === "string" ? t : t.id || t.tagId || t.name;
+                      const tName = typeof t === "string" ? t : t.name || tKey;
+                      return (
+                        (tag.id && t.id && t.id === tag.id) ||
+                        (tagKey && tKey && tKey === tagKey) ||
+                        (tagName && tName && tName.toLowerCase() === tagName.toLowerCase())
+                      );
+                    });
+
+                    return (
+                      <Badge
+                        key={tagKey}
+                        onClick={() => {
+                          const current = Array.isArray(editedTask.tags)
+                            ? [...editedTask.tags]
+                            : [];
+                          let next;
+                          if (isSelected) {
+                            next = current.filter((t: any) => {
+                              if (!t) return false;
+                              const tKey = typeof t === "string" ? t : t.id || t.tagId || t.name;
+                              const tName = typeof t === "string" ? t : t.name || tKey;
+                              return (
+                                tKey !== tagKey &&
+                                tName.toLowerCase() !== tagName.toLowerCase() &&
+                                (!tag.id || t.id !== tag.id)
+                              );
+                            });
+                          } else {
+                            next = [...current, tag];
+                          }
+                          setEditedTask({ ...editedTask, tags: next });
+                        }}
+                        className={cn(
+                          "cursor-pointer select-none border text-xs px-2.5 py-1 rounded-xl font-bold transition-all",
+                          isSelected
+                            ? "bg-indigo-600 text-white border-indigo-600 shadow-2xs"
+                            : "bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100"
+                        )}
+                      >
+                        {tagName} {isSelected && "✓"}
+                      </Badge>
+                    );
+                  })}
+                </div>
+
+                {/* Select Existing Tag Selector */}
+                <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full h-8 text-xs font-bold border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400 rounded-xl hover:bg-indigo-50 dark:hover:bg-indigo-950/50 flex items-center justify-between"
+                      >
+                        <span>Select Existing Tag</span>
+                        <ChevronDown className="h-3.5 w-3.5 ml-1 opacity-70" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-64 p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xl space-y-2">
+                      <Input
+                        placeholder="Search existing tags..."
+                        value={newTagName}
+                        onChange={(e) => setNewTagName(e.target.value)}
+                        className="h-8 text-xs rounded-lg bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700"
+                      />
+                      <div className="max-h-48 overflow-y-auto space-y-1 pr-1">
+                        {tags.length === 0 ? (
+                          <p className="text-xs text-slate-400 italic p-2 text-center">No existing tags</p>
+                        ) : (
+                          tags
+                            .filter((t) => (t.name || "").toLowerCase().includes(newTagName.toLowerCase()))
+                            .map((tag) => {
+                              const tagKey = tag.id || tag.tagId || tag.name;
+                              const tagName = tag.name || tagKey;
+                              const isSelected = (editedTask.tags || []).some((t: any) => {
+                                if (!t) return false;
+                                const tKey = typeof t === "string" ? t : t.id || t.tagId || t.name;
+                                const tName = typeof t === "string" ? t : t.name || tKey;
+                                return (
+                                  (tag.id && t.id && t.id === tag.id) ||
+                                  (tagKey && tKey && tKey === tagKey) ||
+                                  (tagName && tName && tName.toLowerCase() === tagName.toLowerCase())
+                                );
+                              });
+
+                              return (
+                                <div
+                                  key={tagKey}
+                                  onClick={() => {
+                                    const current = Array.isArray(editedTask.tags) ? [...editedTask.tags] : [];
+                                    let next;
+                                    if (isSelected) {
+                                      next = current.filter((t: any) => {
+                                        if (!t) return false;
+                                        const tKey = typeof t === "string" ? t : t.id || t.tagId || t.name;
+                                        const tName = typeof t === "string" ? t : t.name || tKey;
+                                        return (
+                                          tKey !== tagKey &&
+                                          tName.toLowerCase() !== tagName.toLowerCase() &&
+                                          (!tag.id || t.id !== tag.id)
+                                        );
+                                      });
+                                    } else {
+                                      next = [...current, tag];
+                                    }
+                                    setEditedTask({ ...editedTask, tags: next });
+                                  }}
+                                  className={cn(
+                                    "flex items-center justify-between p-2 rounded-lg text-xs cursor-pointer font-medium transition-colors",
+                                    isSelected
+                                      ? "bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 font-bold"
+                                      : "hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300"
+                                  )}
+                                >
+                                  <span>{tagName}</span>
+                                  {isSelected && <CheckCircle className="h-3.5 w-3.5 text-indigo-600" />}
+                                </div>
+                              );
+                            })
+                        )}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </div>
+
+              {/* Explicit Save Changes Action Button */}
+              <div className="pt-2">
+                <Button
+                  type="button"
+                  onClick={() => handleSave()}
+                  disabled={isSaving}
+                  className="w-full h-10 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold rounded-xl shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer"
+                >
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" /> Saving Changes...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="h-4 w-4" /> Save Changes
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
+
+            {/* Attachments */}
+            {editedTask?.attachments?.length > 0 && (
+              <div className="bg-white rounded-lg border border-gray-200 p-4">
+                <h4 className="font-semibold mb-3 flex items-center gap-2 text-gray-900">
+                  <Paperclip className="h-4 w-4" />
+                  Attachments ({editedTask.attachments.length})
+                </h4>
+                <div className="space-y-2">
+                  {editedTask.attachments.map((attachment: any) => (
+                    <div
+                      key={attachment.id}
+                      className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                      <span className="text-sm font-medium">
+                        {attachment.name}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-blue-600 hover:text-blue-700"
+                      >
+                        Download
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Chat Panel - Toggleable */}
@@ -947,11 +1033,10 @@ export function TaskDetail({
                   setActivePanel("admin");
                   setHasUnreadClientMessages(false);
                 }}
-                className={`flex-1 h-8 rounded-xl text-xs font-bold transition-all ${
-                  activePanel === "admin"
+                className={`flex-1 h-8 rounded-xl text-xs font-bold transition-all ${activePanel === "admin"
                     ? "bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs"
                     : "bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200/80 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800"
-                }`}
+                  }`}
               >
                 Internal Discussion
               </Button>
@@ -962,11 +1047,10 @@ export function TaskDetail({
                   setActivePanel("client");
                   setHasUnreadClientMessages(false);
                 }}
-                className={`flex-1 relative h-8 rounded-xl text-xs font-bold transition-all ${
-                  activePanel === "client"
+                className={`flex-1 relative h-8 rounded-xl text-xs font-bold transition-all ${activePanel === "client"
                     ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
                     : "bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200/80 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800"
-                }`}
+                  }`}
               >
                 Discuss about Project
                 {hasUnreadClientMessages && activePanel === "admin" && (
@@ -1120,19 +1204,12 @@ export function TaskDetail({
           {/* Activity Log Panel */}
           {/* Toggle Button */}
 
-          {/* Overlay */}
-          {showActivityLog && (
-            <div
-              className="fixed inset-0 bg-black/30 z-40"
-              onClick={() => setShowActivityLog(false)}
-            />
-          )}
+
 
           {/* Side Panel */}
           <div
-            className={`fixed inset-y-0 right-0 z-50 w-full sm:w-[420px] bg-white dark:bg-slate-900 border-l border-slate-200/80 dark:border-slate-800 shadow-2xl transform transition-transform duration-300 ease-in-out flex flex-col ${
-              showActivityLog ? "translate-x-0" : "translate-x-full"
-            }`}
+            className={`fixed inset-y-0 right-0 z-50 w-full sm:w-[420px] bg-white dark:bg-slate-900 border-l border-slate-200/80 dark:border-slate-800 shadow-2xl transform transition-transform duration-300 ease-in-out flex flex-col ${showActivityLog ? "translate-x-0" : "translate-x-full"
+              }`}
           >
             {/* Header */}
             <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 flex items-center justify-between gap-4 shrink-0">

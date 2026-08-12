@@ -32,19 +32,59 @@ type ChannelHeaderProps = {
   channel: any;
 };
 
-export default function EditChannel({ params, }: {   params: { channelId: string }; }) {
+export default function EditChannel({ params }: { params: any }) {
+  const [image, setImage] = useState<string | null>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [department, setDepartment] = useState([]);
   const [departmentId, setDepartmentId] = useState("");
   const [isPublic, setIsPublic] = useState(true);
-  const [data, setData] = useState([]);
+  const [data, setData] = useState<any>({});
   const [selectedMembers, setSelectedMembers] = useState<string[]>();
   const [assignee, setAssignee] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter()
   const { channelId } = use(params);
   const { users, loading: usersLoading } = useTeamUsers();
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // 1. Instant local preview
+    const previewUrl = URL.createObjectURL(file);
+    setImage(previewUrl);
+
+    setIsUploadingImage(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+      if (!res.ok) throw new Error("Upload failed");
+      const uploadData = await res.json();
+      const rawUrl = uploadData?.files?.[0]?.fileUrl;
+      if (rawUrl) {
+        const cleanUrl = rawUrl.includes("/u/")
+          ? `/u/${rawUrl.split("/u/")[1]}`
+          : rawUrl;
+        setImage(cleanUrl);
+        toast("Profile picture uploaded", {
+          description: "Click Edit Channel to save changes.",
+        });
+      }
+    } catch (err) {
+      console.error(err);
+      toast("Upload failed", {
+        description: "Could not upload channel image.",
+      });
+    } finally {
+      setIsUploadingImage(false);
+    }
+  };
 
   const fetchData = async () => {
     try {
@@ -72,71 +112,68 @@ export default function EditChannel({ params, }: {   params: { channelId: string
   console.log(data, "data");
 
   useEffect(() => {
-  if (data?.channel?.members && assignee.length === 0) {
-    setAssignee(data.channel.members.map((m) => m.userId));
-  }
-}, [data]);
-
-
-useEffect(() => {
- if(data.channel){
-  setName(data?.channel?.name)
-  setDescription(data?.channel?.description)
-  setDepartmentId(data?.channel?.department?.id)
-  setIsPublic(data?.channel?.isPublic)
- }
- 
-}, [data]);
-console.log(departmentId,'departmentid')
-
-
-const toggleAssignee = (userId: string, checked: boolean) => {
-  setAssignee((prev) => checked ? [...prev, userId] : prev.filter((id) => id !== userId)
-  );
-};
-
-
-  
-  const handleEditSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  setIsLoading(true);
-
-  try {
-    const normalizedDept = !departmentId || departmentId === "none" ? null : departmentId;
-    const response = await fetch(`/api/channels/${channelId}`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        name,
-        description,
-        departmentId: normalizedDept,
-        isPublic,
-        members: assignee, // Ensure this is an array of userIds
-      }),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.message || "Failed to update channel");
+    if (data?.channel?.members && assignee.length === 0) {
+      setAssignee(data.channel.members.map((m: any) => m.userId));
     }
+  }, [data]);
 
-    toast("Channel updated successfully", {
-      description: "Your changes have been saved.",
-    });
 
-    // Optional: You can redirect or refresh data here
-    router.refresh() //or mutate() if using SWR
-  } catch (error: any) {
-    console.error("Error updating channel:", error);
-    toast("Error updating channel", {
-      description: error.message || "Something went wrong",
-    });
-  } finally {
-    setIsLoading(false);
-  }
-};
+  useEffect(() => {
+    if (data.channel) {
+      setName(data?.channel?.name || "");
+      setDescription(data?.channel?.description || "");
+      setDepartmentId(data?.channel?.department?.id || "none");
+      setIsPublic(data?.channel?.isPublic ?? true);
+      setImage(data?.channel?.image || null);
+    }
+  }, [data]);
+
+  const toggleAssignee = (userId: string, checked: boolean) => {
+    setAssignee((prev) => checked ? [...prev, userId] : prev.filter((id) => id !== userId)
+    );
+  };
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+
+    try {
+      const normalizedDept = !departmentId || departmentId === "none" ? null : departmentId;
+      const response = await fetch(`/api/channels/${channelId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name,
+          description,
+          departmentId: normalizedDept,
+          isPublic,
+          image,
+          members: assignee,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to update channel");
+      }
+
+      toast("Channel updated successfully", {
+        description: "Your changes have been saved.",
+      });
+
+      router.push(`/dashboard/channels/${channelId}`);
+      router.refresh();
+    } catch (error: any) {
+      console.error("Error updating channel:", error);
+      toast("Error updating channel", {
+        description: error.message || "Something went wrong",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
 
   return (
@@ -148,6 +185,31 @@ const toggleAssignee = (userId: string, checked: boolean) => {
         </CardDescription>
         <form onSubmit={handleEditSubmit}>
           <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label>Channel Profile Picture (DP)</Label>
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 flex items-center justify-center overflow-hidden shrink-0">
+                  {image ? (
+                    <img src={image} alt="Channel DP" className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="text-xl font-bold text-indigo-600 dark:text-indigo-400">#</span>
+                  )}
+                </div>
+                <div className="flex-1 space-y-1">
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageUpload}
+                    disabled={isUploadingImage}
+                    className="text-xs file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                  />
+                  {isUploadingImage && (
+                    <p className="text-[11px] text-indigo-500 font-medium">Uploading profile picture...</p>
+                  )}
+                </div>
+              </div>
+            </div>
+
             <div className="space-y-2">
               <Label>Name</Label>
               <Input

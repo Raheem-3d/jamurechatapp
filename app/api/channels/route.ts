@@ -13,77 +13,38 @@ import { cacheGet, cacheSet, cacheDel } from "@/lib/redis"
 
 export async function GET(req: Request) {
   try {
-    const user = await getSessionOrMobileUser(req as any)
+    const session = await getServerSession(authOptions)
+    const userFromMobile = await getSessionOrMobileUser(req as any).catch(() => null)
+    const userId = (session?.user as any)?.id || userFromMobile?.id
 
-    if (!user) {
+    if (!userId) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
     }
 
-    const orgKey = user.organizationId || "all";
-    const cacheKey = `org:${orgKey}:user:${user.id}:channels`;
-
-    // 🚀 Check Redis Cache
-    const cachedChannels = await cacheGet(cacheKey);
-    if (cachedChannels) {
-      return NextResponse.json(cachedChannels);
-    }
-    
-    // Check if user is super admin
-    const userWithPerms = await getSessionUserWithPermissions(req as any)
-    const isSuperAdmin = userWithPerms.isSuperAdmin
-    
-    // Parse user permissions - handle both array and string formats
-    let userPerms: any[] = []
-    const rawPerms = userWithPerms.permissions
-    if (Array.isArray(rawPerms)) {
-      userPerms = rawPerms
-    } else if (typeof rawPerms === 'string' && rawPerms) {
-      try {
-        userPerms = JSON.parse(rawPerms)
-      } catch {
-        userPerms = []
-      }
-    }
-    
-    let whereClause: any = {}
-    
-    if (isSuperAdmin) {
-      // No restrictions for super admin
-    } else {
-      whereClause.organizationId = user?.organizationId
-      
-      const canViewAll = hasPermission(userWithPerms.role, 'CHANNEL_VIEW_ALL', isSuperAdmin, userPerms)
-      
-      if (!canViewAll) {
-        whereClause.OR = [
+    const channels: any[] = await db.channel.findMany({
+      where: {
+        OR: [
+          { members: { some: { userId } } },
           { isPublic: true },
-          { members: { some: { userId: user.id } } }
-        ]
-      }
-    }
-    
-    const channels = await db.channel.findMany({
-      where: whereClause,
+          { creatorId: userId },
+        ],
+      },
       orderBy: { updatedAt: "desc" },
-      select: {
-        id: true,
-        name: true,
-        isPublic: true,
-        isDepartment: true,
-        isTaskThread: true,
-        organizationId: true,
-        organization: {
-          select: {
-            id: true,
-            name: true,
-          },
-        },
+      include: {
         department: { select: { name: true } },
       },
     })
 
-    // Cache channels for 60 seconds
-    await cacheSet(cacheKey, channels, 60);
+    // Attach image field via raw SQL to bypass Prisma select validator
+    try {
+      const channelImages: any[] = await db.$queryRawUnsafe(`SELECT id, image FROM \`Channel\``);
+      const imageMap = new Map(channelImages.map((row: any) => [row.id, row.image]));
+      for (const ch of channels) {
+        ch.image = imageMap.get(ch.id) || null;
+      }
+    } catch (e) {
+      console.error("Error fetching channel images:", e);
+    }
 
     return NextResponse.json(channels)
   } catch (error) {
@@ -103,7 +64,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
     }
 
-    const { name, description, isPublic, departmentId, members } = await req.json()
+    const { name, description, isPublic, departmentId, members, image } = await req.json()
     const orgId = user?.organizationId
 
     // Get user with permissions to check super admin status
@@ -173,6 +134,15 @@ export async function POST(req: Request) {
         },
       },
     })
+
+    if (image) {
+      await db.$executeRawUnsafe(
+        "UPDATE `Channel` SET `image` = ? WHERE `id` = ?",
+        image,
+        channel.id
+      ).catch((e) => console.error("Error setting image on channel create:", e));
+      (channel as any).image = image;
+    }
 
     // Send notifications and emails to members (excluding creator)
     for (const member of channel.members) {
