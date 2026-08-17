@@ -16,9 +16,11 @@ import {
   MessageSquare,
   FileText,
   ArrowUpRight,
+  Timer,
 } from "lucide-react";
 import { differenceInDays } from "date-fns";
 import { cn } from "@/lib/utils";
+
 
 export type TaskCardProps = {
   task: any;
@@ -111,6 +113,7 @@ export default function TaskCard({
   const router = useRouter();
   const [isHovered, setIsHovered] = useState(false);
 
+
   const prefetchTask = () => {
     if (task?.id) {
       router.prefetch(`/dashboard/tasks/${task.id}`);
@@ -163,7 +166,7 @@ export default function TaskCard({
             </div>
           </div>
 
-          {/* Right Portion: Deadline, Assignees, Actions */}
+          {/* Right Portion: Deadline, Time Spent, Assignees, Actions */}
           <div className="flex items-center gap-2.5 shrink-0 flex-wrap justify-between md:justify-end">
             {task.deadline && (
               <div
@@ -181,13 +184,15 @@ export default function TaskCard({
               </div>
             )}
 
+
+
             {/* Assignees */}
             {task.assignments && task.assignments.length > 0 && (
               <div className="flex -space-x-1.5 overflow-hidden shrink-0">
                 {task.assignments.slice(0, 3).map((assignment: any) => (
                   <Avatar
                     key={assignment.id}
-                    className="h-5.5 w-5.5 border-2 border-white dark:border-slate-900 ring-1 ring-slate-200/50 dark:ring-slate-800"
+                    className="h-5 w-5 border-2 border-white dark:border-slate-900 ring-1 ring-slate-200/50 dark:ring-slate-800"
                   >
                     <AvatarImage src={assignment.user?.image || ""} />
                     <AvatarFallback className="text-[8px] bg-indigo-600 text-white font-bold">
@@ -377,6 +382,8 @@ export default function TaskCard({
           {/* Right: Actions */}
           {!client && showActions && (
             <div className="flex items-center gap-1 shrink-0">
+
+
               <Button
                 variant="outline"
                 size="sm"
@@ -420,6 +427,8 @@ export default function TaskCard({
           )}
         </div>
       </div>
+
+
     </motion.div>
   );
 }

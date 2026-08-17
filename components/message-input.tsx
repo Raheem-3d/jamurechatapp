@@ -1,7 +1,5 @@
-
-
 // =====================
-// MessageInput tsx - WhatsApp Style  
+// MessageInput tsx - WhatsApp Style
 // =====================
 "use client";
 
@@ -25,6 +23,7 @@ import {
   Mic,
   Upload,
 } from "lucide-react";
+import { buildBuzzNotificationData } from "@/lib/buzz-utils";
 import { toast } from "sonner";
 import { Progress } from "@/components/ui/progress";
 import {
@@ -36,8 +35,8 @@ import EmojiPicker from "emoji-picker-react";
 import { cn } from "@/lib/utils";
 import { useSocket } from "@/hooks/use-socket";
 import { MessageRewriter } from "@/components/message-rewriter";
-import dynamic from 'next/dynamic';
-
+import AISmartReply from "@/components/ai-smart-reply";
+import dynamic from "next/dynamic";
 
 export type Mentionable = {
   id: string;
@@ -69,6 +68,25 @@ export default function MessageInput({
 }: MessageInputProps) {
   const [message, setMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [aiEnabled, setAiEnabled] = useState(true);
+  const [smartReplyEnabled, setSmartReplyEnabled] = useState(false);
+  const [lastChannelMessage, setLastChannelMessage] = useState("");
+
+  useEffect(() => {
+    const fetchOrg = async () => {
+      try {
+        const res = await fetch("/api/organization/me");
+        if (!res.ok) return;
+        const payload = await res.json();
+        if (payload?.organization?.aiEnabled !== undefined) {
+          setAiEnabled(payload.organization.aiEnabled);
+        }
+      } catch (err) {
+        console.error("Failed to fetch organization setting for AI in input:", err);
+      }
+    };
+    fetchOrg();
+  }, []);
   const [isBuzzing, setIsBuzzing] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -155,6 +173,20 @@ export default function MessageInput({
     return () =>
       window.removeEventListener("reply:message", handler as EventListener);
   }, []);
+
+  // Track last received channel message for AI Smart Reply
+  useEffect(() => {
+    if (!channelId || typeof window === "undefined") return;
+    const handler = (e: Event) => {
+      const ce = e as CustomEvent<{ channelId?: string; content?: string; senderId?: string }>;
+      const d = ce.detail;
+      if (d?.channelId === channelId && d?.content) {
+        setLastChannelMessage(d.content);
+      }
+    };
+    window.addEventListener("message:received", handler as EventListener);
+    return () => window.removeEventListener("message:received", handler as EventListener);
+  }, [channelId]);
 
   // Listen for reply-to-attachment events
   useEffect(() => {
@@ -278,12 +310,6 @@ export default function MessageInput({
       abort = true;
     };
   }, [channelId]);
-
-
-
-
-
-
 
   const handleNewFiles = (newFiles: File[]) => {
     const oversized = newFiles.filter((f) => f.size > 5 * 1024 * 1024 * 1024);
@@ -600,9 +626,6 @@ export default function MessageInput({
     }
   }, [isSubmitting]);
 
-
-
-
   // Upload helper
   async function uploadFiles(): Promise<UploadedFileData[]> {
     if (files.length === 0) return [];
@@ -663,8 +686,6 @@ export default function MessageInput({
     const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB chunks (reduced from 10MB to avoid truncation)
     const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
     const fileId = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
-
-
 
     for (let i = 0; i < totalChunks; i++) {
       const start = i * CHUNK_SIZE;
@@ -742,23 +763,72 @@ export default function MessageInput({
       return;
     }
 
+    const buzzMessage = message.trim() || "Buzz!";
+    const clientId = `buzz_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const senderName = session.user.name || session.user.email || "Someone";
+    const buzzInfo = buildBuzzNotificationData(senderName, buzzMessage);
+    const optimisticMsg = {
+      id: clientId,
+      content: buzzInfo.systemContent,
+      isBuzz: true,
+      senderId: session.user.id,
+      channelId: channelId || null,
+      receiverId: receiverId || null,
+      createdAt: new Date().toISOString(),
+      sender: {
+        id: session.user.id,
+        name: senderName,
+        email: session.user.email || "",
+        image: session.user.image || null,
+      },
+      status: "sending",
+    } as any;
+
+    window.dispatchEvent(
+      new CustomEvent("message:received", { detail: optimisticMsg }),
+    );
+
     setIsBuzzing(true);
     try {
       let ok = false;
       if (isConnected && sendBuzz) {
-        ok = await sendBuzz({ channelId, receiverId });
+        ok = await sendBuzz({
+          channelId,
+          receiverId,
+          message: buzzMessage,
+          clientId,
+        });
       }
       if (!ok) {
         const res = await fetch("/api/buzz", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ channelId, receiverId }),
+          body: JSON.stringify({
+            channelId,
+            receiverId,
+            message: buzzMessage,
+            clientId,
+          }),
         });
         if (res.status === 429) throw new Error("Rate limited");
         ok = res.ok;
       }
-      if (ok) toast.success("Buzz sent 🚀");
-      else throw new Error("Failed");
+      if (ok) {
+        window.dispatchEvent(
+          new CustomEvent("message:status-update", {
+            detail: { messageId: clientId, status: "sent" },
+          }),
+        );
+        setMessage("");
+        toast.success("Buzz sent 🚀");
+      } else {
+        window.dispatchEvent(
+          new CustomEvent("message:status-update", {
+            detail: { messageId: clientId, status: "failed" },
+          }),
+        );
+        throw new Error("Failed");
+      }
     } catch (e: any) {
       console.error(e);
       toast.error(
@@ -780,7 +850,7 @@ export default function MessageInput({
       className={cn(
         "bg-[#F0F2F5] dark:bg-[#111B21] p-2 sm:p-3 relative transition-all duration-200 min-h-[60px]",
         isDragging &&
-        "ring-4 ring-[#00A884] bg-[#00A884]/10 dark:bg-[#00A884]/20 ring-opacity-50",
+          "ring-4 ring-[#00A884] bg-[#00A884]/10 dark:bg-[#00A884]/20 ring-opacity-50",
       )}
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
@@ -882,7 +952,9 @@ export default function MessageInput({
                     </button>
                   </div>
                   <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-[10px] px-1 py-0.5 truncate rounded-b-lg">
-                    {file.name.length > 15 ? file.name.slice(0, 15) + "..." : file.name}
+                    {file.name.length > 15
+                      ? file.name.slice(0, 15) + "..."
+                      : file.name}
                   </div>
                 </div>
               );
@@ -903,8 +975,24 @@ export default function MessageInput({
         </div>
       )}
 
+      {/* AI Smart Reply Strip - channel only */}
+      {aiEnabled && channelId && (
+        <div className="border-b border-[#E9EDEF] dark:border-[#2A3942]">
+          <AISmartReply
+            channelId={channelId}
+            lastMessage={lastChannelMessage}
+            onSelectReply={(text) => setMessage(text)}
+            enabled={smartReplyEnabled}
+            onToggle={setSmartReplyEnabled}
+          />
+        </div>
+      )}
+
       {/* Input Form - WhatsApp Style */}
-      <form onSubmit={handleSubmit} className="flex items-end gap-1 sm:gap-2 px-1 sm:px-2">
+      <form
+        onSubmit={handleSubmit}
+        className="flex items-end gap-1 sm:gap-2 px-1 sm:px-2"
+      >
         <input
           type="file"
           ref={fileInputRef}
@@ -919,7 +1007,7 @@ export default function MessageInput({
         {/* WhatsApp-style input container */}
         <div className="flex-1 flex items-end bg-[#FFFFFF] dark:bg-[#202C33] rounded-lg sm:rounded-xl px-2 sm:px-3 py-1 sm:py-2 shadow-sm">
           {/* Emoji Button */}
-          { /*   <Popover open={showEmojiPicker} onOpenChange={setShowEmojiPicker}>
+          {/*   <Popover open={showEmojiPicker} onOpenChange={setShowEmojiPicker}>
             <PopoverTrigger asChild>
               <Button
                 variant="ghost"
@@ -1040,13 +1128,12 @@ export default function MessageInput({
             )}
           </div>
 
-          {/* Buzz Button - Desktop Only */}
           <Button
             type="button"
             variant="ghost"
             size="icon"
             title="Buzz"
-            className="hidden sm:flex h-9 w-9 text-[#8696A0] hover:text-[#54656F] dark:text-[#8696A0] dark:hover:text-[#E9EDEF] hover:bg-transparent rounded-full flex-shrink-0"
+            className="flex h-9 w-9 text-[#8696A0] hover:text-[#54656F] dark:text-[#8696A0] dark:hover:text-[#E9EDEF] hover:bg-transparent rounded-full flex-shrink-0"
             onClick={handleBuzz}
             disabled={isSubmitting || isUploading || isBuzzing}
           >
@@ -1056,6 +1143,14 @@ export default function MessageInput({
               <BellRing className="h-5 w-5" />
             )}
           </Button>
+
+          {aiEnabled && (
+            <MessageRewriter
+              message={message}
+              onApply={(rewritten) => setMessage(rewritten)}
+              disabled={isSubmitting || isUploading}
+            />
+          )}
         </div>
 
         {/* Send/Mic Button - WhatsApp Style */}
@@ -1068,7 +1163,7 @@ export default function MessageInput({
             hasContent && !isSubmitting && !isUploading
               ? "bg-[#00A884] hover:bg-[#008C71] text-white"
               : "bg-[#00A884] hover:bg-[#008C71] text-white",
-            !hasContent && "opacity-50 cursor-not-allowed"
+            !hasContent && "opacity-50 cursor-not-allowed",
           )}
           title={hasContent ? "Send message" : "Record voice"}
         >

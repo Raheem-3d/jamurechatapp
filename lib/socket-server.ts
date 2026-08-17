@@ -1,5 +1,3 @@
-
-
 import { Server as ServerIO } from "socket.io";
 import type { Server as HTTPServer } from "http";
 import type { Socket as NetSocket } from "net";
@@ -12,6 +10,7 @@ import {
   removeReactionJSON,
 } from "./reactions";
 import { db } from "./db";
+import { buildBuzzNotificationData } from "./buzz-utils";
 
 export interface SocketServer extends HTTPServer {
   io?: ServerIO;
@@ -36,7 +35,9 @@ async function getChannelMemberIds(channelId: string): Promise<string[]> {
       where: { channelId },
       select: { userId: true },
     });
-    return rows.map((r: { userId: string }) => r.userId).filter(Boolean) as string[];
+    return rows
+      .map((r: { userId: string }) => r.userId)
+      .filter(Boolean) as string[];
   } catch (e) {
     console.error("getChannelMemberIds failed for", channelId, e);
     return [];
@@ -69,8 +70,14 @@ export function initializeSocketIO(server: HTTPServer) {
 
   // Ensure reminder system background processor is running
   try {
-    const { initializeReminderSystem } = require("./reminder-init");
-    initializeReminderSystem();
+    const reminderInit = require("./reminder-init");
+    const fn =
+      reminderInit.initializeReminderSystem ||
+      reminderInit.default?.initializeReminderSystem ||
+      reminderInit.default;
+    if (typeof fn === "function") {
+      fn();
+    }
   } catch (e) {
     console.error("Failed to initialize reminder system:", e);
   }
@@ -91,10 +98,15 @@ export function initializeSocketIO(server: HTTPServer) {
     const { pubClient, subClient, isConnected } = initRedis();
     const req = eval("require");
     const redisAdapterModule = req("@socket.io/redis-adapter");
-    const isReady = isConnected && pubClient?.status === "ready" && subClient?.status === "ready";
+    const isReady =
+      isConnected &&
+      pubClient?.status === "ready" &&
+      subClient?.status === "ready";
     if (isReady && redisAdapterModule?.createAdapter) {
       io.adapter(redisAdapterModule.createAdapter(pubClient, subClient));
-      console.log("> [Socket.io] Redis adapter attached for multi-node scaling");
+      console.log(
+        "> [Socket.io] Redis adapter attached for multi-node scaling",
+      );
     }
   } catch (e) {
     // Operating without Redis adapter (in-memory mode)
@@ -142,16 +154,19 @@ export function initializeSocketIO(server: HTTPServer) {
               select: { senderId: true, id: true },
               take: 100,
             });
-            
+
             // Group by sender and notify each sender that their messages are now delivered
             const sendersSet = new Set<string>();
             for (const msg of messages) {
               if (msg.senderId) sendersSet.add(msg.senderId);
             }
-            
+
             for (const senderId of sendersSet) {
               const messageIds = messages
-                .filter((m: { senderId: string; id: string }) => m.senderId === senderId)
+                .filter(
+                  (m: { senderId: string; id: string }) =>
+                    m.senderId === senderId,
+                )
                 .map((m: { senderId: string; id: string }) => m.id);
               if (messageIds.length > 0 && io) {
                 io.to(`user-${senderId}`).emit("messages:delivered", {
@@ -169,7 +184,9 @@ export function initializeSocketIO(server: HTTPServer) {
       }
     };
     socket.on("user-join", onUserOnline);
-    socket.on("user:online", ({ userId }: { userId: string }) => onUserOnline(userId));
+    socket.on("user:online", ({ userId }: { userId: string }) =>
+      onUserOnline(userId),
+    );
 
     // --------------
     // USER OFFLINE
@@ -204,65 +221,73 @@ export function initializeSocketIO(server: HTTPServer) {
     // });
 
     socket.on("send-message", (data, ack) => {
-  try {
-    const senderId: string | undefined = socket.data.userId;
+      try {
+        const senderId: string | undefined = socket.data.userId;
 
-    // Acknowledge to sender that server received the message
-    ack?.(true);
+        // Acknowledge to sender that server received the message
+        ack?.(true);
 
-    // Notify sender that message is saved/received by server => 'sent'
-    if (senderId) {
-      io!.to(`user-${senderId}`).emit("message:status-updated", {
-        messageId: data?.id,
-        status: "sent",
-      });
-    }
+        // Notify sender that message is saved/received by server => 'sent'
+        if (senderId) {
+          io!.to(`user-${senderId}`).emit("message:status-updated", {
+            messageId: data?.id,
+            status: "sent",
+          });
+        }
 
-    if (data.channelId) {
-      // Broadcast to all channel members (including sender for multi-device sync)
-      io!.to(`channel-${data.channelId}`).emit("new-message", data);
-      // Also emit to sender's personal room for consistency
-      if (senderId) {
-        io!.to(`user-${senderId}`).emit("new-message", data);
+        if (data.channelId) {
+          // Broadcast to all channel members (including sender for multi-device sync)
+          io!.to(`channel-${data.channelId}`).emit("new-message", data);
+          // Also emit to sender's personal room for consistency
+          if (senderId) {
+            io!.to(`user-${senderId}`).emit("new-message", data);
+          }
+        } else if (data.receiverId) {
+          // Emit to receiver's personal room (works for DM)
+          io!.to(`user-${data.receiverId}`).emit("new-message", data);
+
+          // If the recipient is currently online (has sockets), consider the message delivered
+          const recipientSockets = onlineUsers.get(data.receiverId as string);
+          if (recipientSockets && recipientSockets.size > 0 && senderId) {
+            io!.to(`user-${senderId}`).emit("message:status-updated", {
+              messageId: data?.id,
+              status: "delivered",
+            });
+          }
+        }
+      } catch (e) {
+        console.error("send-message error:", e);
+        ack?.(false);
       }
-    } else if (data.receiverId) {
-      // Emit to receiver's personal room (works for DM)
-      io!.to(`user-${data.receiverId}`).emit("new-message", data);
-
-      // If the recipient is currently online (has sockets), consider the message delivered
-      const recipientSockets = onlineUsers.get(data.receiverId as string);
-      if (recipientSockets && recipientSockets.size > 0 && senderId) {
-        io!.to(`user-${senderId}`).emit("message:status-updated", {
-          messageId: data?.id,
-          status: "delivered",
-        });
-      }
-    }
-  } catch (e) {
-    console.error("send-message error:", e);
-    ack?.(false);
-  }
-});
+    });
 
     // ---------------------
     // MESSAGE STATUS UPDATES (from clients)
     // ---------------------
-    socket.on("message:status-update", async (payload: { messageId: string; status: string }) => {
-      try {
-        const { messageId, status } = payload || {};
-        if (!messageId) return;
+    socket.on(
+      "message:status-update",
+      async (payload: { messageId: string; status: string }) => {
+        try {
+          const { messageId, status } = payload || {};
+          if (!messageId) return;
 
-        // Find sender of the message so we can notify them
-        const msg = await db.message.findUnique({ where: { id: messageId }, select: { senderId: true } });
-        const senderId = msg?.senderId;
-        if (!senderId) return;
+          // Find sender of the message so we can notify them
+          const msg = await db.message.findUnique({
+            where: { id: messageId },
+            select: { senderId: true },
+          });
+          const senderId = msg?.senderId;
+          if (!senderId) return;
 
-        // Broadcast status update to the message sender
-        io!.to(`user-${senderId}`).emit("message:status-updated", { messageId, status });
-      } catch (err) {
-        console.error("message:status-update handler error", err);
-      }
-    });
+          // Broadcast status update to the message sender
+          io!
+            .to(`user-${senderId}`)
+            .emit("message:status-updated", { messageId, status });
+        } catch (err) {
+          console.error("message:status-update handler error", err);
+        }
+      },
+    );
 
     // ---------------------
     // MARK AS READ (persist and notify senders)
@@ -271,34 +296,43 @@ export function initializeSocketIO(server: HTTPServer) {
     socket.on("mark-as-read", async (payload: { messageIds: string[] }) => {
       try {
         const readerId: string | undefined = socket.data.userId as any;
-        const messageIds = Array.isArray(payload?.messageIds) ? payload.messageIds : [];
+        const messageIds = Array.isArray(payload?.messageIds)
+          ? payload.messageIds
+          : [];
         if (!readerId || messageIds.length === 0) return;
 
         const updatedSenders = new Set<string>();
 
         for (const mid of messageIds) {
           try {
-            const existing = await db.message.findUnique({ 
-              where: { id: mid }, 
-              select: { seenBy: true,
+            const existing = await db.message.findUnique({
+              where: { id: mid },
+              select: {
+                seenBy: true,
                 //  readAt: true,
-                  senderId: true } 
+                senderId: true,
+              },
             });
-            const prev = Array.isArray(existing?.seenBy) ? (existing!.seenBy as string[]) : [];
-            const prevReadAt = (existing?.readAt || {}) as Record<string, string>;
-            
+            const prev = Array.isArray(existing?.seenBy)
+              ? (existing!.seenBy as string[])
+              : [];
+            const prevReadAt = (existing?.readAt || {}) as Record<
+              string,
+              string
+            >;
+
             if (!prev.includes(readerId)) {
               const next = [...prev, readerId];
               const nextReadAt = {
                 ...prevReadAt,
                 [readerId]: new Date().toISOString(),
               };
-              await db.message.update({ 
-                where: { id: mid }, 
-                data: { 
+              await db.message.update({
+                where: { id: mid },
+                data: {
                   seenBy: next as any,
                   // readAt: nextReadAt as any,
-                } 
+                },
               });
             }
             if (existing?.senderId) updatedSenders.add(existing.senderId);
@@ -315,7 +349,6 @@ export function initializeSocketIO(server: HTTPServer) {
         console.error("mark-as-read handler error", err);
       }
     });
-
 
     socket.on("send-notification", (data) => {
       console.log("🔔 Broadcasting notification to user:", data?.userId);
@@ -336,22 +369,28 @@ export function initializeSocketIO(server: HTTPServer) {
         // Get the message details to notify relevant users
         const message = await db.message.findUnique({
           where: { id: messageId },
-          select: { 
-            channelId: true, 
-            senderId: true, 
-            receiverId: true 
-          }
+          select: {
+            channelId: true,
+            senderId: true,
+            receiverId: true,
+          },
         });
 
         if (!message) return;
 
         // Broadcast to channel members or direct message participants
         if (message.channelId) {
-          io!.to(`channel-${message.channelId}`).emit("message:deleted", { messageId });
+          io!
+            .to(`channel-${message.channelId}`)
+            .emit("message:deleted", { messageId });
         } else if (message.receiverId) {
           // Direct message - notify both sender and receiver
-          io!.to(`user-${message.senderId}`).emit("message:deleted", { messageId });
-          io!.to(`user-${message.receiverId}`).emit("message:deleted", { messageId });
+          io!
+            .to(`user-${message.senderId}`)
+            .emit("message:deleted", { messageId });
+          io!
+            .to(`user-${message.receiverId}`)
+            .emit("message:deleted", { messageId });
         }
       } catch (err) {
         console.error("message:delete handler error", err);
@@ -368,7 +407,6 @@ export function initializeSocketIO(server: HTTPServer) {
     });
 
     socket.on("task:move", (data) => {
-
       // Broadcast to all connected clients
       io!.emit("task:moved", data);
     });
@@ -386,17 +424,24 @@ export function initializeSocketIO(server: HTTPServer) {
     socket.on(
       "buzz:send",
       async (
-        payload: { channelId?: string; receiverId?: string; message?: string },
-        ack?: BuzzAck
+        payload: {
+          channelId?: string;
+          receiverId?: string;
+          message?: string;
+          clientId?: string;
+        },
+        ack?: BuzzAck,
       ) => {
         try {
-          const senderId: string | undefined = socket.data.userId || (socket.handshake?.query?.userId as string);
+          const senderId: string | undefined =
+            socket.data.userId || (socket.handshake?.query?.userId as string);
           if (!senderId) return ack?.({ ok: false, reason: "unauthorized" });
           if (!payload?.channelId && !payload?.receiverId)
             return ack?.({ ok: false, reason: "bad_request" });
 
           // rate limit per sender
-          if (!canBuzz(senderId)) return ack?.({ ok: false, reason: "rate_limited" });
+          if (!canBuzz(senderId))
+            return ack?.({ ok: false, reason: "rate_limited" });
 
           let recipients: string[] = [];
           if (payload.channelId) {
@@ -410,22 +455,126 @@ export function initializeSocketIO(server: HTTPServer) {
 
           if (recipients.length === 0) return ack?.({ ok: true });
 
-              console.log("🚨 buzz:send => recipients:", recipients, "payload:", payload);
+          console.log(
+            "🚨 buzz:send => recipients:",
+            recipients,
+            "payload:",
+            payload,
+          );
+
+          const sender = await db.user.findUnique({
+            where: { id: senderId },
+            select: { name: true, email: true },
+          });
+          const buzzInfo = buildBuzzNotificationData(
+            sender?.name || sender?.email,
+            payload.message,
+          );
 
           const buzzEvent = {
             channelId: payload.channelId,
+            receiverId: payload.receiverId,
             fromUserId: senderId,
-            message: payload.message || "Buzz!",
+            senderName: buzzInfo.senderName,
+            message: buzzInfo.message,
+            title: buzzInfo.title,
           };
 
-          // Prefer per-user rooms so DM works and channel members get it even if not in channel room
+          const emitBuzzEvent = async (
+            buzzMsg: any,
+            eventType: "direct" | "channel",
+          ) => {
+            try {
+              const { pushCacheList } = require("./redis");
+              const { produceKafkaEvent } = require("./kafka");
+              const cacheKey =
+                eventType === "direct"
+                  ? `buzz:dm:${[senderId, payload.receiverId].sort().join(":")}`
+                  : `buzz:channel:${payload.channelId}`;
+
+              const eventPayload = {
+                ...buzzEvent,
+                buzzMessage: buzzMsg,
+                eventType,
+                timestamp: new Date().toISOString(),
+              };
+
+              pushCacheList(cacheKey, eventPayload, 100).catch(() => {});
+              produceKafkaEvent("buzz-events", eventPayload).catch(() => {});
+            } catch (err) {
+              // non-fatal fallback when Kafka/Redis are unavailable
+            }
+          };
+
+          let buzzMessage: any = null;
+          try {
+            buzzMessage = await db.message.create({
+              data: {
+                content: buzzInfo.systemContent,
+                senderId,
+                channelId: payload.channelId,
+                receiverId: payload.receiverId,
+                isBuzz: true,
+              } as any,
+              include: {
+                sender: {
+                  select: { id: true, name: true, email: true, image: true },
+                },
+              },
+            });
+          } catch (dbError) {
+            buzzMessage = {
+              id: `buzz_${Date.now()}`,
+              content: buzzInfo.systemContent,
+              isBuzz: true,
+              senderId,
+              channelId: payload.channelId ?? null,
+              receiverId: payload.receiverId ?? null,
+              createdAt: new Date().toISOString(),
+              sender: {
+                id: senderId,
+                name: buzzInfo.senderName,
+                email: sender?.email || "",
+                image: null,
+              },
+            };
+          }
+
+          buzzMessage = {
+            ...buzzMessage,
+            receiverId: payload.receiverId ?? buzzMessage.receiverId,
+            channelId: payload.channelId ?? buzzMessage.channelId,
+            clientId: payload.clientId ?? buzzMessage.clientId,
+            status: "sent",
+          };
+
+          // Prefer per-user rooms so recipients always get the buzz overlay
           for (const uid of recipients) {
             io!.to(`user-${uid}`).emit("buzz", buzzEvent);
           }
 
-          // Optionally, also emit to channel room for open channel tabs (harmless duplicate safeguards in client)
+          // Emit chat list update for the Buzz message
           if (payload.channelId) {
+            io!
+              .to(`channel-${payload.channelId}`)
+              .emit("new-message", buzzMessage);
             io!.to(`channel-${payload.channelId}`).emit("buzz", buzzEvent);
+            // Also send the message directly to recipients' user rooms as a fallback
+            for (const uid of recipients) {
+              io!.to(`user-${uid}`).emit("new-message", buzzMessage);
+            }
+            // Ensure sender also gets the chat update
+            io!.to(`user-${senderId}`).emit("new-message", buzzMessage);
+            void emitBuzzEvent(buzzMessage, "channel");
+          } else if (payload.receiverId) {
+            io!.to(`user-${payload.receiverId}`).emit("buzz", buzzEvent);
+            io!
+              .to(`user-${payload.receiverId}`)
+              .emit("new-message", buzzMessage);
+            if (senderId) {
+              io!.to(`user-${senderId}`).emit("new-message", buzzMessage);
+            }
+            void emitBuzzEvent(buzzMessage, "direct");
           }
 
           ack?.({ ok: true });
@@ -433,7 +582,7 @@ export function initializeSocketIO(server: HTTPServer) {
           // console.error("buzz:send error", e);
           ack?.({ ok: false, reason: "server_error" });
         }
-      }
+      },
     );
 
     // --------------
@@ -444,60 +593,100 @@ export function initializeSocketIO(server: HTTPServer) {
     socket.on(
       "add-reaction",
       async (
-        { messageId, emoji, userId, userName }: { messageId: string; emoji: string; userId: string; userName?: string },
-        ack: Ack<{ success: boolean; reactions?: any[] }>
+        {
+          messageId,
+          emoji,
+          userId,
+          userName,
+        }: {
+          messageId: string;
+          emoji: string;
+          userId: string;
+          userName?: string;
+        },
+        ack: Ack<{ success: boolean; reactions?: any[] }>,
       ) => {
         try {
-          const updated = await addReactionJSON(messageId, { emoji, userId, userName });
+          const updated = await addReactionJSON(messageId, {
+            emoji,
+            userId,
+            userName,
+          });
           const channelId = await getMessageChannelId(messageId);
 
           if (channelId) {
             // Channel message - broadcast to all channel members
-            io!.to(`channel-${channelId}`).emit("reaction:update", { messageId, reactions: updated });
+            io!
+              .to(`channel-${channelId}`)
+              .emit("reaction:update", { messageId, reactions: updated });
           } else {
             // DM message - broadcast to both sender and receiver
             const { senderId, receiverId } = await getMessagePeers(messageId);
-            if (senderId) io!.to(`user-${senderId}`).emit("reaction:update", { messageId, reactions: updated });
-            if (receiverId) io!.to(`user-${receiverId}`).emit("reaction:update", { messageId, reactions: updated });
+            if (senderId)
+              io!
+                .to(`user-${senderId}`)
+                .emit("reaction:update", { messageId, reactions: updated });
+            if (receiverId)
+              io!
+                .to(`user-${receiverId}`)
+                .emit("reaction:update", { messageId, reactions: updated });
           }
           ack({ success: true, reactions: updated });
         } catch (e) {
           console.error("add-reaction error", e);
           ack({ success: false });
         }
-      }
+      },
     );
 
     socket.on(
       "remove-reaction",
       async (
-        { messageId, emoji, userId }: { messageId: string; emoji: string; userId: string },
-        ack: Ack<{ success: boolean; reactions?: any[] }>
+        {
+          messageId,
+          emoji,
+          userId,
+        }: { messageId: string; emoji: string; userId: string },
+        ack: Ack<{ success: boolean; reactions?: any[] }>,
       ) => {
         try {
-          const updated = await removeReactionJSON(messageId, { emoji, userId });
+          const updated = await removeReactionJSON(messageId, {
+            emoji,
+            userId,
+          });
           const channelId = await getMessageChannelId(messageId);
 
           if (channelId) {
             // Channel message - broadcast to all channel members
-            io!.to(`channel-${channelId}`).emit("reaction:update", { messageId, reactions: updated });
+            io!
+              .to(`channel-${channelId}`)
+              .emit("reaction:update", { messageId, reactions: updated });
           } else {
             // DM message - broadcast to both sender and receiver
             const { senderId, receiverId } = await getMessagePeers(messageId);
-            if (senderId) io!.to(`user-${senderId}`).emit("reaction:update", { messageId, reactions: updated });
-            if (receiverId) io!.to(`user-${receiverId}`).emit("reaction:update", { messageId, reactions: updated });
+            if (senderId)
+              io!
+                .to(`user-${senderId}`)
+                .emit("reaction:update", { messageId, reactions: updated });
+            if (receiverId)
+              io!
+                .to(`user-${receiverId}`)
+                .emit("reaction:update", { messageId, reactions: updated });
           }
           ack({ success: true, reactions: updated });
         } catch (e) {
           console.error("remove-reaction error", e);
           ack({ success: false });
         }
-      }
+      },
     );
 
     socket.on(
       "get-reactions",
-      async ({ messageId }: { messageId: string }, ack: Ack<{ success: boolean; reactions?: any[] }>) => {
+      async (
+        { messageId }: { messageId: string },
+        ack: Ack<{ success: boolean; reactions?: any[] }>,
+      ) => {
         try {
           const rows = await getReactions(messageId);
           ack({ success: true, reactions: rows });
@@ -505,7 +694,7 @@ export function initializeSocketIO(server: HTTPServer) {
           console.error("get-reactions error", e);
           ack({ success: false });
         }
-      }
+      },
     );
 
     // --------------
@@ -526,23 +715,26 @@ export function initializeSocketIO(server: HTTPServer) {
           clearTimeout(offlineDisconnectTimers.get(userId)!);
         }
         // 5-second grace period before emitting offline status to prevent transport-switch flickering
-          const timer = setTimeout(() => {
-            try {
-              if (onlineUsers.has(userId) && onlineUsers.get(userId)!.size === 0) {
-                onlineUsers.delete(userId);
-                const onlineUserIds = Array.from(onlineUsers.keys());
-                if (io) {
-                  io.emit("users-online", onlineUserIds);
-                  io.emit("user:status", { onlineUsers: onlineUserIds });
-                  const iso = new Date().toISOString();
-                  io.emit("user-last-seen", { userId, timestamp: iso });
-                }
+        const timer = setTimeout(() => {
+          try {
+            if (
+              onlineUsers.has(userId) &&
+              onlineUsers.get(userId)!.size === 0
+            ) {
+              onlineUsers.delete(userId);
+              const onlineUserIds = Array.from(onlineUsers.keys());
+              if (io) {
+                io.emit("users-online", onlineUserIds);
+                io.emit("user:status", { onlineUsers: onlineUserIds });
+                const iso = new Date().toISOString();
+                io.emit("user-last-seen", { userId, timestamp: iso });
               }
-            } catch (e) {
-              console.error("Failed to emit offline status:", e);
             }
-            offlineDisconnectTimers.delete(userId);
-          }, 5000);
+          } catch (e) {
+            console.error("Failed to emit offline status:", e);
+          }
+          offlineDisconnectTimers.delete(userId);
+        }, 5000);
         offlineDisconnectTimers.set(userId, timer);
       }
     }

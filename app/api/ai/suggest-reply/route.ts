@@ -1,6 +1,6 @@
 // API Route: Smart Reply Suggestions
 // Usage: POST /api/ai/suggest-reply
-// Body: { channelId?: string, receiverId?: string, lastMessageId: string }
+// Body: { channelId?: string, receiverId?: string }
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
@@ -15,18 +15,26 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const body = await req.json();
-    const { channelId, receiverId, lastMessageId } = body;
+    const userOrg = await db.user.findUnique({
+      where: { id: session.user.id },
+      select: { organization: { select: { aiEnabled: true } } }
+    });
+    if (userOrg?.organization?.aiEnabled === false) {
+      return NextResponse.json({ error: 'AI features are disabled' }, { status: 403 });
+    }
 
-    if (!lastMessageId) {
+    const body = await req.json();
+    const { channelId, receiverId } = body;
+
+    if (!channelId && !receiverId) {
       return NextResponse.json(
-        { error: 'lastMessageId is required' },
+        { error: 'Provide channelId or receiverId' },
         { status: 400 }
       );
     }
 
     // Get conversation context (last 10 messages)
-    let messages;
+    let messages: any[] = [];
     if (channelId) {
       messages = await db.message.findMany({
         where: { channelId },
@@ -46,22 +54,15 @@ export async function POST(req: NextRequest) {
         orderBy: { createdAt: 'desc' },
         take: 10,
       });
-    } else {
-      return NextResponse.json(
-        { error: 'Provide channelId or receiverId' },
-        { status: 400 }
-      );
+    }
+
+    if (messages.length === 0) {
+      return NextResponse.json({ success: true, suggestions: ['Got it!', 'On it!', 'Thanks!'] });
     }
 
     messages.reverse(); // oldest first
 
-    const lastMessage = messages.find((m: any) => m.id === lastMessageId);
-    if (!lastMessage) {
-      return NextResponse.json(
-        { error: 'Last message not found' },
-        { status: 404 }
-      );
-    }
+    const lastMessage = messages[messages.length - 1];
 
     // Format conversation
     const conversationHistory = messages

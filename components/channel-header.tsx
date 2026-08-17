@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -14,9 +14,16 @@ import {
   BellOff,
   Sparkles,
   ArrowLeft,
+  SlidersHorizontal,
+  Folder,
+  Search,
+  ListChecks,
 } from "lucide-react";
+import { SharedContentPanel } from "@/components/shared-content-panel";
+import { WhatsAppMessageSearch } from "@/components/whatsapp-message-search";
 import { Button } from "@/components/ui/button";
 import { MessageSummarizer } from "@/components/message-summarizer";
+import AIActionExtractor from "@/components/ai-action-extractor";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -44,6 +51,37 @@ type ChannelHeaderProps = {
 
 export default function ChannelHeader({ channel }: ChannelHeaderProps) {
   const [showMembers, setShowMembers] = useState(false);
+  const [showSharedMediaPanel, setShowSharedMediaPanel] = useState(false);
+  const [showSearchModal, setShowSearchModal] = useState(false);
+  const [aiEnabled, setAiEnabled] = useState(true);
+  const [showActionExtractor, setShowActionExtractor] = useState(false);
+
+  useEffect(() => {
+    const fetchOrg = async () => {
+      try {
+        const res = await fetch("/api/organization/me");
+        if (!res.ok) return;
+        const payload = await res.json();
+        if (payload?.organization?.aiEnabled !== undefined) {
+          setAiEnabled(payload.organization.aiEnabled);
+        }
+      } catch (err) {
+        console.error("Failed to fetch organization setting for AI in header:", err);
+      }
+    };
+    fetchOrg();
+  }, []);
+
+  const handleJumpToMessage = (messageId: string) => {
+    const el = document.getElementById(`msg-${messageId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.classList.add("ring-4", "ring-indigo-500", "bg-indigo-100/60", "dark:bg-indigo-900/50", "rounded-2xl", "transition-all", "duration-500");
+      setTimeout(() => {
+        el.classList.remove("ring-4", "ring-indigo-500", "bg-indigo-100/60", "dark:bg-indigo-900/50", "rounded-2xl");
+      }, 2500);
+    }
+  };
   const [members, setMembers] = useState(channel.members); // ✅ Initialize with channel.members
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -51,9 +89,15 @@ export default function ChannelHeader({ channel }: ChannelHeaderProps) {
   const router = useRouter();
   const { user } = useAuth();
 
-  const isAdmin = channel.members?.some(
-    (member: any) => member.userId === user?.id && member.isAdmin
-  );
+  const isAdmin =
+    channel.creatorId === user?.id ||
+    user?.role === "ORG_ADMIN" ||
+    (user as any)?.isSuperAdmin ||
+    Boolean(
+      channel.members?.some(
+        (member: any) => member.userId === user?.id && (member.isAdmin || member.role === "ADMIN")
+      )
+    );
 
   const handleDeleteChannel = async () => {
     if (!isAdmin) return;
@@ -71,9 +115,9 @@ export default function ChannelHeader({ channel }: ChannelHeaderProps) {
       toast.success("Channel Deleted", {
         description: "The channel has been deleted successfully",
       });
-      
-       window.location.reload();
-       router.push("/dashboard");
+
+      window.location.reload();
+      router.push("/dashboard");
       router.refresh();
     } catch (error) {
       console.error("Error deleting channel:", error);
@@ -101,7 +145,7 @@ export default function ChannelHeader({ channel }: ChannelHeaderProps) {
       }
 
       // ✅ Update local state to remove deleted member
-      setMembers((prevMembers: any) => 
+      setMembers((prevMembers: any) =>
         prevMembers.filter((m: any) => m.id !== memberId)
       );
 
@@ -163,8 +207,12 @@ export default function ChannelHeader({ channel }: ChannelHeaderProps) {
             <ArrowLeft className="h-4 w-4" />
           </Button>
 
-          <div className="h-9 w-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center border border-indigo-100 dark:border-indigo-800/80 shrink-0 font-bold">
-            <Hash className="h-4 w-4" />
+          <div className="h-9 w-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center border border-indigo-100 dark:border-indigo-800/80 shrink-0 font-bold overflow-hidden">
+            {channel.image ? (
+              <img src={channel.image} alt={channel.name} className="w-full h-full object-cover" />
+            ) : (
+              <Hash className="h-4 w-4" />
+            )}
           </div>
 
           <div>
@@ -206,7 +254,7 @@ export default function ChannelHeader({ channel }: ChannelHeaderProps) {
             Members
           </Button>
 
-          <Button
+          {/* <Button
             variant="ghost"
             size="sm"
             onClick={toggleMute}
@@ -218,7 +266,36 @@ export default function ChannelHeader({ channel }: ChannelHeaderProps) {
             ) : (
               <Bell className="h-4 w-4 text-slate-400" />
             )}
+          </Button> */}
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowSearchModal(true)}
+            className="h-8 rounded-xl border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-indigo-50 dark:hover:bg-indigo-950 px-3 gap-1.5"
+            title="Search Messages"
+          >
+            <Search className="h-3.5 w-3.5 text-indigo-500" />
+            <span className="hidden sm:inline">Search</span>
           </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowSharedMediaPanel(true)}
+            className="h-8 rounded-xl border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-indigo-50 dark:hover:bg-indigo-950 px-3 gap-1.5"
+            title="Shared Media, Docs & Links"
+          >
+            <Folder className="h-3.5 w-3.5 text-indigo-500" />
+            <span className="hidden sm:inline">Shared Content</span>
+          </Button>
+
+          {aiEnabled && (
+            <MessageSummarizer
+              channelId={channel.id}
+              className="h-8 rounded-xl border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-indigo-50 dark:hover:bg-indigo-950 px-3 gap-1.5"
+            />
+          )}
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -227,13 +304,45 @@ export default function ChannelHeader({ channel }: ChannelHeaderProps) {
                 size="sm"
                 className="h-8 w-8 p-0 rounded-xl border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200"
               >
-                <Settings className="h-5 w-5" />
+                <SlidersHorizontal className="h-5 w-5" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent 
+            <DropdownMenuContent
               align="end"
               className="dark:bg-gray-800 dark:border-gray-700"
             >
+              <DropdownMenuItem
+                onClick={() => setShowSearchModal(true)}
+                className="flex items-center cursor-pointer dark:hover:bg-gray-700"
+              >
+                <Search className="h-4 w-4 mr-2 text-indigo-500" />
+                Search Messages
+              </DropdownMenuItem>
+
+              <DropdownMenuItem
+                onClick={() => setShowSharedMediaPanel(true)}
+                className="flex items-center cursor-pointer dark:hover:bg-gray-700"
+              >
+                <Folder className="h-4 w-4 mr-2 text-indigo-500" />
+                Media, Docs & Links
+              </DropdownMenuItem>
+
+              {aiEnabled && (
+                <>
+                  <DropdownMenuSeparator className="dark:bg-gray-600" />
+                  <DropdownMenuItem
+                    onClick={() => setShowActionExtractor(true)}
+                    className="flex items-center cursor-pointer dark:hover:bg-gray-700"
+                  >
+                    <ListChecks className="h-4 w-4 mr-2 text-indigo-500" />
+                    <div>
+                      <p className="text-sm">Extract Action Items</p>
+                      <p className="text-[10px] text-slate-400 dark:text-slate-500">AI scans conversation for tasks</p>
+                    </div>
+                  </DropdownMenuItem>
+                </>
+              )}
+
               <DropdownMenuItem asChild className="dark:hover:bg-gray-700">
                 <Link
                   href={`/dashboard/channels/${channel.id}/info`}
@@ -310,7 +419,7 @@ export default function ChannelHeader({ channel }: ChannelHeaderProps) {
                       </AvatarFallback>
                     </Avatar>
                     <div>
-                      <Link 
+                      <Link
                         href={`/dashboard/messages/${member.userId}`}
                         className="hover:underline"
                       >
@@ -384,6 +493,32 @@ export default function ChannelHeader({ channel }: ChannelHeaderProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* WhatsApp Message Search Modal */}
+      <WhatsAppMessageSearch
+        isOpen={showSearchModal}
+        onClose={() => setShowSearchModal(false)}
+        channelId={channel.id}
+        onJumpToMessage={handleJumpToMessage}
+      />
+
+      {/* Shared Content Panel Modal */}
+      <SharedContentPanel
+        isOpen={showSharedMediaPanel}
+        onClose={() => setShowSharedMediaPanel(false)}
+        channelId={channel.id}
+        channelName={channel.name}
+      />
+
+      {/* AI Action Item Extractor */}
+      {aiEnabled && (
+        <AIActionExtractor
+          channelId={channel.id}
+          channelName={channel.name}
+          open={showActionExtractor}
+          onClose={() => setShowActionExtractor(false)}
+        />
+      )}
     </div>
   );
 }

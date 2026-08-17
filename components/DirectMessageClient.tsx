@@ -15,8 +15,11 @@ import {
   Search,
   Paperclip,
   Smile,
-  Mic
+  Mic,
+  Folder
 } from "lucide-react";
+import { SharedContentPanel } from "@/components/shared-content-panel";
+import { WhatsAppMessageSearch } from "@/components/whatsapp-message-search";
 
 type Mentionable = {
   id: string;
@@ -138,12 +141,30 @@ export default function DirectMessageClient({
       })
     : null;
 
+  const [showSharedMediaPanel, setShowSharedMediaPanel] = useState(false);
+  const [showSearchModal, setShowSearchModal] = useState(false);
+
+  const handleJumpToMessage = (messageId: string) => {
+    const el = document.getElementById(`msg-${messageId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.classList.add("ring-4", "ring-indigo-500", "bg-indigo-100/60", "dark:bg-indigo-900/50", "rounded-2xl", "transition-all", "duration-500");
+      setTimeout(() => {
+        el.classList.remove("ring-4", "ring-indigo-500", "bg-indigo-100/60", "dark:bg-indigo-900/50", "rounded-2xl");
+      }, 2500);
+    }
+  };
+
   return (
     <div className="flex flex-col h-full bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 overflow-hidden shadow-xs">
       {/* Header - Sleek Enterprise Bar */}
       <div className="px-5 py-3.5 bg-white dark:bg-slate-900 border-b border-slate-200/80 dark:border-slate-800 flex items-center justify-between shadow-xs">
-        <div className="flex items-center gap-3">
-          <Avatar className="h-10 w-10 ring-2 ring-indigo-500/20 shrink-0">
+        <div
+          className="flex items-center gap-3 cursor-pointer group select-none"
+          onClick={() => setShowSharedMediaPanel(true)}
+          title="Click to view shared media, docs & links"
+        >
+          <Avatar className="h-10 w-10 ring-2 ring-indigo-500/20 shrink-0 group-hover:scale-105 transition-transform">
             <AvatarImage
               src={recipient.image || ""}
               alt={recipient.name || ""}
@@ -154,7 +175,7 @@ export default function DirectMessageClient({
           </Avatar>
           <div className="flex flex-col">
             <div className="flex items-center gap-2">
-              <h2 className="font-bold text-slate-900 dark:text-white text-base leading-tight">
+              <h2 className="font-bold text-slate-900 dark:text-white text-base leading-tight group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
                 {recipient.name}
               </h2>
               {recipient.department && (
@@ -180,7 +201,42 @@ export default function DirectMessageClient({
         </div>
 
         {/* Header Actions */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowSearchModal(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/80 text-slate-700 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 text-xs font-bold transition-all border border-slate-200/60 dark:border-slate-700/60 shadow-2xs"
+            title="Search Messages"
+          >
+            <Search className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+            <span className="hidden sm:inline">Search</span>
+          </button>
+
+          <button
+            onClick={() => setShowSharedMediaPanel(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/80 text-slate-700 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 text-xs font-bold transition-all border border-slate-200/60 dark:border-slate-700/60 shadow-2xs"
+            title="Shared Media, Docs & Links"
+          >
+            <Folder className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+            <span className="hidden sm:inline">Shared Content</span>
+          </button>
+        </div>
       </div>
+
+      {/* WhatsApp Message Search Modal */}
+      <WhatsAppMessageSearch
+        isOpen={showSearchModal}
+        onClose={() => setShowSearchModal(false)}
+        receiverId={recipient.id}
+        onJumpToMessage={handleJumpToMessage}
+      />
+
+      {/* Shared Content Panel */}
+      <SharedContentPanel
+        isOpen={showSharedMediaPanel}
+        onClose={() => setShowSharedMediaPanel(false)}
+        receiverId={recipient.id}
+        recipientName={recipient.name}
+      />
 
       {/* Messages Area */}
       <div className="flex-1 overflow-y-auto bg-slate-50/50 dark:bg-slate-950/40">

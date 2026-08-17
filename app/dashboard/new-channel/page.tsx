@@ -37,6 +37,8 @@ export default function NewChannelPage() {
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
   const [isPublic, setIsPublic] = useState(false)
+  const [image, setImage] = useState<string | null>(null)
+  const [isUploadingImage, setIsUploadingImage] = useState(false)
   const [departmentId, setDepartmentId] = useState("")
   const [assignees, setAssignees] = useState<string[]>([])
   const [departments, setDepartments] = useState<Department[]>([])
@@ -49,6 +51,40 @@ export default function NewChannelPage() {
   const debounceRef = useRef<number | undefined>(undefined)
 
   const { users, loading: isfetchingUsers } = useTeamUsers()
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    // 1. Instant local preview
+    const previewUrl = URL.createObjectURL(file)
+    setImage(previewUrl)
+
+    setIsUploadingImage(true)
+    try {
+      const formData = new FormData()
+      formData.append("file", file)
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      })
+      if (!res.ok) throw new Error("Upload failed")
+      const data = await res.json()
+      const rawUrl = data?.files?.[0]?.fileUrl
+      if (rawUrl) {
+        const cleanUrl = rawUrl.includes("/u/")
+          ? `/u/${rawUrl.split("/u/")[1]}`
+          : rawUrl
+        setImage(cleanUrl)
+        toast.success("Profile picture uploaded")
+      }
+    } catch (err) {
+      console.error(err)
+      toast.error("Failed to upload image")
+    } finally {
+      setIsUploadingImage(false)
+    }
+  }
 
   // Check if user has permission to manage channels
   useEffect(() => {
@@ -100,6 +136,7 @@ export default function NewChannelPage() {
           name: name.toLowerCase().replace(/\s+/g, "-"),
           description,
           isPublic,
+          image,
           departmentId: !departmentId || departmentId === 'none' ? null : departmentId,
           members: assignees,
         }),
@@ -196,6 +233,34 @@ export default function NewChannelPage() {
               </CardHeader>
 
               <CardContent className="p-4 sm:p-5 space-y-4">
+                {/* Channel Profile Picture (DP) */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                    Channel Profile Picture (DP)
+                  </Label>
+                  <div className="flex items-center gap-4">
+                    <div className="w-14 h-14 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 flex items-center justify-center overflow-hidden shrink-0">
+                      {image ? (
+                        <img src={image} alt="Channel DP" className="w-full h-full object-cover" />
+                      ) : (
+                        <Hash className="h-6 w-6 text-indigo-500" />
+                      )}
+                    </div>
+                    <div className="flex-1 space-y-1">
+                      <Input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageUpload}
+                        disabled={isUploadingImage}
+                        className="text-xs file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                      />
+                      {isUploadingImage && (
+                        <p className="text-[11px] text-indigo-500 font-medium">Uploading profile picture...</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
                 {/* Channel Name */}
                 <div className="space-y-1.5">
                   <Label htmlFor="name" className="text-xs font-bold text-slate-700 dark:text-slate-300">

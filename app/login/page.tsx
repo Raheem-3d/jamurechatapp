@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useEffect, useState } from "react";
@@ -120,7 +119,10 @@ export default function LoginPage(): JSX.Element {
             <CardContent className="space-y-4">
               {/* Email Field */}
               <div className="space-y-3">
-                <Label htmlFor="email" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                <Label
+                  htmlFor="email"
+                  className="text-sm font-medium text-gray-700 dark:text-gray-300"
+                >
                   Email Address
                 </Label>
                 <div className="relative">
@@ -140,7 +142,10 @@ export default function LoginPage(): JSX.Element {
               {/* Password Field */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="password" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  <Label
+                    htmlFor="password"
+                    className="text-sm font-medium text-gray-700 dark:text-gray-300"
+                  >
                     Password
                   </Label>
                   <Link
@@ -165,15 +170,19 @@ export default function LoginPage(): JSX.Element {
                     onClick={() => setShowPassword((s) => !s)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
                   >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
                   </button>
                 </div>
               </div>
             </CardContent>
 
             <CardFooter className="flex flex-col space-y-4 pt-4">
-              <Button 
-                type="submit" 
+              <Button
+                type="submit"
                 disabled={isLoading}
                 className="w-full h-11 bg-gradient-to-br from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-sm"
               >
@@ -189,11 +198,11 @@ export default function LoginPage(): JSX.Element {
                   </div>
                 )}
               </Button>
-              
+
               <div className="text-center text-sm text-gray-600 dark:text-gray-400">
                 Don&apos;t have an account?{" "}
-                <Link 
-                  href="/free-trial" 
+                <Link
+                  href="/free-trial"
                   className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium transition-colors inline-flex items-center gap-1"
                 >
                   Create account

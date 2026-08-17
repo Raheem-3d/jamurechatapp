@@ -12,8 +12,9 @@ import DirectMessageClient from "@/components/DirectMessageClient"
 export default async function ChannelPage({
   params,
 }: {
-  params: { channelId: string }
+  params: Promise<{ channelId: string }> | { channelId: string }
 }) {
+  const { channelId } = await params
   const session = await getServerSession(authOptions)
 
   if (!session) {
@@ -22,7 +23,7 @@ export default async function ChannelPage({
 
   const channel = await db.channel.findUnique({
     where: {
-      id: params.channelId,
+      id: channelId,
     },
     include: {
       department: true,
@@ -37,6 +38,16 @@ export default async function ChannelPage({
 
   if (!channel) {
     notFound()
+  }
+
+  // Attach channel image via raw SQL
+  try {
+    const rows: any[] = await db.$queryRawUnsafe(`SELECT image FROM \`Channel\` WHERE id = ?`, channel.id)
+    if (rows && rows[0]) {
+      (channel as any).image = rows[0].image || null
+    }
+  } catch (e) {
+    console.error("Error fetching channel image:", e)
   }
 
   // Check if user is a member of the channel

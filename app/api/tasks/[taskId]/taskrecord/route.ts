@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { emitToUser, getSocketIO } from "@/lib/socket-server";
 import { cacheGet, cacheSet, cacheDel } from "@/lib/redis";
 import { produceKafkaEvent } from "@/lib/kafka";
+import { runAutomationEngine } from "@/lib/automation-engine";
 import {
   Task,
   AutomationRule,
@@ -97,7 +98,7 @@ const logger = {
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { taskId: string } },
+  { params }: { params: Promise<{ taskId: string }> | { taskId: string } },
 ) {
   const session = await getServerSession(authOptions);
   const sessionUserId = (session?.user as any)?.id as string | undefined;
@@ -105,7 +106,7 @@ export async function POST(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const taskId = params.taskId;
+  const { taskId } = await params;
   const {
     title,
     description,
@@ -255,41 +256,64 @@ export async function POST(
 
   if (finalDeadline) {
     await createAutomaticTaskReminders(
-      newTask.id,
+      taskId,
       newTask.title,
       new Date(finalDeadline),
-       newTask.assignees.map(a => a.userId),
+      newTask.assignees.map((a: any) => a.userId),
     );
   }
 
-  // 8️⃣ Run automation
-  await checkAutomationRules({
+  // 8️⃣ Run automation engine
+  await runAutomationEngine({
     previousTask: {},
     currentTask: newTask,
-    changes: {},
+    changes: { isNew: true },
     userId: sessionUserId,
   });
 
   // Invalidate Redis cache for this task workspace
   await cacheDel(`tasks:records:${taskId}`);
 
+  // Fetch fresh task data after automation rules have executed
+  const finalCreatedTask = await db.record.findUnique({
+    where: { id: newTask.id },
+    include: {
+      stage: true,
+      tags: true,
+      assignees: {
+        include: {
+          user: {
+            select: { id: true, name: true, email: true },
+          },
+        },
+      },
+    },
+  });
+
+  const resultCreatedTask = finalCreatedTask || newTask;
+
+  const socketIO = getSocketIO();
+  if (socketIO) {
+    socketIO.emit("task:created", resultCreatedTask);
+  }
+
   // 📡 Produce asynchronous Kafka audit event (non-blocking)
   produceKafkaEvent("task-activity-events", {
     type: "task_created",
-    taskId: newTask.id,
-    title: newTask.title,
+    taskId: resultCreatedTask.id,
+    title: resultCreatedTask.title,
     userId: sessionUserId,
     timestamp: new Date().toISOString(),
   });
 
-  return NextResponse.json({ task: newTask }, { status: 201 });
+  return NextResponse.json({ task: resultCreatedTask }, { status: 201 });
 }
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { taskId: string } },
+  { params }: { params: Promise<{ taskId: string }> | { taskId: string } },
 ) {
-  const { taskId } = params;
+  const { taskId } = await params;
   const cacheKey = `tasks:records:${taskId}`;
 
   try {
@@ -600,7 +624,13 @@ export async function PATCH(
   }
 
   const { taskId } = await params;
-  const body = await request.json();
+  let body: any = {};
+  try {
+    const text = await request.text();
+    body = text ? JSON.parse(text) : {};
+  } catch (err) {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
 
 
 
@@ -627,6 +657,10 @@ export async function PATCH(
 
 
 
+  const statusStr = (body.status || "").toUpperCase();
+  const isStatusCompleted = ["COMPLETED", "DONE", "FINISHED"].includes(statusStr);
+  const finalIsComplete = body.isComplete !== undefined ? body.isComplete : isStatusCompleted;
+
   // Prepare update data
   const updateData: any = {
     title: body.title,
@@ -635,7 +669,7 @@ export async function PATCH(
     status: body.status,
     parentTaskId: body.parentTaskId,
     stageId: body.stageId,
-    isComplete: body.isComplete,
+    isComplete: finalIsComplete || isStatusCompleted,
     updatedAt: new Date(),
   };
 
@@ -814,52 +848,104 @@ export async function PATCH(
    
     }
 
+    // Check if status changed
+    const isStatusChanged = body.status && body.status !== currentTask.status;
+
+    const formatStatusName = (statusStr?: string) => {
+      if (!statusStr) return "";
+      const statusMap: Record<string, string> = {
+        not_started: "Not Started",
+        in_progress: "In Progress",
+        under_review: "Under Review",
+        review: "Under Review",
+        rework: "ReWork",
+        completed: "Completed",
+      };
+      return statusMap[statusStr] || statusStr;
+    };
+
+    let activityType = "task_updated";
+    let activityDesc = `Task "${updatedTask.title}" details updated`;
+
+    if (isStageTransition && newStage) {
+      activityType = "stage_changed";
+      activityDesc = `Task "${updatedTask.title}" moved from ${currentTask.stage?.name || "Stage"} to ${newStage.name}`;
+    } else if (isStatusChanged) {
+      activityType = "status_changed";
+      const oldStatus = formatStatusName(currentTask.status);
+      const newStatus = formatStatusName(body.status);
+      activityDesc = `Task "${updatedTask.title}" status changed from '${oldStatus}' to '${newStatus}'`;
+    }
+
     // Create activity log
     await db.taskActivity.create({
       data: {
         taskId,
         userId: sessionUserId,
-        type: isStageTransition ? "stage_changed" : "task_updated",
-        description: isStageTransition
-          ? `Task moved from ${currentTask.stage?.name} to ${newStage?.name}`
-          : "Task details updated",
+        type: activityType,
+        description: activityDesc,
       },
     });
 
-    // Check automation rules
-    await checkAutomationRules({
+    // Check automation rules via dedicated engine
+    await runAutomationEngine({
       previousTask: currentTask,
       currentTask: updatedTask,
       changes: body,
       userId: sessionUserId,
     });
 
-    // ✅ Emit real-time update via socket.io
+    // Invalidate Redis cache for this task workspace
+    await cacheDel(`tasks:records:${taskId}`);
+
+    // Fetch fresh task data AFTER automation rules have executed
+    const finalTask = await db.record.findUnique({
+      where: { id: body.id },
+      include: {
+        stage: true,
+        tags: true,
+        assignees: {
+          include: {
+            user: {
+              select: { id: true, name: true, email: true },
+            },
+          },
+        },
+      },
+    });
+
+    const resultTask = finalTask || updatedTask;
+
+    // ✅ Emit real-time update via socket.io with the FRESH post-automation task
     const socketIO = getSocketIO();
     if (socketIO) {
       socketIO.emit("task:updated", {
-        taskId: updatedTask.id,
+        taskId: resultTask.id,
         parentTaskId: taskId,
-        task: updatedTask,
+        task: resultTask,
         updatedBy: sessionUserId,
         timestamp: new Date().toISOString(),
       });
-      
-    }
 
-    // Invalidate Redis cache for this task workspace
-    await cacheDel(`tasks:records:${taskId}`);
+      if (currentTask.stageId !== resultTask.stageId) {
+        socketIO.emit("task:moved", {
+          taskId: resultTask.id,
+          newStageId: resultTask.stageId,
+          stageName: resultTask.stage?.name || "",
+        });
+      }
+    }
 
     // 📡 Produce asynchronous Kafka audit event (non-blocking)
     produceKafkaEvent("task-activity-events", {
       type: "task_updated",
-      taskId: updatedTask.id,
-      title: updatedTask.title,
+      taskId: resultTask.id,
+      title: resultTask.title,
       userId: sessionUserId,
       timestamp: new Date().toISOString(),
     });
 
-    return NextResponse.json({ task: updatedTask }, { status: 200 });
+    return NextResponse.json({ task: resultTask }, { status: 200 });
   } catch (error) {
     console.error("Error updating task:", error);
     return NextResponse.json(
@@ -872,306 +958,29 @@ export async function PATCH(
   }
 }
 
-function doesTriggerMatch(
-  trigger: TriggerType,
-  prev: any,
-  curr: any,
-  changes: Record<string, any>,
-): boolean {
-  switch (trigger) {
-    case "status_change":
-      return prev.status !== curr.status;
-    case "stage_change":
-      return prev.stageId !== curr.stageId;
-    case "priority_change":
-      return prev.priority !== curr.priority;
-    case "task_assigned":
-      return prev.assigneeId !== curr.assigneeId;
-    case "due_date_approaching":
-      return isDueDateApproaching(curr.dueDate);
-    case "due_date_passed":
-      return isDueDatePassed(curr.dueDate);
-    case "task_created":
-      return changes.isNew === true;
-    case "tag_added":
-      return changes.tagsAdded && changes.tagsAdded.length > 0;
-    default:
-      return false;
-  }
+// Export compatibility wrapper
+export async function checkAutomationRules(context: any) {
+  return runAutomationEngine(context);
 }
 
-function matchesConditions(
-  conditions: Array<{ field: string; operator: string; value: any }>,
-  prev: any,
-  curr: any,
-): boolean {
-  for (const condition of conditions) {
-    const { field, operator, value } = condition;
-    
-
-    const actualValue = curr[field] ?? prev[field];
-
-    // Handle "Any" values
-    if (value === "Any Status" || value === "Any Stage" || value === "Any") {
-      continue;
-    }
-
-    // Convert both values to string and lowercase for safer comparison
-    const normalizedActual = String(actualValue).toLowerCase();
-    const normalizedExpected = String(value).toLowerCase();
-
-    if (operator === "equals" && normalizedActual !== normalizedExpected) {
-      console.log(
-        `[Condition Mismatch] Field: ${field}, Expected: ${normalizedExpected}, Found: ${normalizedActual}`,
-      );
-      return false;
-    }
-
-    // Optional: You can add other operators like "not_equals", "contains", etc.
-  }
-
-  return true;
-}
-
-export async function checkAutomationRules(context: AutomationContext) {
-  logger.debug("Checking automation rules for task", {
-    taskId: context.currentTask.id,
-  });
-
-  const rules = await db.automationRule.findMany({
-    where: { enabled: true },
-  });
-
-  for (const rule of rules) {
-    logger.debug(`Evaluating rule: ${rule.name}`, { trigger: rule.trigger });
-
-    const triggerMatch = doesTriggerMatch(
-      rule.trigger,
-      context.previousTask,
-      context.currentTask,
-      context.changes,
-    );
-
-    if (!triggerMatch) {
-      logger.debug("Rule trigger not matched", { rule: rule.name });
-      continue;
-    }
-
-    const enrichedPrev = {
-      ...context.previousTask,
-      from_stage:
-        (context.previousTask as any).stageId || context.previousTask.stage?.id,
-      from_status: context.previousTask.status,
-    };
-
-    const enrichedCurr = {
-      ...context.currentTask,
-      to_stage: context.currentTask.stage?.id,
-      to_status: context.currentTask.status,
-    };
-
-    logger.debug("Checking condition match", {
-      conditions: rule.conditions,
-      enrichedPrev,
-      enrichedCurr,
-    });
-
-    const conditionMatch = matchesConditions(
-      rule.conditions,
-      enrichedPrev,
-      enrichedCurr,
-    );
-
-    if (!conditionMatch) {
-      logger.debug("Rule conditions not matched", { rule: rule.name });
-      continue;
-    }
-
-    logger.debug("Rule matched, executing actions", { rule: rule.name });
-
-    await applyAutomationActions({
-      task: context.currentTask,
-      rule,
-      userId: context.userId,
-    });
-
-    if (rule.stopOnFirst) {
-      logger.debug("Stopping after first matched rule");
-      break;
-    }
-  }
-}
-
-function isDueDateApproaching(dueDate?: Date | null): boolean {
-  if (!dueDate) return false;
-  const now = new Date();
-  const timeDiff = dueDate.getTime() - now.getTime();
-  const hoursDiff = timeDiff / (1000 * 60 * 60);
-  return hoursDiff > 0 && hoursDiff <= 24; // Within next 24 hours
-}
-
-function isDueDatePassed(dueDate?: Date | null): boolean {
-  if (!dueDate) return false;
-  return new Date() > dueDate;
-}
-
-async function applyAutomationActions({
-  task,
-  rule,
-  userId,
-}: {
-  task: Partial<TaskWithRelations>;
-  rule: AutomationRule;
-  userId: string;
-}) {
-  logger.info(`Executing automation: ${rule.name}`, { actions: rule.actions });
-
-  try {
-    await db.$transaction(async (tx: typeof db) => {
-      const actions: any[] = Array.isArray((rule as any).actions)
-        ? (rule as any).actions
-        : [];
-      for (const action of actions) {
-        logger.debug(`Applying action: ${action.type}`, {
-          value: action.value,
-        });
-
-        switch (action.type) {
-          case "move_stage":
-            await tx.record.update({
-              where: { id: task.id },
-              data: { stageId: action.value },
-            });
-            break;
-
-          case "status_changes":
-            await tx.record.update({
-              where: { id: task.id },
-              data: { status: action.value },
-            });
-            break;
-
-          case "assign_user":
-            await tx.record.update({
-              where: { id: task.id },
-              data: { assigneeId: action.value },
-            });
-            break;
-
-          case "add_tag":
-            await handleAddTagAction(tx, task.id!, action.value);
-            break;
-
-          case "send_notification":
-            const targetUserId = action.value.userId || task.assignee?.id;
-
-           
-            const success = await emitToUser(
-              targetUserId,
-              "new-notification",
-              "k",
-            );
-          
-
-            await tx.notification.create({
-              data: {
-                type: "REMINDER",
-                content:
-                  action.value.message ||
-                  `Automation rule "${rule.name}" was applied`,
-                userId: targetUserId,
-                taskId: task.id,
-              },
-            });
-
-            break;
-
-          case "set_due_date":
-            await tx.record.update({
-              where: { id: task.id },
-              data: { dueDate: new Date(action.value) },
-            });
-            break;
-
-          case "set_priority":
-            await tx.record.update({
-              where: { id: task.id },
-              data: { priority: action.value },
-            });
-            break;
-
-          default:
-            logger.error("Unknown action type", { type: action.type });
-        }
-      }
-
-      // Log activity
-      await tx.taskActivity.create({
-        // data: {
-        //   taskId: task.id!,
-        //   userId,
-        //   type: "automation_applied",
-        //   description: `Automation rule "${rule.name}" was executed`,
-        // },
-        data: {
-          taskId: (task as any).parentTaskId,
-          userId,
-          type: "task_created",
-          description: `Task "${rule.name}" was created.`,
-        },
-      });
-    });
-
-    logger.info(`Successfully executed automation rule: ${rule.name}`);
-  } catch (error) {
-    logger.error(`Failed to execute automation rule: ${rule.name}`, error);
-    throw error;
-  }
-}
-
-async function handleAddTagAction(
-  tx: typeof db,
-  recordId: string,
-  tagName: string,
-) {
-  if (!tagName) return;
-  let tag = await tx.tag.findUnique({ where: { name: tagName } });
-  if (!tag) {
-    tag = await tx.tag.create({ data: { name: tagName } });
-  }
-  await tx.record.update({
-    where: { id: recordId },
-    data: { tags: { connect: { id: tag.id } } },
-  });
-}
-
-async function createNotification(
-  tx: any,
-  notification: {
-    userId?: string | null;
-    type: string;
-    content: string;
-    metadata?: Record<string, any>;
-  },
-) {
-  if (!notification.userId) return;
-
-  await tx.notification.create({
-    data: {
-      type: notification.type,
-      content: notification.content,
-      userId: notification.userId,
-      metadata: notification.metadata,
-    },
-  });
-}
 
 async function createAutomaticTaskReminders(
-  taskId: string,
+  targetTaskId: string,
   taskTitle: string,
   deadline: Date,
   assigneeIds: string[],
 ) {
+  let validTaskId: string | null = null;
+  if (targetTaskId) {
+    const existingTask = await db.task.findUnique({
+      where: { id: targetTaskId },
+      select: { id: true },
+    });
+    if (existingTask) {
+      validTaskId = existingTask.id;
+    }
+  }
+
   const reminderIntervals = [
     { days: 4, hours: 0, label: "4 days before" },
     { days: 2, hours: 0, label: "2 days before" },
@@ -1192,7 +1001,7 @@ async function createAutomaticTaskReminders(
       if (interval.hours > 0) {
         reminderTime = subHours(reminderTime, interval.hours);
       }
- console.log(assigneeId, 'assigneeIddddddddddddddddddd');
+
       // Only create reminder if it's in the future
       if (reminderTime > new Date()) {
         reminderPromises.push(
@@ -1205,7 +1014,7 @@ async function createAutomaticTaskReminders(
               type: "TASK_DEADLINE",
               creatorId: assigneeId, // System-created, but assigned to user
               assigneeId: assigneeId,
-              taskId: taskId,
+              taskId: validTaskId,
               isAutomatic: true,
             },
           }),

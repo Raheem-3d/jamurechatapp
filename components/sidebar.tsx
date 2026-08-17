@@ -24,6 +24,7 @@ import {
   Briefcase,
   Bot,
   Sparkles,
+  BarChart3,
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -47,6 +48,7 @@ type Channel = {
   name: string;
   isPublic: boolean;
   isDepartment: boolean;
+  image?: string | null;
 };
 
 export default function Sidebar({
@@ -70,6 +72,10 @@ export default function Sidebar({
   const [workspaceSearchQuery, setWorkspaceSearchQuery] = useState("");
   const [recentTasks, setRecentTasks] = useState<any[]>([]);
   const [recentChats, setRecentChats] = useState<any[]>([]);
+  const [unreadCounts, setUnreadCounts] = useState<{
+    dms: Record<string, number>;
+    channels: Record<string, number>;
+  }>({ dms: {}, channels: {} });
   const [localSidebarWidth, setLocalSidebarWidth] = useState(256); // Fallback if no props
   const { onlineUsers } = useSocket();
   const [isTasksLoading, setIsTasksLoading] = useState([]);
@@ -96,9 +102,10 @@ export default function Sidebar({
   const isAdmin = session?.user?.role == "ORG_ADMIN";
   const isClient = session?.user.role == "CLIENT";
   const departments = session?.user?.departmentId;
-  const [boardType, setBoardType] = useState("recent-chats");
+  const [boardType, setBoardType] = useState("channels");
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [orgName, setOrgName] = useState<string | null>(null);
+  const [aiEnabled, setAiEnabled] = useState(true);
 
   // Permission-based check for creating projects/channels
   const perms = usePermissions() as any;
@@ -169,8 +176,7 @@ export default function Sidebar({
         const response = await fetch("/api/channels");
         if (response.ok) {
           const data = await response.json();
-
-          setChannels(data);
+          setChannels(Array.isArray(data) ? data : []);
         }
       } catch (error) {
         console.error("Error fetching channels:", error);
@@ -179,14 +185,31 @@ export default function Sidebar({
       }
     };
 
+    const fetchUnreadCounts = async () => {
+      try {
+        const res = await fetch("/api/messages/unread-counts");
+        if (res.ok) {
+          const data = await res.json();
+          setUnreadCounts({
+            dms: data.dms || {},
+            channels: data.channels || {},
+          });
+        }
+      } catch (error) {
+        console.error("Failed to fetch unread counts", error);
+      }
+    };
+
     fetchChannels();
     fetchRecentTasks();
     fetchRecentChats();
+    fetchUnreadCounts();
 
     // Listen for creation events to refresh without full page reload
     const onChannelCreated = () => {
       // Re-fetch to stay consistent with server filters
       fetchChannels();
+      fetchUnreadCounts();
     };
     const onTaskCreated = () => {
       fetchRecentTasks();
@@ -194,12 +217,14 @@ export default function Sidebar({
 
     const onChatCreated = () => {
       fetchRecentChats();
+      fetchUnreadCounts();
     };
 
     // Listen for assignment events (when user is assigned to channel/task)
     const onChannelAssigned = () => {
       // console.log("📡 Channel assigned - refreshing sidebar");
       fetchChannels();
+      fetchUnreadCounts();
     };
     const onTaskAssigned = () => {
       // console.log("📡 Task assigned - refreshing sidebar");
@@ -208,6 +233,7 @@ export default function Sidebar({
 
     const onMessageCreated = () => {
       fetchRecentChats();
+      fetchUnreadCounts();
     };
 
     window.addEventListener(
@@ -224,6 +250,10 @@ export default function Sidebar({
     window.addEventListener(
       "message:created",
       onMessageCreated as EventListener,
+    );
+    window.addEventListener(
+      "messages:read",
+      fetchUnreadCounts as EventListener,
     );
 
     return () => {
@@ -251,6 +281,10 @@ export default function Sidebar({
         "message:created",
         onMessageCreated as EventListener,
       );
+      window.removeEventListener(
+        "messages:read",
+        fetchUnreadCounts as EventListener,
+      );
     };
   }, []);
 
@@ -263,6 +297,9 @@ export default function Sidebar({
         const payload = await res.json();
         const name = payload?.organization?.name || null;
         setOrgName(name);
+        if (payload?.organization?.aiEnabled !== undefined) {
+          setAiEnabled(payload.organization.aiEnabled);
+        }
       } catch (err) {
         console.error("Failed to fetch organization:", err);
       }
@@ -288,12 +325,16 @@ export default function Sidebar({
         href: "/dashboard",
         icon: <LucideLayoutDashboard className="h-5 w-5" />,
       },
-      // {
-      //   title: "AI Assistant",
-      //   href: "/dashboard/ai-assistant",
-      //   icon: <Bot className="h-5 w-5" />,
-      //   badge: <Sparkles className="h-3 w-3 text-yellow-500" />,
-      // },
+      ...(aiEnabled
+        ? [
+            {
+              title: "AI Assistant",
+              href: "/dashboard/ai-assistant",
+              icon: <Bot className="h-5 w-5" />,
+              badge: <Sparkles className="h-3 w-3 text-yellow-500" />,
+            },
+          ]
+        : []),
       {
         title: "Calendar",
         href: "/dashboard/calendar",
@@ -317,12 +358,16 @@ export default function Sidebar({
         href: "/dashboard",
         icon: <LucideLayoutDashboard className="h-5 w-5" />,
       },
-      // {
-      //   title: "AI Assistant",
-      //   href: "/dashboard/ai-assistant",
-      //   icon: <Bot className="h-5 w-5" />,
-      //   badge: <Sparkles className="h-3 w-3 text-yellow-500" />,
-      // },
+      ...(aiEnabled
+        ? [
+            {
+              title: "AI Assistant",
+              href: "/dashboard/ai-assistant",
+              icon: <Bot className="h-5 w-5" />,
+              badge: <Sparkles className="h-3 w-3 text-yellow-500" />,
+            },
+          ]
+        : []),
       {
         title: "Calendar",
         href: "/dashboard/calendar",
@@ -334,6 +379,11 @@ export default function Sidebar({
         icon: <Bell className="h-5 w-5" />,
       },
       {
+        title: "Reports & Analytics",
+        href: "/dashboard/reports",
+        icon: <BarChart3 className="h-5 w-5" />,
+      },
+      {
         title: "Reminders",
         href: "/dashboard/reminders",
         icon: <CalendarCheck className="h-5 w-5" />,
@@ -343,35 +393,38 @@ export default function Sidebar({
 
   //
 
-  const filteredChannels = channels.filter((channel) => {
-    const name = channel.name.toLowerCase();
-    const query = searchQuery.toLowerCase();
+  const filteredChannels = (Array.isArray(channels) ? channels : []).filter(
+    (channel) => {
+      if (!channel?.name) return false;
+      const name = channel.name.toLowerCase();
+      if (name.startsWith("task") || name.startsWith("internal")) return false;
+      const query = searchQuery.toLowerCase();
 
-    return (
-      !name.startsWith("task") &&
-      !name.includes("internal") &&
-      name.includes(query)
-    );
-  });
+      return name.includes(query);
+    },
+  );
 
   // Filter for workspace view
-  const filteredWorkspaceChats = recentChats.filter((contact) =>
-    contact.name?.toLowerCase().includes(workspaceSearchQuery.toLowerCase()),
+  const filteredWorkspaceChats = (
+    Array.isArray(recentChats) ? recentChats : []
+  ).filter((contact) =>
+    contact?.name?.toLowerCase().includes(workspaceSearchQuery.toLowerCase()),
   );
 
-  const filteredWorkspaceProjects = recentTasks.filter((task) =>
-    task.title?.toLowerCase().includes(workspaceSearchQuery.toLowerCase()),
+  const filteredWorkspaceProjects = (
+    Array.isArray(recentTasks) ? recentTasks : []
+  ).filter((task) =>
+    task?.title?.toLowerCase().includes(workspaceSearchQuery.toLowerCase()),
   );
 
-  const filteredWorkspaceChannels = channels.filter((channel) => {
+  const filteredWorkspaceChannels = (
+    Array.isArray(channels) ? channels : []
+  ).filter((channel) => {
+    if (!channel?.name) return false;
     const name = channel.name.toLowerCase();
+    if (name.startsWith("task") || name.startsWith("internal")) return false;
     const query = workspaceSearchQuery.toLowerCase();
-
-    return (
-      !name.startsWith("task") &&
-      !name.includes("internal") &&
-      name.includes(query)
-    );
+    return name.includes(query);
   });
 
   return (
@@ -397,7 +450,9 @@ export default function Sidebar({
                   (session as any)?.user?.organizationName ||
                   "Workspace"}
               </h2>
-              <span className="text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">Enterprise</span>
+              <span className="text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
+                Enterprise
+              </span>
             </div>
           </div>
         )}
@@ -433,10 +488,10 @@ export default function Sidebar({
                 href={item.href}
                 prefetch={true}
                 className={cn(
-                  "flex items-center px-3 py-2.5 rounded-xl text-xs font-semibold transition-all duration-150 group",
+                  "flex items-center px-3 py-2.5 rounded-xl text-xs sm:text-[13.5px] font-semibold transition-all duration-150 group",
                   pathname === item.href
                     ? "bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border border-indigo-200/60 dark:border-indigo-800/60 shadow-xs font-bold"
-                    : "text-slate-600 dark:text-slate-400 hover:bg-slate-100/70 dark:hover:bg-slate-800/70 hover:text-slate-900 dark:hover:text-slate-100",
+                    : "text-slate-700 dark:text-slate-300 hover:bg-slate-100/70 dark:hover:bg-slate-800/70 hover:text-slate-900 dark:hover:text-slate-100",
                 )}
               >
                 <div
@@ -449,7 +504,11 @@ export default function Sidebar({
                 >
                   {item.icon}
                 </div>
-                {!isCollapsed && <span className="ml-3 truncate">{item.title}</span>}
+                {!isCollapsed && (
+                  <span className="ml-3 truncate tracking-wide">
+                    {item.title}
+                  </span>
+                )}
               </Link>
             ))}
           </nav>
@@ -539,115 +598,73 @@ export default function Sidebar({
               </div>
             </div>
 
-            {isClient ? (
-              <div className="space-y-3">
-                {!isCollapsed && (
-                  <Input
-                    placeholder="Search projects..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="h-8 text-xs bg-slate-100/80 dark:bg-slate-800/60 border-slate-200/80 dark:border-slate-700/80 rounded-xl focus:bg-white dark:focus:bg-slate-900"
-                  />
-                )}
-                <div className="space-y-1">
-                  {isLoading
-                    ? Array.from({ length: 3 }).map((_, i) => (
+            <div className="space-y-2.5">
+              {!isCollapsed && (
+                <Select value={boardType} onValueChange={setBoardType}>
+                  <SelectTrigger className="h-8 text-xs font-semibold bg-slate-100/80 dark:bg-slate-800/60 border-slate-200/80 dark:border-slate-700/80 rounded-xl focus:ring-0">
+                    <SelectValue placeholder="Select view" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl border-slate-200 dark:border-slate-800 shadow-lg">
+                    <SelectItem
+                      value="recent-chats"
+                      className="text-xs font-semibold"
+                    >
+                      Recent Chats
+                    </SelectItem>
+                    <SelectItem
+                      value="projects"
+                      className="text-xs font-semibold"
+                    >
+                      Projects
+                    </SelectItem>
+                    <SelectItem
+                      value="channels"
+                      className="text-xs font-semibold"
+                    >
+                      Channels
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
+
+              {!isCollapsed && (
+                <Input
+                  placeholder={
+                    boardType === "recent-chats"
+                      ? "Search contacts..."
+                      : boardType === "projects"
+                        ? "Search projects..."
+                        : "Search channels..."
+                  }
+                  value={workspaceSearchQuery}
+                  onChange={(e) => setWorkspaceSearchQuery(e.target.value)}
+                  className="h-8 text-xs bg-slate-100/80 dark:bg-slate-800/60 border-slate-200/80 dark:border-slate-700/80 rounded-xl focus:bg-white dark:focus:bg-slate-900"
+                />
+              )}
+
+              <div className="space-y-1">
+                {isLoading
+                  ? Array.from({ length: 3 }).map((_, i) => (
                       <Skeleton
                         key={i}
                         className="h-8 w-full bg-slate-200/80 dark:bg-slate-800 rounded-xl"
                       />
                     ))
-                    : recentTasks.length > 0
-                      ? recentTasks.map((task) => (
-                        <Link
-                          key={task.id}
-                          href={`/dashboard/tasks/${task.id}/record`}
-                          prefetch={true}
-                          onMouseEnter={() => prefetchChannel(task.id)}
-                          onClick={() => handleChannelNavigation(task.id)}
-                          className={cn(
-                            "flex items-center px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-150 group",
-                            navigatingTo === task.id
-                              ? "bg-indigo-100 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 opacity-70"
-                              : pathname === `/dashboard/tasks/${task.id}`
-                                ? "bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 border border-indigo-200/60 dark:border-indigo-800/60 font-bold shadow-xs"
-                                : "text-slate-600 dark:text-slate-400 hover:bg-slate-100/70 dark:hover:bg-slate-800/70 hover:text-slate-900 dark:hover:text-slate-100",
-                          )}
-                        >
-                          {navigatingTo === task.id ? (
-                            <div className="w-3.5 h-3.5 mr-2.5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
-                          ) : (
-                            <Briefcase className="h-3.5 w-3.5 mr-2.5 text-indigo-500 group-hover:scale-110 transition-transform shrink-0" />
-                          )}
-                          {!isCollapsed && (
-                            <span className="truncate flex-1">
-                              {task.title}
-                            </span>
-                          )}
-                        </Link>
-                      ))
-                      : !isCollapsed && (
-                        <p className="text-xs text-slate-400 dark:text-slate-500 text-center py-2 font-medium">
-                          No projects found
-                        </p>
-                      )}
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-2.5">
-                {!isCollapsed && (
-                  <Select value={boardType} onValueChange={setBoardType}>
-                    <SelectTrigger className="h-8 text-xs font-semibold bg-slate-100/80 dark:bg-slate-800/60 border-slate-200/80 dark:border-slate-700/80 rounded-xl focus:ring-0">
-                      <SelectValue placeholder="Select view" />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-xl border-slate-200 dark:border-slate-800 shadow-lg">
-                      <SelectItem value="recent-chats" className="text-xs font-semibold">Recent Chats</SelectItem>
-                      <SelectItem value="projects" className="text-xs font-semibold">Projects</SelectItem>
-                      <SelectItem value="channels" className="text-xs font-semibold">Channels</SelectItem>
-                    </SelectContent>
-                  </Select>
-                )}
-
-                {!isCollapsed && (
-                  <Input
-                    placeholder={
-                      boardType === "recent-chats"
-                        ? "Search contacts..."
-                        : boardType === "projects"
-                          ? "Search projects..."
-                          : "Search channels..."
-                    }
-                    value={workspaceSearchQuery}
-                    onChange={(e) => setWorkspaceSearchQuery(e.target.value)}
-                    className="h-8 text-xs bg-slate-100/80 dark:bg-slate-800/60 border-slate-200/80 dark:border-slate-700/80 rounded-xl focus:bg-white dark:focus:bg-slate-900"
-                  />
-                )}
-
-                <div className="space-y-1">
-                  {isLoading
-                    ? Array.from({ length: 3 }).map((_, i) => (
-                      <Skeleton
-                        key={i}
-                        className="h-8 w-full bg-slate-200/80 dark:bg-slate-800 rounded-xl"
-                      />
-                    ))
-                    : boardType === "recent-chats"
-                      ? filteredWorkspaceChats.length > 0
-                        ? filteredWorkspaceChats.map((contact) => (
+                  : boardType === "recent-chats"
+                    ? filteredWorkspaceChats.length > 0
+                      ? filteredWorkspaceChats.map((contact) => (
                           <Link
                             key={contact.id}
                             href={`/dashboard/messages/${contact.id}`}
                             prefetch={true}
                             onMouseEnter={() => prefetchChannel(contact.id)}
-                            onClick={() =>
-                              handleChannelNavigation(contact.id)
-                            }
+                            onClick={() => handleChannelNavigation(contact.id)}
                             className={cn(
-                              "flex items-center px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-150 group",
+                              "flex items-center px-3 py-2.5 rounded-xl text-xs sm:text-[13px] font-semibold transition-all duration-150 group",
                               navigatingTo === contact.id
                                 ? "bg-indigo-100 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 opacity-70"
                                 : pathname ===
-                                  `/dashboard/messages/${contact.id}`
+                                    `/dashboard/messages/${contact.id}`
                                   ? "bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 border border-indigo-200/60 dark:border-indigo-800/60 font-bold shadow-xs"
                                   : "text-slate-600 dark:text-slate-400 hover:bg-slate-100/70 dark:hover:bg-slate-800/70 hover:text-slate-900 dark:hover:text-slate-100",
                             )}
@@ -659,31 +676,38 @@ export default function Sidebar({
                                 </div>
                               ) : (
                                 <>
-                                  <div className="w-5 h-5 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-[10px] text-white font-bold">
+                                  <div className="w-6 h-6 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-[11px] text-white font-extrabold shadow-2xs">
                                     {contact.name?.charAt(0)?.toUpperCase() ||
                                       "U"}
                                   </div>
                                   {onlineUsers?.includes(contact.id) && (
-                                    <div className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-500 border border-white dark:border-slate-900"></div>
+                                    <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 border border-white dark:border-slate-900"></div>
                                   )}
                                 </>
                               )}
                             </div>
                             {!isCollapsed && (
-                              <span className="ml-2.5 truncate flex-1 text-slate-700 dark:text-slate-300">
+                              <span className="ml-2.5 truncate flex-1 text-xs sm:text-[13px] font-bold text-slate-800 dark:text-slate-200 tracking-wide">
                                 {contact.name || "Unknown User"}
                               </span>
                             )}
+                            {(unreadCounts?.dms?.[contact.id] || 0) > 0 && (
+                              <Badge className="ml-auto bg-indigo-600 dark:bg-indigo-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0">
+                                {(unreadCounts.dms[contact.id] || 0) > 99
+                                  ? "99+"
+                                  : unreadCounts.dms[contact.id]}
+                              </Badge>
+                            )}
                           </Link>
                         ))
-                        : !isCollapsed && (
+                      : !isCollapsed && (
                           <p className="text-xs text-slate-400 dark:text-slate-500 text-center py-2 font-medium">
                             No recent chats
                           </p>
                         )
-                      : boardType === "projects"
-                        ? filteredWorkspaceProjects.length > 0
-                          ? filteredWorkspaceProjects.map((task) => (
+                    : boardType === "projects"
+                      ? filteredWorkspaceProjects.length > 0
+                        ? filteredWorkspaceProjects.map((task) => (
                             <Link
                               key={task.id}
                               href={`/dashboard/tasks/${task.id}/record`}
@@ -691,7 +715,7 @@ export default function Sidebar({
                               onMouseEnter={() => prefetchChannel(task.id)}
                               onClick={() => handleChannelNavigation(task.id)}
                               className={cn(
-                                "flex items-center px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-150 group",
+                                "flex items-center px-3 py-2.5 rounded-xl text-xs sm:text-[13px] font-semibold transition-all duration-150 group",
                                 navigatingTo === task.id
                                   ? "bg-indigo-100 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 opacity-70"
                                   : pathname === `/dashboard/tasks/${task.id}`
@@ -700,24 +724,24 @@ export default function Sidebar({
                               )}
                             >
                               {navigatingTo === task.id ? (
-                                <div className="w-3.5 h-3.5 mr-2.5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+                                <div className="w-4 h-4 mr-3 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
                               ) : (
-                                <Briefcase className="h-3.5 w-3.5 mr-2.5 text-indigo-500 group-hover:scale-110 transition-transform shrink-0" />
+                                <Briefcase className="h-4 w-4 mr-2.5 text-indigo-500 group-hover:scale-110 transition-transform shrink-0" />
                               )}
                               {!isCollapsed && (
-                                <span className="truncate flex-1">
+                                <span className="truncate flex-1 text-xs sm:text-[13px] font-bold text-slate-800 dark:text-slate-200 tracking-wide">
                                   {task.title}
                                 </span>
                               )}
                             </Link>
                           ))
-                          : !isCollapsed && (
+                        : !isCollapsed && (
                             <p className="text-xs text-slate-400 dark:text-slate-500 text-center py-2 font-medium">
                               No projects
                             </p>
                           )
-                        : filteredWorkspaceChannels.length > 0
-                          ? filteredWorkspaceChannels.map((channel) => (
+                      : filteredWorkspaceChannels.length > 0
+                        ? filteredWorkspaceChannels.map((channel) => (
                             <Link
                               key={channel.id}
                               href={`/dashboard/channels/${channel.id}`}
@@ -731,52 +755,80 @@ export default function Sidebar({
                                 navigatingTo === channel.id
                                   ? "bg-indigo-100 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 opacity-70"
                                   : pathname ===
-                                    `/dashboard/channels/${channel.id}`
+                                      `/dashboard/channels/${channel.id}`
                                     ? "bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 border border-indigo-200/60 dark:border-indigo-800/60 font-bold shadow-xs"
                                     : "text-slate-600 dark:text-slate-400 hover:bg-slate-100/70 dark:hover:bg-slate-800/70 hover:text-slate-900 dark:hover:text-slate-100",
                               )}
                             >
                               {navigatingTo === channel.id ? (
-                                <div className="w-3.5 h-3.5 mr-2.5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin shrink-0"></div>
+                                <div className="w-4 h-4 mr-3 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin shrink-0"></div>
+                              ) : channel.image ? (
+                                <img
+                                  src={channel.image}
+                                  alt={channel.name}
+                                  className="w-10 h-10 rounded-md object-cover mr-2.5 shrink-0 border border-indigo-200 dark:border-indigo-800 shadow-2xs"
+                                />
                               ) : (
-                                <Hash className="h-3.5 w-3.5 mr-2.5 text-indigo-500 group-hover:scale-110 transition-transform shrink-0" />
+                                <Hash className="h-4 w-4 mr-2.5 text-indigo-500 group-hover:scale-110 transition-transform shrink-0" />
                               )}
 
                               {!isCollapsed && (
-                                <span className="truncate flex-1 text-slate-700 dark:text-slate-300">
-                                  {channel.name.charAt(0).toUpperCase() +
-                                    channel.name.slice(1)}
+                                <span className="truncate flex-1 text-xs sm:text-[13px] font-bold text-slate-800 dark:text-slate-200 tracking-wide">
+                                  {channel?.name
+                                    ? channel.name.charAt(0).toUpperCase() +
+                                      channel.name.slice(1)
+                                    : "Unnamed Channel"}
                                 </span>
+                              )}
+                              {(unreadCounts?.channels?.[channel.id] || 0) >
+                                0 && (
+                                <Badge className="ml-auto bg-indigo-600 dark:bg-indigo-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0">
+                                  {(unreadCounts.channels[channel.id] || 0) > 99
+                                    ? "99+"
+                                    : unreadCounts.channels[channel.id]}
+                                </Badge>
                               )}
                             </Link>
                           ))
-                          : !isCollapsed && (
+                        : !isCollapsed && (
                             <p className="text-xs text-slate-400 dark:text-slate-500 text-center py-2 font-medium">
                               No channels
                             </p>
                           )}
-                </div>
               </div>
-            )}
+            </div>
           </div>
         </div>
       </ScrollArea>
 
       {/* User Profile */}
-      <div className="p-4 border-t border-gray-200 dark:border-gray-800">
-        <div className="flex items-center space-x-3">
-          <div className="relative">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-sm font-medium text-white">
-              {user?.name?.charAt(0)?.toUpperCase() || "U"}
-            </div>
-            <div className="absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white dark:border-gray-900 bg-green-500"></div>
+      <div className="p-3.5 border-t border-slate-200/80 dark:border-slate-800/80 bg-slate-50/40 dark:bg-slate-900/40">
+        <div
+          className={cn(
+            "flex items-center gap-3",
+            isCollapsed && "justify-center space-x-0",
+          )}
+        >
+          <div className="relative shrink-0">
+            {(user as any)?.image || (session?.user as any)?.image ? (
+              <img
+                src={(user as any)?.image || (session?.user as any)?.image}
+                alt={user?.name || "User DP"}
+                className="w-11 h-11 rounded-2xl object-cover border border-indigo-100 dark:border-indigo-900/60 shadow-xs"
+              />
+            ) : (
+              <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-indigo-500 via-purple-600 to-pink-500 flex items-center justify-center text-base font-extrabold text-white shadow-md shadow-indigo-500/20">
+                {user?.name?.charAt(0)?.toUpperCase() || "U"}
+              </div>
+            )}
+            <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-white dark:border-slate-900 bg-emerald-500 shadow-2xs"></div>
           </div>
           {!isCollapsed && (
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+              <p className="text-sm font-extrabold text-slate-900 dark:text-white truncate leading-tight">
                 {user?.name || "User"}
               </p>
-              <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+              <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 truncate mt-0.5">
                 {user?.email || ""}
               </p>
             </div>

@@ -39,21 +39,14 @@ export async function GET(req: Request) {
     let whereClause: any = {}
 
     // Super admins can see all tasks
-    // Users with TASK_VIEW_ALL can see all org tasks
-    // Regular users see only their own/assigned tasks
+    // All other users (including ORG_ADMIN) only see tasks they created or are assigned to
     if (!isSuperAdmin) {
       whereClause.organizationId = user?.organizationId || undefined
-      
-      // Check if user has TASK_VIEW_ALL permission
-      const canViewAll = hasPermission(userWithPerms.role, 'TASK_VIEW_ALL', isSuperAdmin, userPerms)
-      
-      if (!canViewAll) {
-        // Only show tasks created by or assigned to the user
-        whereClause.OR = [
-          { creatorId: user.id },
-          { assignments: { some: { userId: user.id } } }
-        ]
-      }
+      // Always restrict to tasks the user is involved in
+      whereClause.OR = [
+        { creatorId: user.id },
+        { assignments: { some: { userId: user.id } } }
+      ]
     }
 
     // If assignedTo is specified, filter by assignments
@@ -68,7 +61,7 @@ export async function GET(req: Request) {
     else if (createdBy) {
       whereClause.creatorId = createdBy
     }
-    // Otherwise, for non-super-admins, show tasks user is involved in
+    // Otherwise, for non-super-admins, always scope to user's own tasks
     else if (!isSuperAdmin) {
       whereClause.OR = [
         { creatorId: user.id },

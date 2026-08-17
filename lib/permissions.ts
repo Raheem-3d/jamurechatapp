@@ -53,7 +53,6 @@ export const DefaultRolePermissions: Record<string, Permission[]> = {
     "TASK_CREATE",
     "TASK_EDIT",
     "TASK_VIEW",
-    "TASK_VIEW_ALL",
     "TASK_DELETE",
     "CHANNEL_CREATE",
     "CHANNEL_MANAGE",

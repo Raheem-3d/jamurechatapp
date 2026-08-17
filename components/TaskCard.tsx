@@ -99,18 +99,22 @@ export function TaskCard({
       {/* Tag Badges */}
       {task.tags && task.tags.length > 0 && (
         <div className="flex flex-wrap gap-1">
-          {task.tags.map((tag) => (
-            <Badge
-              key={tag.id}
-              variant="secondary"
-              className={cn(
-                "text-[9px] font-extrabold px-1.5 py-0 rounded-md bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-900/40",
-                tag.color
-              )}
-            >
-              {tag.name}
-            </Badge>
-          ))}
+          {task.tags.map((tag: any) => {
+            const tagKey = typeof tag === "string" ? tag : tag.id || tag.tagId || tag.name;
+            const tagName = typeof tag === "string" ? tag : tag.name || tagKey;
+            return (
+              <Badge
+                key={tagKey}
+                variant="secondary"
+                className={cn(
+                  "text-[9px] font-extrabold px-1.5 py-0 rounded-md bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-900/40",
+                  tag.color
+                )}
+              >
+                {tagName}
+              </Badge>
+            );
+          })}
         </div>
       )}
 

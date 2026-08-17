@@ -15,6 +15,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const userOrg = await db.user.findUnique({
+      where: { id: session.user.id },
+      select: { organization: { select: { aiEnabled: true } } }
+    });
+    if (userOrg?.organization?.aiEnabled === false) {
+      return NextResponse.json({ error: 'AI features are disabled' }, { status: 403 });
+    }
+
     const body = await req.json();
     const { messageIds, channelId, limit = 50 } = body;
 

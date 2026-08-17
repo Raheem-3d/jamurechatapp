@@ -21,6 +21,7 @@ export async function GET(req: Request) {
         name: true,
         logoUrl: true,
         themeColor: true,
+        aiEnabled: true,
       },
     })
 

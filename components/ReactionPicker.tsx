@@ -6,7 +6,7 @@ import { Message } from "./message-list";
 type ReactionPickerProps = {
   message: Message;
   isOpen: boolean;
-  anchorRef: React.RefObject<HTMLElement>;
+  anchorRef: React.RefObject<HTMLElement | null>;
   onClose: () => void;
   onReact: (emoji: string) => void;
 };
@@ -126,6 +126,6 @@ export const ReactionPicker = ({
         />
       </div>
     </div>,
-    document.body
+    document.body,
   );
 };

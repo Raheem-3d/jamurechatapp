@@ -1,15 +1,15 @@
-
-
 import { db } from "@/lib/db"
 import { emitToUser } from "./socket-server"
 import { sendEmail } from "./email"
-import { initializeReminderSystem } from "./reminder-init"
+import { subMinutes } from "date-fns"
+import { getTaskReminderEmailHtml } from "./email-templates"
+
+const MAX_RETRIES = 3
+const LOCK_TIMEOUT_MINUTES = 5
 
 export class ReminderProcessor {
   private static instance: ReminderProcessor
-  private intervalId: NodeJS.Timeout | null = null
-  private isRunning = false
-  private processingReminderIds = new Set<string>()
+  private isProcessingBatch = false
 
   private constructor() {}
 
@@ -20,139 +20,162 @@ export class ReminderProcessor {
     return ReminderProcessor.instance
   }
 
-  start(intervalMs = 30000) {
-    // Check every 30 seconds for testing
-    if (this.isRunning) {
-      console.log("⚠️ Reminder processor is already running")
-      return
-    }
-
-    // console.log("🚀 Starting reminder processor...")
-    // console.log(`⏰ Checking for reminders every ${intervalMs / 1000} seconds`)
-    this.isRunning = true
-
-    // Run immediately
-    this.processDueReminders()
-
-    // Then run on interval
-    this.intervalId = setInterval(() => {
-      this.processDueReminders()
-    }, intervalMs)
-
-    // console.log("✅ Reminder processor started successfully")
+  // Deprecated continuous polling method maintained for backward compatibility
+  start(_intervalMs = 30000) {
+    console.log("ℹ️ Continuous 30-second polling is disabled. Reminders are now processed via scheduled Cron Jobs.")
   }
 
   stop() {
-    if (this.intervalId) {
-      clearInterval(this.intervalId)
-      this.intervalId = null
-    }
-    this.isRunning = false
-    console.log("🛑 Reminder processor stopped")
+    console.log("🛑 Scheduled Reminder processor standby.")
   }
 
-  async processDueReminders() {
-    try {
-      const now = new Date()
-      // console.log(`🔍 Checking for due reminders at: ${now.toLocaleString()}`)
+  /**
+   * Scalable & Production-Ready Batch Processor:
+   * 1. Query candidate due reminders (isSent: false, isMuted: false, remindAt <= now)
+   * 2. Uses atomic updateMany claiming (processingAt timestamp) for multi-worker concurrency safety
+   * 3. Skips DONE / CANCELLED tasks
+   * 4. Retries failed email attempts up to MAX_RETRIES (3)
+   * 5. Emits real-time Socket.io and In-App notifications
+   */
+  async processDueReminders(batchSize = 50) {
+    if (this.isProcessingBatch) {
+      console.log("⚠️ Batch processing already active on this process instance, skipping overlap run.")
+      return { processed: 0, claimed: 0, skipped: 0, failed: 0 }
+    }
 
-      // Find due reminders that haven't been sent and aren't muted
-      const dueReminders = await db.reminder.findMany({
+    this.isProcessingBatch = true
+    const now = new Date()
+    const lockTimeoutCutoff = subMinutes(now, LOCK_TIMEOUT_MINUTES)
+
+    let stats = {
+      processed: 0,
+      claimed: 0,
+      skipped: 0,
+      failed: 0,
+    }
+
+    try {
+      // Find candidate due reminders
+      const dueCandidates = await db.reminder.findMany({
         where: {
-          remindAt: {
-            lte: now,
-          },
+          remindAt: { lte: now },
           isSent: false,
           isMuted: false,
+          retryCount: { lt: MAX_RETRIES },
+          OR: [
+            { processingAt: null },
+            { processingAt: { lt: lockTimeoutCutoff } }, // Release stale locks from crashed instances
+          ],
         },
         include: {
           creator: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-            },
+            select: { id: true, name: true, email: true },
           },
           assignee: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-            },
+            select: { id: true, name: true, email: true },
           },
           task: {
-            select: {
-              id: true,
-              title: true,
-              deadline: true,
-              status: true,
-            },
+            select: { id: true, title: true, deadline: true, status: true },
           },
         },
         orderBy: [{ priority: "desc" }, { remindAt: "asc" }],
+        take: batchSize,
       })
 
-      if (dueReminders.length === 0) {
-        // console.log("📭 No due reminders found")
-        return
+      if (dueCandidates.length === 0) {
+        return stats
       }
 
-      for (const reminder of dueReminders) {
-    if (this.processingReminderIds.has(reminder.id)) continue;
-    this.processingReminderIds.add(reminder.id);
-
-    try {
-      // Skip and mute reminders if the task is marked DONE
-      if (reminder.task && reminder.task.status === "DONE") {
-        await db.reminder.update({
-          where: { id: reminder.id },
-          data: {
-            isSent: true,
-            isMuted: true,
-            sentAt: new Date(),
+      for (const reminder of dueCandidates) {
+        // ATOMIC CLAIM LOCK: Prevents multiple server instances/workers from double-processing
+        const claimResult = await db.reminder.updateMany({
+          where: {
+            id: reminder.id,
+            isSent: false,
+            isMuted: false,
+            OR: [
+              { processingAt: null },
+              { processingAt: { lt: lockTimeoutCutoff } },
+            ],
           },
-        });
-        console.log(`🔕 Muted reminder ${reminder.id} because task "${reminder.task.title}" is DONE`);
-        continue;
-      }
+          data: {
+            processingAt: now,
+          },
+        })
 
-      await this.sendReminderNotification(reminder);
-      // Mark as sent
-      await db.reminder.update({
-        where: { id: reminder.id },
-        data: {
-          isSent: true,
-          sentAt: new Date(),
-        },
-      });
+        if (claimResult.count === 0) {
+          // Another worker claimed this reminder concurrently
+          continue
+        }
+
+        stats.claimed++
+
+        try {
+          // Skip & Mute reminder if the associated task is marked DONE or CANCELLED
+          const taskStatus = String(reminder.task?.status || "").toUpperCase()
+          if (reminder.task && ["DONE", "CANCELLED", "COMPLETED"].includes(taskStatus)) {
+            await db.reminder.update({
+              where: { id: reminder.id },
+              data: {
+                isSent: true,
+                isMuted: true,
+                sentAt: now,
+                processingAt: null,
+              },
+            })
+            stats.skipped++
+            console.log(`🔕 Muted reminder ${reminder.id} - task "${reminder.task.title}" is ${taskStatus}`)
+            continue
+          }
+
+          // Process notification and email
+          await this.sendReminderNotification(reminder)
+
+          // Mark reminder as successfully sent & release claim lock
+          await db.reminder.update({
+            where: { id: reminder.id },
+            data: {
+              isSent: true,
+              sentAt: new Date(),
+              processingAt: null,
+              lastError: null,
+            },
+          })
+
+          stats.processed++
+        } catch (error: any) {
+          stats.failed++
+          const errorMsg = String(error?.message || error || "Unknown processing error")
+          const nextRetryCount = reminder.retryCount + 1
+
+          console.error(`❌ Failed to send reminder ${reminder.id} (Attempt ${nextRetryCount}/${MAX_RETRIES}):`, errorMsg)
+
+          // Handle safe retry or mute if max retries exceeded
+          await db.reminder.update({
+            where: { id: reminder.id },
+            data: {
+              processingAt: null, // Release lock for safe retry on next cron cycle
+              retryCount: nextRetryCount,
+              lastError: errorMsg,
+              isMuted: nextRetryCount >= MAX_RETRIES, // Mute if max retries exceeded
+            },
+          })
+        }
+      }
     } catch (error) {
-      console.error(`❌ Failed to send reminder ${reminder.id}:`, error);
+      console.error("💥 Critical error processing due reminders batch:", error)
     } finally {
-      // Keep in processing set for 2 minutes to prevent any duplicates
-      setTimeout(() => this.processingReminderIds.delete(reminder.id), 120000);
+      this.isProcessingBatch = false
     }
-  }
-    } catch (error) {
-      console.error("💥 Error processing due reminders:", error)
-    }
+
+    return stats
   }
 
   private async sendReminderNotification(reminder: any) {
-    // Enhanced notification with task context
- 
-    
+    if (!reminder.assigneeId) return null
 
-    if (reminder.task) {
-          // console.log(`📋 Task: ${reminder.task.title}`)
-          // console.log(`📊 Task Status: ${reminder.task.status}`)
-      if (reminder.task.deadline) {
-        console.log(`⏳ Task Deadline: ${reminder.task.deadline.toLocaleString()}`)
-      }
-    }
-   
-
-    // Create a notification record in the database
     try {
+      // 1. In-App Notification Database Record
       const notification = await db.notification.create({
         data: {
           type: "REMINDER",
@@ -163,54 +186,32 @@ export class ReminderProcessor {
         },
       })
 
-      // console.log(`💾 Notification record created with ID: ${notification.id}`)
-       const notificationEmitted = emitToUser(reminder.assigneeId, "new-notification",notification)
-        try {
-      const priorityColors = {
-        LOW: '#10B981',
-        MEDIUM: '#3B82F6',
-        HIGH: '#F59E0B',
-        URGENT: '#EF4444'
-      };
+      // 2. Realtime Socket.io Push Event
+      emitToUser(reminder.assigneeId, "new-notification", notification)
 
-      await sendEmail({
-        to: reminder.assignee.email,
-        subject: `🔔 Reminder: ${reminder.title}`,
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2 style="color: #2563eb;">🔔 Reminder Notification</h2>
-            <div style="background: #f9fafb; padding: 16px; border-radius: 8px; margin-bottom: 16px;">
-              <h3 style="margin-top: 0; color: #111827;">${reminder.title}</h3>
-              <p><strong>Description:</strong> ${reminder.description || "No description provided"}</p>
-              <p><strong>Priority:</strong> <span style="color: ${priorityColors[reminder.priority] || '#6B7280'}">
-                ${reminder.priority}
-              </span></p>
-              <p><strong>Due:</strong> ${new Date(reminder.remindAt).toLocaleString('en-US', {
-                weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'
-              })}</p>
-              ${reminder.task ? `
-                <p><strong>Related Task:</strong> ${reminder.task.title} (${reminder.task.status})</p>
-                ${reminder.task.deadline ? `
-                  <p><strong>Task Deadline:</strong> ${new Date(reminder.task.deadline).toLocaleString()}</p>
-                ` : ''}
-              ` : ''}
-            </div>
-            <p style="color: #6b7280; font-size: 14px; text-align: center;">
-              This is an automated reminder from the Task Manager system.
-            </p>
-          </div>
-        `,
-      });
+      // 3. Email Dispatch via Nodemailer
+      if (reminder.assignee?.email) {
+        const emailHtml = getTaskReminderEmailHtml({
+          title: reminder.title,
+          description: reminder.description,
+          priority: reminder.priority,
+          remindAt: reminder.remindAt,
+          taskTitle: reminder.task?.title,
+          taskStatus: reminder.task?.status,
+          deadline: reminder.task?.deadline,
+          taskId: reminder.taskId || reminder.task?.id,
+        })
 
-  
-    } catch (emailError) {
-      console.error("💥 Failed to send email:", emailError);
-    }
-
+        await sendEmail({
+          to: reminder.assignee.email,
+          subject: `🔔 Task Reminder: ${reminder.title}`,
+          html: emailHtml,
+        })
+      }
 
       return notification
     } catch (error) {
-      console.error("💥 Failed to create notification record:", error)
+      console.error("💥 Failed to create notification / send email:", error)
       throw error
     }
   }
@@ -251,7 +252,8 @@ export class ReminderProcessor {
         ])
 
       return {
-        isRunning: this.isRunning,
+        isRunning: false, // Continuous polling disabled in favor of scheduled cron
+        mode: "SCHEDULED_CRON",
         upcomingReminders,
         overdueReminders,
         automaticReminders,
@@ -259,25 +261,25 @@ export class ReminderProcessor {
         totalReminders,
         lastCheck: now.toISOString(),
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error getting processor status:", error)
       return {
-        isRunning: this.isRunning,
+        isRunning: false,
+        mode: "SCHEDULED_CRON",
         upcomingReminders: 0,
         overdueReminders: 0,
         automaticReminders: 0,
         taskReminders: 0,
         totalReminders: 0,
         lastCheck: now.toISOString(),
-        error: error.message,
+        error: String(error?.message || error),
       }
     }
   }
 
-  // Manual trigger for testing
+  // Manual trigger for testing or admin panel
   async triggerManualCheck() {
-    // console.log("🔧 Manual reminder check triggered...")
-    await this.processDueReminders()
+    return await this.processDueReminders()
   }
 }
 
@@ -298,4 +300,3 @@ export async function silenceTaskReminders(taskId: string) {
     console.error(`Error silencing reminders for task ${taskId}:`, error)
   }
 }
-

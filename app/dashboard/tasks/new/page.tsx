@@ -41,6 +41,23 @@ export default function NewTaskPage() {
   const { data: session } = useSession()
   const [title, setTitle] = useState("")
   const [description, setDescription] = useState("")
+  const [aiEnabled, setAiEnabled] = useState(true)
+
+  useEffect(() => {
+    const fetchOrg = async () => {
+      try {
+        const res = await fetch("/api/organization/me");
+        if (!res.ok) return;
+        const payload = await res.json();
+        if (payload?.organization?.aiEnabled !== undefined) {
+          setAiEnabled(payload.organization.aiEnabled);
+        }
+      } catch (err) {
+        console.error("Failed to fetch organization setting for AI in new task page:", err);
+      }
+    };
+    fetchOrg();
+  }, []);
   const [priority, setPriority] = useState("MEDIUM")
   const [deadline, setDeadline] = useState<Date | undefined>(undefined)
   const [deadlineRange, setDeadlineRange] = useState<{ from: Date | undefined; to: Date | undefined }>({ from: undefined, to: undefined })
@@ -261,9 +278,18 @@ export default function NewTaskPage() {
 
                 {/* Description */}
                 <div className="space-y-1.5">
-                  <Label htmlFor="description" className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                    Description
-                  </Label>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="description" className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Description
+                    </Label>
+                    {aiEnabled && (
+                      <DescriptionGenerator
+                        title={title}
+                        onGenerate={(desc) => setDescription(desc)}
+                        type="project"
+                      />
+                    )}
+                  </div>
                   <Textarea
                     id="description"
                     placeholder="Describe the project goals and requirements..."

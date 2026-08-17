@@ -16,12 +16,14 @@ interface MessageSummarizerProps {
   channelId?: string;
   messageIds?: string[];
   limit?: number;
+  className?: string;
 }
 
 export function MessageSummarizer({
   channelId,
   messageIds,
   limit = 50,
+  className,
 }: MessageSummarizerProps) {
   const [loading, setLoading] = useState(false);
   const [summary, setSummary] = useState<string | null>(null);
@@ -60,17 +62,17 @@ export function MessageSummarizer({
         size="sm"
         onClick={handleSummarize}
         disabled={loading}
-        className="gap-2"
+        className={className || "gap-2"}
       >
         {loading ? (
           <>
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Summarizing...
+            <Loader2 className="h-3.5 w-3.5 animate-spin text-indigo-500" />
+            <span className="hidden sm:inline">Summarizing...</span>
           </>
         ) : (
           <>
-            <FileText className="h-4 w-4" />
-            AI Summary
+            <FileText className="h-3.5 w-3.5 text-indigo-500" />
+            <span className="hidden sm:inline">AI Summary</span>
           </>
         )}
       </Button>

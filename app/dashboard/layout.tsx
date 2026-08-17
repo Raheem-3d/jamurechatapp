@@ -13,7 +13,7 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Dialog } from "@/components/ui/dialog";
 import { SocketProvider } from "@/lib/socket-client";
 import { NavigationLoader } from "@/components/navigation-loader";
-
+import { redirect } from "next/navigation";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
@@ -23,7 +23,9 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const isChatPage = pathname?.startsWith("/dashboard/channels") || pathname?.startsWith("/dashboard/messages");
+  const isChatPage =
+    pathname?.startsWith("/dashboard/channels") ||
+    pathname?.startsWith("/dashboard/messages");
   const { data: session, status } = useSession();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -101,7 +103,12 @@ export default function DashboardLayout({
               </Dialog> */}
             </div>
             <Header />
-            <main className={cn("flex-1 overflow-auto bg-slate-50/60 dark:bg-slate-950 flex flex-col", isChatPage ? "p-2 md:p-3" : "p-4 md:p-6")}>
+            <main
+              className={cn(
+                "flex-1 overflow-auto bg-slate-50/60 dark:bg-slate-950 flex flex-col",
+                isChatPage ? "p-2 md:p-3" : "p-4 md:p-6",
+              )}
+            >
               {children}
             </main>
           </div>

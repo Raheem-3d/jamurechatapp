@@ -5,8 +5,11 @@ import { db } from "@/lib/db";
 
 
 
+import { ensureDbSchema } from "@/lib/db-init"
+
 export async function GET( request: NextRequest,  { params }: { params: { channelId: string } } ) {
   try {
+    await ensureDbSchema().catch(() => {})
     const session = await getServerSession(authOptions);
     if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -18,7 +21,6 @@ export async function GET( request: NextRequest,  { params }: { params: { channe
     const channelData = await db.channel.findFirst({
       where: {
         id: channelId,
-        organizationId: user?.organizationId || undefined,
       },
       include: {
         members: {
@@ -29,6 +31,17 @@ export async function GET( request: NextRequest,  { params }: { params: { channe
         department: true,
       },
     });
+
+    if (channelData) {
+      try {
+        const rows: any[] = await db.$queryRawUnsafe(`SELECT image FROM \`Channel\` WHERE id = ?`, channelId);
+        if (rows && rows[0]) {
+          (channelData as any).image = rows[0].image || null;
+        }
+      } catch (e) {
+        console.error("Error fetching single channel image:", e);
+      }
+    }
 
     return NextResponse.json({ channel: channelData });
   } catch (error) {
@@ -96,12 +109,14 @@ export async function PUT(req: Request, { params }: { params: Promise<{ channelI
     description,
     departmentId,
     isPublic,
+    image,
     members, // userIds
   } = body;
 
   try {
+    await ensureDbSchema().catch(() => {});
     // Ensure the channel belongs to the org
-    const existing = await db.channel.findFirst({ where: { id: channelId, organizationId: user?.organizationId || undefined } })
+    const existing = await db.channel.findFirst({ where: { id: channelId } })
     if (!existing) {
       return NextResponse.json({ message: "Not found" }, { status: 404 })
     }
@@ -127,10 +142,20 @@ export async function PUT(req: Request, { params }: { params: Promise<{ channelI
       },
     });
 
-    // Re-add members
-    const newMembers = members.map((userId: string) => ({
+    if (image !== undefined) {
+      await db.$executeRawUnsafe(
+        "UPDATE `Channel` SET `image` = ? WHERE `id` = ?",
+        image,
+        channelId
+      ).catch((e) => console.error("Error updating channel image via raw SQL:", e));
+      (updatedChannel as any).image = image;
+    }
+
+    // Re-add members with admin status for creator and current user
+    const newMembers = (members || []).map((userId: string) => ({
       userId,
       channelId: updatedChannel.id,
+      isAdmin: userId === existing.creatorId || userId === user.id,
     }));
 
     await db.channelMember.createMany({

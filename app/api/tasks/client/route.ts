@@ -3,7 +3,6 @@ import { db } from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 import { getSessionUserWithPermissions } from "@/lib/org";
-import { hasPermission } from "@/lib/permissions";
 
 export async function GET(req: Request) {
   const session = await getServerSession(authOptions);
@@ -17,21 +16,10 @@ export async function GET(req: Request) {
     const orgId = user.organizationId;
 
     let isSuperAdmin = false;
-    let canViewAll = false;
 
     try {
       const userWithPerms = await getSessionUserWithPermissions(req as any);
       isSuperAdmin = userWithPerms?.isSuperAdmin || false;
-      let userPerms: any[] = [];
-      try {
-        userPerms = JSON.parse(String(userWithPerms?.permissions || "[]"));
-      } catch {}
-      canViewAll = hasPermission(
-        userWithPerms?.role,
-        "TASK_VIEW_ALL",
-        isSuperAdmin,
-        userPerms
-      );
     } catch (e) {
       // Fallback if permission check fails
     }
@@ -42,18 +30,16 @@ export async function GET(req: Request) {
       if (orgId) {
         whereClause.organizationId = orgId;
       }
-      if (!canViewAll) {
-        whereClause.OR = [
-          { creatorId: user.id },
-          {
-            assignments: {
-              some: {
-                userId: user.id,
-              },
+      whereClause.OR = [
+        { creatorId: user.id },
+        {
+          assignments: {
+            some: {
+              userId: user.id,
             },
           },
-        ];
-      }
+        },
+      ];
     }
 
     const allTasks = await db.task.findMany({
@@ -95,8 +81,8 @@ export async function GET(req: Request) {
 
     return NextResponse.json({
       recentTasks,
-      assignedTasks: assignedTasks.length > 0 ? assignedTasks : (canViewAll ? allTasks : []),
-      createdTasks: createdTasks.length > 0 ? createdTasks : (canViewAll ? allTasks : []),
+      assignedTasks,
+      createdTasks,
       tasks: allTasks,
     });
   } catch (error) {

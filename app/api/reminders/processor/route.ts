@@ -19,7 +19,7 @@ export async function GET() {
   }
 }
 
-// POST - Control processor (start/stop)
+// POST - Control processor / manual trigger
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
@@ -27,18 +27,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Organization admin access required" }, { status: 403 })
     }
 
-    const { action, intervalMs } = await request.json()
+    const { action } = await request.json()
 
-    if (action === "start") {
-      reminderProcessor.start(intervalMs || 60000)
-      return NextResponse.json({ success: true, message: "Processor started" })
-    } else if (action === "stop") {
-       reminderProcessor.start(intervalMs || 60000)
-      return NextResponse.json({ success: true, message: "Processor stopped" })
-    } else if (action === "process") {
+    if (action === "process" || action === "start" || action === "check") {
       // Manual trigger
-      await reminderProcessor.processDueReminders()
-      return NextResponse.json({ success: true, message: "Manual processing completed" })
+      const stats = await reminderProcessor.processDueReminders()
+      return NextResponse.json({ success: true, message: "Manual reminder processing completed", stats })
     } else {
       return NextResponse.json({ error: "Invalid action" }, { status: 400 })
     }

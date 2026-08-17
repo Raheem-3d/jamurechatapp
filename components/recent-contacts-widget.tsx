@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Users, MessageSquare, ChevronLeft, ChevronRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,8 +14,30 @@ interface RecentContactsWidgetProps {
 
 export function RecentContactsWidget({ contacts }: RecentContactsWidgetProps) {
   const [currentPage, setCurrentPage] = useState(1);
+  const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   const itemsPerPage = 4;
   const totalPages = Math.ceil(contacts.length / itemsPerPage);
+
+  useEffect(() => {
+    const fetchUnread = async () => {
+      try {
+        const res = await fetch("/api/messages/unread-counts");
+        if (res.ok) {
+          const data = await res.json();
+          setUnreadCounts(data.dms || {});
+        }
+      } catch (err) {
+        console.error("Failed to fetch DM unread counts:", err);
+      }
+    };
+    fetchUnread();
+    window.addEventListener("messages:read", fetchUnread as EventListener);
+    window.addEventListener("message:created", fetchUnread as EventListener);
+    return () => {
+      window.removeEventListener("messages:read", fetchUnread as EventListener);
+      window.removeEventListener("message:created", fetchUnread as EventListener);
+    };
+  }, []);
 
   const paginatedContacts = contacts.slice(
     (currentPage - 1) * itemsPerPage,
@@ -57,6 +79,8 @@ export function RecentContactsWidget({ contacts }: RecentContactsWidgetProps) {
               !rawContent || rawContent.includes(":\\") || rawContent.startsWith("/")
                 ? "Direct Message"
                 : rawContent;
+            const unread = unreadCounts[contact.id] || 0;
+
             return (
               <Link
                 key={contact.id}
@@ -79,7 +103,14 @@ export function RecentContactsWidget({ contacts }: RecentContactsWidgetProps) {
                     </p>
                   </div>
                 </div>
-                <MessageSquare className="h-3.5 w-3.5 text-slate-400 group-hover:text-purple-600 dark:group-hover:text-purple-400" />
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {unread > 0 && (
+                    <Badge className="bg-indigo-600 dark:bg-indigo-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                      {unread > 99 ? "99+ new" : `${unread} new`}
+                    </Badge>
+                  )}
+                  <MessageSquare className="h-3.5 w-3.5 text-slate-400 group-hover:text-purple-600 dark:group-hover:text-purple-400" />
+                </div>
               </Link>
             );
           })

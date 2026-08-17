@@ -5,8 +5,9 @@ import { db } from "@/lib/db"
 import { emitToUser } from "@/lib/socket-server"
 import { sendEmail } from "@/lib/email"
 
-export async function GET(req: Request, { params }: { params: { taskId: string } }) {
+export async function GET(req: Request, { params }: { params: Promise<{ taskId: string }> | { taskId: string } }) {
   try {
+    const { taskId } = await params
     const { getSessionOrMobileUser } = await import('@/lib/mobile-auth')
     const user: any = await getSessionOrMobileUser(req as any)
     if (!user) {
@@ -17,7 +18,7 @@ export async function GET(req: Request, { params }: { params: { taskId: string }
 
     const task = await db.task.findUnique({
       where: {
-        id: params.taskId,
+        id: taskId,
       },
       include: {
         creator: true,
@@ -59,8 +60,9 @@ export async function GET(req: Request, { params }: { params: { taskId: string }
 
 
 
-export async function PATCH(req: Request, { params }: { params: { taskId: string } }) {
+export async function PATCH(req: Request, { params }: { params: Promise<{ taskId: string }> | { taskId: string } }) {
   try {
+    const { taskId } = await params
     const { getSessionOrMobileUser } = await import('@/lib/mobile-auth')
     const user: any = await getSessionOrMobileUser(req as any)
     if (!user) {
@@ -71,7 +73,7 @@ export async function PATCH(req: Request, { params }: { params: { taskId: string
 
     const orgId = user.organizationId
     const task = await db.task.findUnique({
-      where: { id: params.taskId },
+      where: { id: taskId },
       include: {
         assignments: true,
         channel: true, // Make sure task has a relation to a channel
@@ -90,13 +92,13 @@ export async function PATCH(req: Request, { params }: { params: { taskId: string
     }
 
     const updatedTask = await db.task.update({
-      where: { id: params.taskId },
+      where: { id: taskId },
       data: { status },
     })
 
     if (updatedTask.status === "DONE") {
       const { silenceTaskReminders } = await import("@/lib/reminder-processor")
-      await silenceTaskReminders(params.taskId)
+      await silenceTaskReminders(taskId)
     }
 
     // Notify all assignees except the one who made the update
@@ -146,8 +148,9 @@ export async function PATCH(req: Request, { params }: { params: { taskId: string
 
 
 
-export async function PUT(req: Request, { params }: { params: { taskId: string } }) {
+export async function PUT(req: Request, { params }: { params: Promise<{ taskId: string }> | { taskId: string } }) {
   try {
+    const { taskId } = await params
     const { getSessionOrMobileUser } = await import('@/lib/mobile-auth')
     const user: any = await getSessionOrMobileUser(req as any)
     if (!user) {
@@ -164,12 +167,33 @@ export async function PUT(req: Request, { params }: { params: { taskId: string }
       return NextResponse.json({ message: "Only organization admins and managers can update tasks" }, { status: 403 })
     }
 
-    const { title, description, status, priority, deadline, assignees } = await req.json()
+    const body = await req.json()
+    const { title, description, status, priority, deadline, deadlineRange, deadlineStart, deadlineEnd, assignees } = body
+
+    // Compute updated deadline dates for calendar & task tracking
+    let finalDeadline: Date | null = null
+    let finalDeadlineStart: Date | null = null
+    let finalDeadlineEnd: Date | null = null
+
+    if (deadlineRange?.from) {
+      finalDeadlineStart = new Date(deadlineRange.from)
+      finalDeadlineEnd = new Date(deadlineRange.to ?? deadlineRange.from)
+      finalDeadline = finalDeadlineEnd
+    } else if (deadlineStart || deadlineEnd) {
+      finalDeadlineStart = deadlineStart ? new Date(deadlineStart) : (deadlineEnd ? new Date(deadlineEnd) : null)
+      finalDeadlineEnd = deadlineEnd ? new Date(deadlineEnd) : (deadlineStart ? new Date(deadlineStart) : null)
+      finalDeadline = finalDeadlineEnd || finalDeadlineStart
+    } else if (deadline) {
+      const d = new Date(deadline)
+      finalDeadlineStart = d
+      finalDeadlineEnd = d
+      finalDeadline = d
+    }
 
     const orgId = user.organizationId
     const task = await db.task.findUnique({
       where: {
-        id: params.taskId,
+        id: taskId,
       },
       include: {
         assignments: true,
@@ -181,23 +205,60 @@ export async function PUT(req: Request, { params }: { params: { taskId: string }
       return NextResponse.json({ message: "Task not found" }, { status: 404 })
     }
 
-    // Update task
-    const updatedTask = await db.task.update({
+    // Delete old assignments
+    await db.taskAssignment.deleteMany({
       where: {
-        id: params.taskId,
-      },
-      data: {
-        title,
-        description,
-        status,
-        priority,
-        deadline: deadline ? new Date(deadline) : null,
+        taskId: taskId,
       },
     })
 
+    // Create new assignments
+    if (assignees && assignees.length > 0) {
+      await Promise.all(
+        assignees.map((userId: string) =>
+          db.taskAssignment.create({ data: { taskId: taskId, userId } })
+        )
+      )
+    }
+
+    // Update task details with synchronized deadline, deadlineStart and deadlineEnd
+    let updatedTask
+    try {
+      updatedTask = await db.task.update({
+        where: {
+          id: taskId,
+        },
+        data: {
+          title,
+          description,
+          status,
+          priority,
+          deadline: finalDeadline,
+          // @ts-ignore
+          deadlineStart: finalDeadlineStart,
+          // @ts-ignore
+          deadlineEnd: finalDeadlineEnd,
+        },
+      })
+    } catch (e: any) {
+      // Fallback if schema doesn't have deadlineStart/deadlineEnd
+      updatedTask = await db.task.update({
+        where: {
+          id: taskId,
+        },
+        data: {
+          title,
+          description,
+          status,
+          priority,
+          deadline: finalDeadline,
+        },
+      })
+    }
+
     if (updatedTask.status === "DONE") {
       const { silenceTaskReminders } = await import("@/lib/reminder-processor")
-      await silenceTaskReminders(params.taskId)
+      await silenceTaskReminders(taskId)
     }
 
     const currentAssigneeIds = task.assignments.map((a: any) => a.userId)
@@ -207,7 +268,7 @@ export async function PUT(req: Request, { params }: { params: { taskId: string }
     if (assigneesToRemove.length > 0) {
       await db.taskAssignment.deleteMany({
         where: {
-          taskId: params.taskId,
+          taskId: taskId,
           userId: { in: assigneesToRemove },
         },
       })
@@ -215,7 +276,7 @@ export async function PUT(req: Request, { params }: { params: { taskId: string }
 
     if (assigneesToAdd.length > 0) {
       const assignmentPromises = assigneesToAdd.map((userId: string) =>
-        db.taskAssignment.create({ data: { taskId: params.taskId, userId } })
+        db.taskAssignment.create({ data: { taskId: taskId, userId } })
       )
       await Promise.all(assignmentPromises)
 
@@ -231,16 +292,15 @@ export async function PUT(req: Request, { params }: { params: { taskId: string }
       // 🔡 Emit task assignment events to new assignees for real-time updates
       for (const userId of assigneesToAdd) {
         emitToUser(userId, "task:assigned", {
-          taskId: params.taskId,
+          taskId: taskId,
           taskTitle: task.title,
           taskPriority: task.priority,
         });
-        
       }
     }
 
     const finalTask = await db.task.findUnique({
-      where: { id: params.taskId },
+      where: { id: taskId },
       include: {
         creator: true,
         assignments: { include: { user: true } },
@@ -274,8 +334,9 @@ export async function PUT(req: Request, { params }: { params: { taskId: string }
   }
 }
 
-export async function DELETE(req: Request, { params }: { params: { taskId: string } }) {
+export async function DELETE(req: Request, { params }: { params: Promise<{ taskId: string }> | { taskId: string } }) {
   try {
+    const { taskId } = await params
     const { getSessionOrMobileUser } = await import('@/lib/mobile-auth')
     const user: any = await getSessionOrMobileUser(req as any)
     if (!user) {
@@ -295,7 +356,7 @@ export async function DELETE(req: Request, { params }: { params: { taskId: strin
     const orgId = user.organizationId
     const task = await db.task.findUnique({
       where: {
-        id: params.taskId,
+        id: taskId,
       },
       include: {
         assignments: true,
@@ -312,21 +373,21 @@ export async function DELETE(req: Request, { params }: { params: { taskId: strin
     // Delete task assignments
     await db.taskAssignment.deleteMany({
       where: {
-        taskId: params.taskId,
+        taskId: taskId,
       },
     })
 
     // Delete task comments
     await db.taskComment.deleteMany({
       where: {
-        taskId: params.taskId,
+        taskId: taskId,
       },
     })
 
     // Delete associated notifications
     await db.notification.deleteMany({
       where: {
-        taskId: params.taskId,
+        taskId: taskId,
       },
     })
 
@@ -339,7 +400,7 @@ export async function DELETE(req: Request, { params }: { params: { taskId: strin
     // Delete the task
     await db.task.delete({
       where: {
-        id: params.taskId,
+        id: taskId,
       },
     })
 

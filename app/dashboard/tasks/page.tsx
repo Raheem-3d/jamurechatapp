@@ -14,10 +14,11 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import TaskCard from "@/components/task-card";
 import TaskFilter from "@/components/task-filter";
-import { PlusCircle, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
+import { PlusCircle, Loader2, ChevronLeft, ChevronRight, Sparkles } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { usePermissions } from "@/lib/rbac-utils";
 import { cn } from "@/lib/utils";
+import { TaskFlowAIAssistantModal } from "@/components/TaskFlowAIAssistantModal";
 
 export default function TasksPage() {
   const { data: session } = useSession();
@@ -28,52 +29,66 @@ export default function TasksPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [activeFilters, setActiveFilters] = useState<any>({});
   const [assignedPage, setAssignedPage] = useState(1);
-  const [createdPage, setCreatedPage] = useState(1);
+  const [isAiModalOpen, setIsAiModalOpen] = useState(false);
+  const [aiEnabled, setAiEnabled] = useState(true);
 
   const itemsPerPage = 4;
   const { toast } = useToast();
   const perms = usePermissions();
 
+  const fetchTasks = async () => {
+    if (!session?.user?.id) return;
+
+    try {
+      setIsLoading(true);
+
+      // fetch assigned tasks
+      const assignedResponse = await fetch(
+        `/api/tasks?assignedTo=${session.user.id}`
+      );
+
+      // fetch created tasks
+      const createdResponse = await fetch(
+        `/api/tasks?createdBy=${session.user.id}`
+      );
+
+      if (assignedResponse.ok && createdResponse.ok) {
+        const assignedData = await assignedResponse.json();
+        const createdData = await createdResponse.json();
+
+        setAssignedTasks(assignedData);
+        setFilteredAssignedTasks(assignedData);
+
+        setCreatedTasks(createdData);
+        setFilteredCreatedTasks(createdData);
+      }
+    } catch (error) {
+      console.error("Error fetching tasks:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load tasks",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchTasks = async () => {
-      if (!session?.user?.id) return;
-
+    const checkAI = async () => {
       try {
-        setIsLoading(true);
-
-        // fetch assigned tasks
-        const assignedResponse = await fetch(
-          `/api/tasks?assignedTo=${session.user.id}`
-        );
-
-        // fetch created tasks
-        const createdResponse = await fetch(
-          `/api/tasks?createdBy=${session.user.id}`
-        );
-        //  console.log(session?.user?.role,'user check')
-
-        if (assignedResponse.ok && createdResponse.ok) {
-          const assignedData = await assignedResponse.json();
-          const createdData = await createdResponse.json();
-
-          setAssignedTasks(assignedData);
-          setFilteredAssignedTasks(assignedData);
-
-          setCreatedTasks(createdData);
-          setFilteredCreatedTasks(createdData);
+        const res = await fetch("/api/organization/me");
+        if (res.ok) {
+          const payload = await res.json();
+          if (payload?.organization?.aiEnabled !== undefined) {
+            setAiEnabled(payload.organization.aiEnabled);
+          }
         }
-      } catch (error) {
-        console.error("Error fetching tasks:", error);
-        toast({
-          title: "Error",
-          description: "Failed to load tasks",
-          variant: "destructive",
-        });
-      } finally {
-        setIsLoading(false);
+      } catch (err) {
+        console.error("AI Check Error:", err);
       }
     };
-
+    checkAI();
     fetchTasks();
 
     // Listen for task assignment events to refresh when user is assigned to a task
@@ -173,15 +188,34 @@ export default function TasksPage() {
         <div className="flex items-center space-x-2">
           <TaskFilter onFilterChange={handleFilterChange} />
           {perms.canCreateTasks && (
-            <Button asChild>
-              <Link href="/dashboard/tasks/new">
-                <PlusCircle className="h-4 w-4 mr-2" />
-                New Project
-              </Link>
-            </Button>
+            <>
+              {aiEnabled && (
+                <Button
+                  onClick={() => setIsAiModalOpen(true)}
+                  className="bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white font-medium shadow-md shadow-purple-500/20 gap-1.5"
+                >
+                  <Sparkles className="h-4 w-4 text-purple-200 animate-pulse" />
+                  AI Co-Pilot ✨
+                </Button>
+              )}
+
+              <Button asChild>
+                <Link href="/dashboard/tasks/new">
+                  <PlusCircle className="h-4 w-4 mr-2" />
+                  New Project
+                </Link>
+              </Button>
+            </>
           )}
         </div>
       </div>
+
+      <TaskFlowAIAssistantModal
+        isOpen={isAiModalOpen}
+        onClose={() => setIsAiModalOpen(false)}
+        target="NEW_PROJECT"
+        onSuccess={() => fetchTasks()}
+      />
 
       {isLoading ? (
         <div className="flex justify-center items-center h-64">

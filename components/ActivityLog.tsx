@@ -20,7 +20,10 @@ export function ActivityLog({ activities, showHeader = false }: ActivityLogProps
       case "task_deleted":
         return <Trash2 className="h-3.5 w-3.5 text-rose-600 dark:text-rose-400" />;
       case "stage_moved":
+      case "stage_changed":
         return <ArrowRight className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400" />;
+      case "status_changed":
+        return <Activity className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />;
       case "assignment_changed":
         return <UserCheck className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />;
       default:
@@ -37,7 +40,10 @@ export function ActivityLog({ activities, showHeader = false }: ActivityLogProps
       case "task_deleted":
         return "bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-900/60";
       case "stage_moved":
+      case "stage_changed":
         return "bg-violet-50 dark:bg-violet-950/60 text-violet-700 dark:text-violet-300 border-violet-200 dark:border-violet-900/60";
+      case "status_changed":
+        return "bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-900/60";
       case "assignment_changed":
         return "bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-900/60";
       default:

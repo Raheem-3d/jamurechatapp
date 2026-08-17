@@ -6,6 +6,7 @@ import { assertOrgAccess } from "@/lib/org"
 import { hasPermission } from "@/lib/permissions"
 import { randomBytes } from "crypto"
 import { sendEmail } from "@/lib/email"
+import { getOrgInvitationEmailHtml } from "@/lib/email-templates"
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions)
@@ -38,10 +39,12 @@ export async function POST(req: Request) {
   })
 
   const link = `${process.env.APP_BASE_URL || "http://localhost:3000"}/register?invite=${token}`
+  const emailHtml = getOrgInvitationEmailHtml({ inviteLink: link, role: inviteRole })
+
   await sendEmail({
     to: email,
-    subject: "You're invited to join an organization",
-    html: `<p>You have been invited to join an organization. Click <a href="${link}">here</a> to accept.</p>`,
+    subject: "🏢 You're invited to join an organization on JamureChat",
+    html: emailHtml,
     userId: user.id,
     subscriptionId: null,
   })

@@ -64,7 +64,14 @@ export function TaskRecords({
 
     const matchesTags =
       selectedTags.length === 0 ||
-      task.tags.some((tag) => selectedTags.includes(tag.id));
+      task.tags.some((tag: any) => {
+        const tagKey = tag.id || tag.tagId || tag.name;
+        return (
+          selectedTags.includes(tagKey) ||
+          selectedTags.includes(tag.name) ||
+          selectedTags.includes(String(tag))
+        );
+      });
 
     const matchesPriority =
       !selectedPriority || task.priority === selectedPriority;
@@ -126,26 +133,38 @@ export function TaskRecords({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent className="rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xl p-1.5">
-              {tags.map((tag) => (
-                <DropdownMenuItem
-                  key={tag.id}
-                  onClick={() => {
-                    setSelectedTags((prev) =>
-                      prev.includes(tag.id)
-                        ? prev.filter((id) => id !== tag.id)
-                        : [...prev, tag.id]
-                    );
-                  }}
-                  className="text-xs font-semibold cursor-pointer rounded-lg px-2.5 py-1.5"
-                >
-                  <Badge variant="secondary" className="mr-2 text-[10px]">
-                    {tag.name}
-                  </Badge>
-                  {selectedTags.includes(tag.id) && (
-                    <span className="ml-auto text-indigo-600 font-bold">✓</span>
-                  )}
-                </DropdownMenuItem>
-              ))}
+              {tags.map((tag) => {
+                const tagKey = tag.id || tag.tagId || tag.name;
+                const isSelected = selectedTags.includes(tagKey) || selectedTags.includes(tag.name);
+                return (
+                  <DropdownMenuItem
+                    key={tagKey}
+                    onClick={() => {
+                      setSelectedTags((prev) =>
+                        isSelected
+                          ? prev.filter((id) => id !== tagKey && id !== tag.name)
+                          : [...prev, tagKey]
+                      );
+                    }}
+                    className="text-xs font-semibold cursor-pointer rounded-lg px-2.5 py-1.5 flex items-center justify-between"
+                  >
+                    <Badge
+                      variant="secondary"
+                      className={cn(
+                        "mr-2 text-[10px] transition-all",
+                        isSelected
+                          ? "bg-indigo-600 text-white font-bold shadow-2xs"
+                          : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
+                      )}
+                    >
+                      {tag.name || tagKey}
+                    </Badge>
+                    {isSelected && (
+                      <span className="ml-auto text-indigo-600 dark:text-indigo-400 font-bold">✓</span>
+                    )}
+                  </DropdownMenuItem>
+                );
+              })}
             </DropdownMenuContent>
           </DropdownMenu>
 
@@ -267,21 +286,30 @@ export function TaskRecords({
 
                     <TableCell className="py-3">
                       <div className="flex flex-wrap gap-1">
-                        {task.tags.slice(0, 2).map((tag) => (
-                          <Badge
-                            key={tag.id}
-                            variant="secondary"
-                            className="text-[9px] font-extrabold px-1.5 py-0 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
-                          >
-                            {tag.name}
-                          </Badge>
-                        ))}
-                        {task.tags.length > 2 && (
+                        {task.tags.slice(0, 3).map((tag: any) => {
+                          const tagKey = tag.id || tag.tagId || tag.name;
+                          const isSelected = selectedTags.includes(tagKey) || selectedTags.includes(tag.name);
+                          return (
+                            <Badge
+                              key={tagKey}
+                              variant="secondary"
+                              className={cn(
+                                "text-[9px] font-extrabold px-1.5 py-0 transition-all",
+                                isSelected
+                                  ? "bg-indigo-600 text-white font-bold shadow-2xs ring-1 ring-indigo-400"
+                                  : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
+                              )}
+                            >
+                              {tag.name || tagKey}
+                            </Badge>
+                          );
+                        })}
+                        {task.tags.length > 3 && (
                           <Badge
                             variant="outline"
                             className="text-[9px] font-bold px-1 text-slate-500"
                           >
-                            +{task.tags.length - 2}
+                            +{task.tags.length - 3}
                           </Badge>
                         )}
                       </div>

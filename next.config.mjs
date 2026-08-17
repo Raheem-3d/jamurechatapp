@@ -6,7 +6,7 @@ const nextConfig = {
 
   typescript: { ignoreBuildErrors: true },
   eslint: { ignoreDuringBuilds: true },
-  allowedDevOrigins: ["http://10.0.4.106:3000"],
+  allowedDevOrigins: ["http://localhost:3000", "http://10.0.4.106:3000"],
 
   experimental: {
     // App Router ke liye body size limit (5GB for large file uploads)
@@ -68,9 +68,9 @@ const nextConfig = {
 
   env: {
     DATABASE_URL: process.env.DATABASE_URL,
-    NEXTAUTH_URL: "http://10.0.4.106:3000",
+    NEXTAUTH_URL: process.env.NEXTAUTH_URL || "http://localhost:3000",
     NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET,
-    NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL,
+    NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000",
     SMTP_HOST: process.env.SMTP_HOST,
     SMTP_PORT: process.env.SMTP_PORT,
     SMTP_USER: process.env.SMTP_USER,

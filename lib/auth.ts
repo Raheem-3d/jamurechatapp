@@ -1,4 +1,3 @@
-import { PrismaAdapter } from "@next-auth/prisma-adapter"
 import type { NextAuthOptions } from "next-auth"
 import CredentialsProvider from "next-auth/providers/credentials"
 import { db } from "@/lib/db"
@@ -6,13 +5,13 @@ import { compare } from "bcryptjs"
 import { isSuperAdmin } from "@/lib/org"
 
 export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(db),
+  secret: process.env.NEXTAUTH_SECRET || "jamurechat-secret-key-default-2026",
+  useSecureCookies: process.env.NEXTAUTH_URL?.startsWith("https://") ?? false,
   session: {
     strategy: "jwt",
   },
   pages: {
     signIn: "/login",
-    error: "/login", // Redirect to login page with error instead of default error page
   },
   providers: [
     CredentialsProvider({
@@ -62,7 +61,7 @@ export const authOptions: NextAuthOptions = {
       const s: any = session as any
       if (token) {
         s.user = s.user || {}
-        s.user.id = token.id as string
+        s.user.id = (token.id || token.sub) as string
         s.user.name = token.name
         s.user.email = token.email
         s.user.role = token.role as string
@@ -70,7 +69,7 @@ export const authOptions: NextAuthOptions = {
         s.user.departmentId = token.departmentId as string | null
         s.user.organizationId = (token as any).organizationId || null
         s.user.isSuperAdmin = (token as any).isSuperAdmin || false
-        s.subscriptionStatus = (token as any).subscriptionStatus || null
+        s.subscriptionStatus = (token as any).subscriptionStatus || "ACTIVE"
         s.subscriptionEnd = (token as any).subscriptionEnd || null
         s.organizationSuspended = (token as any).organizationSuspended || false
       }
@@ -84,7 +83,7 @@ export const authOptions: NextAuthOptions = {
         const { cacheGet, cacheSet } = require("./redis");
         const cacheKey = `user:${token.email}:jwt`;
         const cachedToken = await cacheGet(cacheKey);
-        if (cachedToken) {
+        if (cachedToken && cachedToken.id) {
           return { ...token, ...cachedToken };
         }
       } catch (e) {
@@ -110,6 +109,7 @@ export const authOptions: NextAuthOptions = {
       const subscription = dbUser.organization?.subscription || null
 
       const tokenPayload = {
+        ...token,
         id: dbUser.id,
         name: dbUser.name,
         email: dbUser.email,
@@ -118,7 +118,7 @@ export const authOptions: NextAuthOptions = {
         departmentId: dbUser.departmentId,
         organizationId: dbUser.organizationId,
         isSuperAdmin: userIsSuperAdmin,
-        subscriptionStatus: subscription?.status || null,
+        subscriptionStatus: subscription?.status || "ACTIVE",
         subscriptionEnd: subscription?.status === "TRIAL" ? subscription.trialEnd : subscription?.currentPeriodEnd || null,
         organizationSuspended: (dbUser.organization as any)?.suspended === true,
       }
@@ -126,7 +126,7 @@ export const authOptions: NextAuthOptions = {
       // 2. Cache session token in Redis for 5 minutes (300 seconds)
       try {
         const { cacheSet } = require("./redis");
-        cacheSet(`user:${token.email}:jwt`, tokenPayload, 300).catch(() => {});
+        cacheSet(`user:${token.email}:jwt`, tokenPayload, 300).catch(() => { });
       } catch (e) {
         // non-fatal fallback
       }
@@ -134,6 +134,5 @@ export const authOptions: NextAuthOptions = {
       return tokenPayload;
     },
   },
-debug: false,
-  
+  debug: false,
 }

@@ -5,7 +5,7 @@ import { db } from "@/lib/db"; // Make sure you import your db client properly
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { taskId: string } },
+  { params }: { params: Promise<{ taskId: string }> | { taskId: string } },
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -20,7 +20,7 @@ export async function POST(
     }
 
     // Check if tag already exists
-    const existingTag = await db.tag.findUnique({
+    const existingTag = await db.tag.findFirst({
       where: { name },
     });
 

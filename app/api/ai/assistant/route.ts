@@ -15,8 +15,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const userOrg = await db.user.findUnique({
+      where: { id: session.user.id },
+      select: { organization: { select: { aiEnabled: true } } }
+    });
+    if (userOrg?.organization?.aiEnabled === false) {
+      return NextResponse.json({ error: 'AI Assistant feature is disabled' }, { status: 403 });
+    }
+
     const body = await req.json();
-    const { query, context = {} } = body;
+    const { query, context = {}, systemPromptOverride } = body;
 
     if (!query) {
       return NextResponse.json(
@@ -129,7 +137,8 @@ Recent Team Discussions:\n${messagesText}
     // Get AI response
     const perplexity = getPerplexityClient();
     
-    const systemPrompt = canViewOrgData
+    // If frontend provides a mode-specific system prompt, use it; otherwise fall back to role-based default
+    const defaultSystemPrompt = canViewOrgData
       ? `You are an intelligent project management assistant. Help users with insights about their organization, projects, tasks, team performance, and provide actionable recommendations. You have access to organization-wide data.
 
 Guidelines:
@@ -147,6 +156,10 @@ Guidelines:
 - Focus on their personal productivity
 - Skip unnecessary explanations or context
 - Format: Just list their active tasks if asked about current tasks`;
+
+    const systemPrompt = systemPromptOverride
+      ? `${systemPromptOverride}\n\nAccess scope: ${canViewOrgData ? 'Full organization data available.' : 'Only the user\'s own tasks are available.'}`
+      : defaultSystemPrompt;
 
     const response = await perplexity.chat([
       {

@@ -1,9 +1,6 @@
-
-
 "use client";
 
 import type React from "react";
-
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -17,17 +14,35 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Calendar } from "@/components/ui/calendar";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { useToast } from "@/hooks/use-toast";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
 import { format } from "date-fns";
-import { CalendarIcon, ArrowLeft, Save, Clock, User, AlertCircle, Tag } from "lucide-react";
-import Link from "next/link";
+import {
+  CalendarIcon,
+  ArrowLeft,
+  BellRing,
+  Clock,
+  Users,
+  Tag,
+  FileText,
+  AlertTriangle,
+  Zap,
+  Loader2,
+  CheckCircle2,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface User {
@@ -48,29 +63,31 @@ export function CreateReminderForm({
   users,
 }: CreateReminderFormProps) {
   const router = useRouter();
-  const { toast } = useToast();
   const [loading, setLoading] = useState(false);
 
   const [formData, setFormData] = useState({
     title: "",
     description: "",
-    remindAt: new Date(),
+    remindAt: (() => {
+      const d = new Date();
+      d.setHours(d.getHours() + 1, 0, 0, 0);
+      return d;
+    })(),
     assigneeId: currentUser.id,
     priority: "MEDIUM",
     type: "GENERAL",
   });
 
-  const isAdmin = currentUser.role === "ORG_ADMIN";  
+  const isAdmin =
+    currentUser.role === "ORG_ADMIN" ||
+    currentUser.role === "SUPER_ADMIN" ||
+    currentUser.role === "MANAGER";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!formData.title.trim()) {
-      toast({
-        title: "Error",
-        description: "Please enter a title for the reminder",
-        variant: "destructive",
-      });
+      toast.error("Reminder title is required");
       return;
     }
 
@@ -86,254 +103,421 @@ export function CreateReminderForm({
       });
 
       if (response.ok) {
-        toast({
-          title: "Success",
-          description: "Reminder created successfully",
-        });
+        toast.success("Reminder created successfully");
         router.push("/dashboard/reminders");
         router.refresh();
       } else {
         const error = await response.json();
-        throw new Error(error.error);
+        throw new Error(error.error || "Failed to create reminder");
       }
     } catch (error) {
-      toast({
-        title: "Error",
-        description:
-          error instanceof Error ? error.message : "Failed to create reminder",
-        variant: "destructive",
-      });
+      toast.error(
+        error instanceof Error ? error.message : "Failed to create reminder"
+      );
     } finally {
       setLoading(false);
     }
   };
 
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case "URGENT": return "text-red-600 bg-red-50 border-red-200";
-      case "HIGH": return "text-orange-600 bg-orange-50 border-orange-200";
-      case "MEDIUM": return "text-blue-600 bg-blue-50 border-blue-200";
-      case "LOW": return "text-gray-600 bg-gray-50 border-gray-200";
-      default: return "text-gray-600 bg-gray-50 border-gray-200";
-    }
-  };
+  const priorityOptions = [
+    {
+      value: "LOW",
+      label: "Low",
+      icon: <Clock className="h-3.5 w-3.5" />,
+      color:
+        "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700",
+    },
+    {
+      value: "MEDIUM",
+      label: "Medium",
+      icon: <Zap className="h-3.5 w-3.5" />,
+      color:
+        "bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800",
+    },
+    {
+      value: "HIGH",
+      label: "High",
+      icon: <AlertTriangle className="h-3.5 w-3.5" />,
+      color:
+        "bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800",
+    },
+    {
+      value: "URGENT",
+      label: "Urgent",
+      icon: <AlertTriangle className="h-3.5 w-3.5" />,
+      color:
+        "bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-800",
+    },
+  ];
+
+  const typeOptions = [
+    { value: "GENERAL", label: "General" },
+    { value: "TASK_DEADLINE", label: "Task Deadline" },
+    { value: "MEETING", label: "Meeting" },
+    { value: "FOLLOW_UP", label: "Follow Up" },
+    { value: "PERSONAL", label: "Personal" },
+  ];
+
+  const selectedAssignee = users.find((u) => u.id === formData.assigneeId);
 
   return (
-    <div className="min-h-screen bg-gray-50/50 dark:bg-gray-900 py-8">
-      <div className="max-w-2xl mx-auto px-4">
-        {/* Header */}
-        <div className="flex items-center gap-4 mb-8 dark:bg-gray-900">
-          <Link href="/dashboard/reminders">
-            <Button variant="outline" size="sm" className="h-10 w-10 p-0">
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-          </Link>
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Create Reminder</h1>
-            <p className="text-gray-600 dark:text-gray-400">
+    <div className="w-full space-y-4">
+      {/* Top Header Strip */}
+      <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5 border border-slate-200/80 dark:border-slate-800 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-3.5 min-w-0 flex-1">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => router.back()}
+            className="h-9 rounded-xl border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200 px-3 shrink-0"
+          >
+            <ArrowLeft className="h-3.5 w-3.5 mr-1.5 text-indigo-500" />
+            Back
+          </Button>
+
+          <div className="min-w-0">
+            <h1 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">
+              Create Reminder
+            </h1>
+            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
               Set up a new reminder for yourself or team members
             </p>
           </div>
         </div>
+      </div>
 
-        <Card className="border border-gray-200 dark:border-gray-700 shadow-sm dark:bg-gray-900">
-          <CardHeader className="pb-4 border-b border-gray-100 dark:border-gray-700">
-            <CardTitle className="text-xl text-gray-900 dark:text-white flex items-center gap-2">
-              <Clock className="h-5 w-5 text-blue-600" />
-              Reminder Details
-            </CardTitle>
-            <CardDescription className="text-gray-600 dark:text-gray-400">
-              Fill in the reminder information and schedule
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pt-6">
-            <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Title */}
-              <div className="space-y-3">
-                <Label htmlFor="title" className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Title *
-                </Label>
-                <Input
-                  id="title"
-                  value={formData.title}
-                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  placeholder="Enter reminder title..."
-                  className="h-11 bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-blue-500"
-                  required
-                />
-              </div>
+      {/* Form Content — 2-Column Layout */}
+      <form onSubmit={handleSubmit}>
+        <div className="w-full grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
 
-              {/* Description */}
-              <div className="space-y-3">
-                <Label htmlFor="description" className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Description
-                </Label>
-                <Textarea
-                  id="description"
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  placeholder="Add a detailed description..."
-                  rows={4}
-                  className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-blue-500 resize-none"
-                />
-              </div>
+          {/* LEFT COLUMN (7 cols): Reminder Details */}
+          <div className="lg:col-span-7 space-y-5 min-w-0">
 
-              {/* Assignee and Priority */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-3">
-                  <Label className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
-                    <User className="h-4 w-4" />
-                    Assign To
+            {/* Reminder Info Card */}
+            <Card className="w-full rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs overflow-hidden">
+              <CardHeader className="pb-3 pt-4 px-4 sm:px-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40">
+                <CardTitle className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <div className="p-1.5 bg-indigo-50 dark:bg-indigo-950/60 rounded-lg text-indigo-600 dark:text-indigo-400">
+                    <FileText className="h-4 w-4" />
+                  </div>
+                  Reminder Information
+                </CardTitle>
+              </CardHeader>
+
+              <CardContent className="p-4 sm:p-5 space-y-4">
+                {/* Title */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="title" className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                    Reminder Title <span className="text-rose-500">*</span>
                   </Label>
-                  <Select
-                    value={formData.assigneeId}
-                    onValueChange={(value) => setFormData({ ...formData, assigneeId: value })}
-                    disabled={!isAdmin}
-                  >
-                    <SelectTrigger className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 h-11">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(isAdmin ? users : users.filter((user) => user.id === currentUser.id)).map((user) => (
-                        <SelectItem key={user.id} value={user.id} className="flex items-center gap-2">
-                          <span>{user.name}</span>
-                          {user.id === currentUser.id && (
-                            <span className="text-xs text-blue-600 dark:text-blue-400">(You)</span>
-                          )}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {!isAdmin && (
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      Only admins can assign reminders to others
-                    </p>
-                  )}
+                  <Input
+                    id="title"
+                    placeholder="Enter reminder title..."
+                    value={formData.title}
+                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                    required
+                    className="h-10 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-xl text-sm font-medium focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  />
                 </div>
 
-                <div className="space-y-3">
-                  <Label className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
-                    <AlertCircle className="h-4 w-4" />
-                    Priority
+                {/* Description */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="description" className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                    Description
                   </Label>
-                  <Select
-                    value={formData.priority}
-                    onValueChange={(value) => setFormData({ ...formData, priority: value })}
-                  >
-                    <SelectTrigger className={cn("h-11 border-2", getPriorityColor(formData.priority))}>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="LOW" className="text-gray-600">Low Priority</SelectItem>
-                      <SelectItem value="MEDIUM" className="text-blue-600">Medium Priority</SelectItem>
-                      <SelectItem value="HIGH" className="text-orange-600">High Priority</SelectItem>
-                      <SelectItem value="URGENT" className="text-red-600">Urgent</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              {/* Type and Date */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-3">
-                  <Label className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
-                    <Tag className="h-4 w-4" />
-                    Type
-                  </Label>
-                  <Select
-                    value={formData.type}
-                    onValueChange={(value) => setFormData({ ...formData, type: value })}
-                  >
-                    <SelectTrigger className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 h-11">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="GENERAL">General</SelectItem>
-                      <SelectItem value="TASK_DEADLINE">Task Deadline</SelectItem>
-                      <SelectItem value="MEETING">Meeting</SelectItem>
-                      <SelectItem value="FOLLOW_UP">Follow Up</SelectItem>
-                      <SelectItem value="PERSONAL">Personal</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Textarea
+                    id="description"
+                    placeholder="Add more details about this reminder..."
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    rows={3}
+                    className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-xl text-sm min-h-[80px] max-h-[140px] focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 resize-none"
+                  />
                 </div>
 
-                <div className="space-y-3">
-                  <Label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    Remind At
-                  </Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button 
-                        variant="outline" 
-                        className="w-full h-11 justify-start text-left font-normal bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700"
+                {/* Priority */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-slate-700 dark:text-slate-300">Priority</Label>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {priorityOptions.map((opt) => (
+                      <button
+                        type="button"
+                        key={opt.value}
+                        onClick={() => setFormData({ ...formData, priority: opt.value })}
+                        className={cn(
+                          "flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-bold transition-all",
+                          formData.priority === opt.value
+                            ? cn(opt.color, "ring-2 ring-indigo-500/30 shadow-xs")
+                            : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
+                        )}
                       >
-                        <CalendarIcon className="mr-3 h-4 w-4 text-gray-400" />
-                        {format(formData.remindAt, "MMM d, yyyy 'at' h:mm a")}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0 bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={formData.remindAt}
-                        onSelect={(date) => date && setFormData({ ...formData, remindAt: date })}
-                        className="rounded-md border"
-                      />
-                      <div className="p-4 border-t border-gray-200 dark:border-gray-700">
-                        <Label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block">Time</Label>
-                        {/* <Input
-                          type="datetime-local"
-                          value={format(formData.remindAt, "yyyy-MM-dd'T'HH:mm")}
-                          onChange={(e) => setFormData({ ...formData, remindAt: new Date(e.target.value) })}
-                          className="bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700"
-                        /> */}
-                        <Input
-  type="datetime-local"
-  value={format(formData.remindAt, "yyyy-MM-dd'T'HH:mm")}
-  onKeyDown={(e) => {
-    if (e.key === "Backspace" || e.key === "Delete") {
-      e.preventDefault();
-    }
-  }}
-  onChange={(e) => {
-    const next = new Date(e.target.value);
-    if (!isNaN(next.getTime())) {
-      setFormData(prev => ({ ...prev, remindAt: next }));
-    }
-  }}
-/>
-
-                      </div>
-                    </PopoverContent>
-                  </Popover>
+                        {opt.icon}
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              </CardContent>
+            </Card>
 
-              {/* Actions */}
-              <div className="flex flex-col sm:flex-row gap-3 pt-6 border-t border-gray-100 dark:border-gray-700">
-                <Button 
-                  type="submit" 
-                  disabled={loading}
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white shadow-sm"
-                >
-                  <Save className="h-4 w-4 mr-2" />
-                  {loading ? "Creating Reminder..." : "Create Reminder"}
-                </Button>
-                <Link href="/dashboard/reminders" className="flex-1">
-                  <Button 
-                    type="button" 
-                    variant="outline" 
-                    className="w-full border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:bg-gray-900 dark:hover:bg-gray-800"
+            {/* Schedule Card */}
+            <Card className="w-full rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs overflow-hidden">
+              <CardHeader className="pb-3 pt-4 px-4 sm:px-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40">
+                <CardTitle className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <div className="p-1.5 bg-violet-50 dark:bg-violet-950/60 rounded-lg text-violet-600 dark:text-violet-400">
+                    <BellRing className="h-4 w-4" />
+                  </div>
+                  Schedule & Type
+                </CardTitle>
+              </CardHeader>
+
+              <CardContent className="p-4 sm:p-5 space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Type */}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                      <Tag className="h-3.5 w-3.5 text-slate-400" />
+                      Type
+                    </Label>
+                    <Select
+                      value={formData.type}
+                      onValueChange={(value) => setFormData({ ...formData, type: value })}
+                    >
+                      <SelectTrigger className="h-10 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-xl text-sm font-medium focus:ring-2 focus:ring-indigo-500/20">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-xl border-slate-200 dark:border-slate-800">
+                        {typeOptions.map((t) => (
+                          <SelectItem key={t.value} value={t.value} className="text-xs font-semibold">
+                            {t.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Remind At — Date */}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                      <CalendarIcon className="h-3.5 w-3.5 text-slate-400" />
+                      Remind At
+                    </Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className="w-full h-10 justify-start text-left font-medium rounded-xl border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm"
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4 text-indigo-500" />
+                          {format(formData.remindAt, "MMM d, yyyy")}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent
+                        className="w-auto p-0 rounded-xl border-slate-200 dark:border-slate-800 shadow-xl"
+                        align="start"
+                      >
+                        <Calendar
+                          mode="single"
+                          selected={formData.remindAt}
+                          onSelect={(date) =>
+                            date &&
+                            setFormData((prev) => {
+                              const d = new Date(date);
+                              d.setHours(prev.remindAt.getHours(), prev.remindAt.getMinutes(), 0, 0);
+                              return { ...prev, remindAt: d };
+                            })
+                          }
+                          initialFocus
+                          className="rounded-xl"
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                </div>
+
+                {/* Time picker */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                    <Clock className="h-3.5 w-3.5 text-slate-400" />
+                    Time
+                  </Label>
+                  <Input
+                    type="time"
+                    value={format(formData.remindAt, "HH:mm")}
+                    onChange={(e) => {
+                      const [hours, minutes] = e.target.value.split(":").map(Number);
+                      setFormData((prev) => {
+                        const d = new Date(prev.remindAt);
+                        d.setHours(hours, minutes, 0, 0);
+                        return { ...prev, remindAt: d };
+                      });
+                    }}
+                    className="h-10 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-xl text-sm font-medium focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  />
+                  <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
+                    Reminder will fire at{" "}
+                    <span className="text-indigo-500 font-bold">
+                      {format(formData.remindAt, "h:mm a, MMM d yyyy")}
+                    </span>
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* RIGHT COLUMN (5 cols): Assignee + Submit */}
+          <div className="lg:col-span-5 space-y-5 min-w-0">
+
+            {/* Assign To Card */}
+            <Card className="w-full rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs overflow-hidden">
+              <CardHeader className="pb-3 pt-4 px-4 sm:px-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40">
+                <CardTitle className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <div className="p-1.5 bg-blue-50 dark:bg-blue-950/60 rounded-lg text-blue-600 dark:text-blue-400">
+                    <Users className="h-4 w-4" />
+                  </div>
+                  Assign To
+                </CardTitle>
+              </CardHeader>
+
+              <CardContent className="p-4 sm:p-5 space-y-3">
+                {/* Selected assignee preview */}
+                {selectedAssignee && (
+                  <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-indigo-50/60 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800">
+                    <Avatar className="h-8 w-8 shrink-0">
+                      <AvatarImage src={selectedAssignee.image} />
+                      <AvatarFallback className="bg-indigo-600 text-white font-bold text-xs">
+                        {selectedAssignee.name?.charAt(0) || "U"}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                        {selectedAssignee.name}
+                        {selectedAssignee.id === currentUser.id && (
+                          <span className="ml-1.5 text-[10px] text-indigo-500 font-semibold">(You)</span>
+                        )}
+                      </p>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
+                        {selectedAssignee.email}
+                      </p>
+                    </div>
+                    <CheckCircle2 className="h-4 w-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                  </div>
+                )}
+
+                {/* User list */}
+                <div className="space-y-1.5 max-h-[260px] overflow-y-auto pr-1">
+                  {(isAdmin ? users : users.filter((u) => u.id === currentUser.id)).map((user) => {
+                    const isSelected = formData.assigneeId === user.id;
+                    return (
+                      <button
+                        type="button"
+                        key={user.id}
+                        onClick={() => setFormData({ ...formData, assigneeId: user.id })}
+                        className={cn(
+                          "w-full flex items-center gap-2.5 p-2.5 rounded-xl border transition-all text-left",
+                          isSelected
+                            ? "bg-indigo-50/60 dark:bg-indigo-950/40 border-indigo-200 dark:border-indigo-800 ring-1 ring-indigo-500/20"
+                            : "bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/60"
+                        )}
+                      >
+                        <Avatar className="h-8 w-8 shrink-0">
+                          <AvatarImage src={user.image} />
+                          <AvatarFallback
+                            className={cn(
+                              "font-bold text-xs",
+                              isSelected
+                                ? "bg-indigo-600 text-white"
+                                : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300"
+                            )}
+                          >
+                            {user.name?.charAt(0) || "U"}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                            {user.name}
+                            {user.id === currentUser.id && (
+                              <span className="ml-1.5 text-[10px] text-indigo-500 font-semibold">(You)</span>
+                            )}
+                          </p>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
+                            {user.email}
+                          </p>
+                        </div>
+                        {isSelected && (
+                          <CheckCircle2 className="h-4 w-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {!isAdmin && (
+                  <p className="text-[10px] text-slate-400 dark:text-slate-500 italic text-center font-medium">
+                    Only admins & managers can assign reminders to others
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Submit Actions Card */}
+            <Card className="w-full rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs overflow-hidden">
+              <CardContent className="p-4 sm:p-5 space-y-3">
+                {/* Summary */}
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="p-2.5 rounded-xl bg-slate-50/60 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800">
+                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">Priority</p>
+                    <p className="text-xs font-extrabold text-slate-900 dark:text-white mt-0.5">
+                      {formData.priority}
+                    </p>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-slate-50/60 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800">
+                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">Type</p>
+                    <p className="text-xs font-extrabold text-slate-900 dark:text-white mt-0.5 truncate">
+                      {typeOptions.find((t) => t.value === formData.type)?.label || formData.type}
+                    </p>
+                  </div>
+                  <div className="p-2.5 rounded-xl bg-slate-50/60 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800">
+                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">Time</p>
+                    <p className="text-xs font-extrabold text-slate-900 dark:text-white mt-0.5">
+                      {format(formData.remindAt, "h:mm a")}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Buttons */}
+                <div className="flex gap-2.5">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => router.back()}
+                    className="flex-1 h-10 rounded-xl border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
                   >
                     Cancel
                   </Button>
-                </Link>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
-      </div>
+                  <Button
+                    type="submit"
+                    disabled={loading || !formData.title.trim()}
+                    className="flex-1 h-10 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-xs disabled:opacity-50"
+                  >
+                    {loading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
+                        Creating...
+                      </>
+                    ) : (
+                      <>
+                        <BellRing className="h-4 w-4 mr-1.5" />
+                        Create Reminder
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </form>
     </div>
   );
 }
-
-
