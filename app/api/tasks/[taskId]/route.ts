@@ -167,7 +167,28 @@ export async function PUT(req: Request, { params }: { params: Promise<{ taskId: 
       return NextResponse.json({ message: "Only organization admins and managers can update tasks" }, { status: 403 })
     }
 
-    const { title, description, status, priority, deadline, assignees } = await req.json()
+    const body = await req.json()
+    const { title, description, status, priority, deadline, deadlineRange, deadlineStart, deadlineEnd, assignees } = body
+
+    // Compute updated deadline dates for calendar & task tracking
+    let finalDeadline: Date | null = null
+    let finalDeadlineStart: Date | null = null
+    let finalDeadlineEnd: Date | null = null
+
+    if (deadlineRange?.from) {
+      finalDeadlineStart = new Date(deadlineRange.from)
+      finalDeadlineEnd = new Date(deadlineRange.to ?? deadlineRange.from)
+      finalDeadline = finalDeadlineEnd
+    } else if (deadlineStart || deadlineEnd) {
+      finalDeadlineStart = deadlineStart ? new Date(deadlineStart) : (deadlineEnd ? new Date(deadlineEnd) : null)
+      finalDeadlineEnd = deadlineEnd ? new Date(deadlineEnd) : (deadlineStart ? new Date(deadlineStart) : null)
+      finalDeadline = finalDeadlineEnd || finalDeadlineStart
+    } else if (deadline) {
+      const d = new Date(deadline)
+      finalDeadlineStart = d
+      finalDeadlineEnd = d
+      finalDeadline = d
+    }
 
     const orgId = user.organizationId
     const task = await db.task.findUnique({
@@ -200,19 +221,40 @@ export async function PUT(req: Request, { params }: { params: Promise<{ taskId: 
       )
     }
 
-    // Update task details
-    const updatedTask = await db.task.update({
-      where: {
-        id: taskId,
-      },
-      data: {
-        title,
-        description,
-        status,
-        priority,
-        deadline: deadline ? new Date(deadline) : null,
-      },
-    })
+    // Update task details with synchronized deadline, deadlineStart and deadlineEnd
+    let updatedTask
+    try {
+      updatedTask = await db.task.update({
+        where: {
+          id: taskId,
+        },
+        data: {
+          title,
+          description,
+          status,
+          priority,
+          deadline: finalDeadline,
+          // @ts-ignore
+          deadlineStart: finalDeadlineStart,
+          // @ts-ignore
+          deadlineEnd: finalDeadlineEnd,
+        },
+      })
+    } catch (e: any) {
+      // Fallback if schema doesn't have deadlineStart/deadlineEnd
+      updatedTask = await db.task.update({
+        where: {
+          id: taskId,
+        },
+        data: {
+          title,
+          description,
+          status,
+          priority,
+          deadline: finalDeadline,
+        },
+      })
+    }
 
     if (updatedTask.status === "DONE") {
       const { silenceTaskReminders } = await import("@/lib/reminder-processor")

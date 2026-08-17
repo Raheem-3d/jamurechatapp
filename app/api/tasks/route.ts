@@ -7,6 +7,7 @@ import { db } from "@/lib/db"
 import { emitToUser } from "@/lib/socket-server"
 import { subDays, subHours,addMinutes  } from "date-fns"
 import { sendEmail } from "@/lib/email"
+import { getTaskAssignmentEmailHtml, getTaskInvitationEmailHtml } from "@/lib/email-templates"
 import { getTenantWhereClause, getSessionUserWithPermissions } from "@/lib/org"
 import { hasPermission, requirePermission } from "@/lib/permissions"
 const crypto = require('crypto');
@@ -436,23 +437,19 @@ const channel = await db.channel.create({
         // Send email
         if (assignee?.email) {
           try {
+            const assignmentEmailHtml = getTaskAssignmentEmailHtml({
+              taskTitle: task.title,
+              description: task.description,
+              priority: task.priority,
+              deadline: task.deadline,
+              taskId: task.id,
+              creatorName: user.name || user.email,
+            })
+
             await sendEmail({
               to: assignee.email,
-              subject: `🔔 TASK_ASSIGNED: ${task.title}`,
-              html: `
-                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                  <h2 style="color: #2563eb;">🔔 Task Assignment Notification</h2>
-                  <div style="background: #f9fafb; padding: 16px; border-radius: 8px; margin-bottom: 16px;">
-                    <h3 style="margin-top: 0; color: #111827;">${task.title}</h3>
-                    <p><strong>Description:</strong> ${task.description || "No description provided"}</p>
-                    <p><strong>Priority:</strong> ${task.priority}</p>
-                    <p><strong>Deadline:</strong> ${task.deadline ? new Date(task.deadline).toLocaleString() : "No deadline"}</p>
-                  </div>
-                  <p style="color: #6b7280; font-size: 14px; text-align: center;">
-                    This is an automated message from the Task Manager system.
-                  </p>
-                </div>
-              `,
+              subject: `🎯 New Task Assigned: ${task.title}`,
+              html: assignmentEmailHtml,
             })
           } catch (e) {
             console.error("Error sending assignment email:", e)
@@ -505,35 +502,19 @@ const channel = await db.channel.create({
           const inviteLink = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/invite/${token}`;
           
           try {
+            const inviteEmailHtml = getTaskInvitationEmailHtml({
+              taskTitle: task.title,
+              description: task.description,
+              priority: task.priority,
+              deadline: task.deadline,
+              accessLevel: access,
+              inviteLink,
+            })
+
             await sendEmail({
               to: email,
               subject: `🎯 You've been invited to collaborate on: ${task.title}`,
-              html: `
-                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-                  <h2 style="color: #2563eb;">🎯 Task Collaboration Invitation</h2>
-                  <div style="background: #f9fafb; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
-                    <h3 style="margin-top: 0; color: #111827;">${task.title}</h3>
-                    <p><strong>Description:</strong> ${task.description || "No description provided"}</p>
-                    <p><strong>Priority:</strong> ${task.priority}</p>
-                    <p><strong>Deadline:</strong> ${task.deadline ? new Date(task.deadline).toLocaleString() : "No deadline"}</p>
-                    <p><strong>Your Access Level:</strong> <span style="background: #dbeafe; padding: 4px 8px; border-radius: 4px; color: #1e40af;">${access}</span></p>
-                  </div>
-                  <div style="background: #eff6ff; padding: 16px; border-radius: 8px; margin-bottom: 20px;">
-                    <p style="margin: 0 0 12px 0;"><strong>Access Permissions:</strong></p>
-                    ${access === 'VIEW' ? '<p style="margin: 4px 0;">✓ View task details</p><p style="margin: 4px 0;">✗ Cannot edit or comment</p>' : ''}
-                    ${access === 'COMMENT' ? '<p style="margin: 4px 0;">✓ View task details</p><p style="margin: 4px 0;">✓ Add comments</p><p style="margin: 4px 0;">✗ Cannot edit task</p>' : ''}
-                    ${access === 'EDIT' ? '<p style="margin: 4px 0;">✓ View task details</p><p style="margin: 4px 0;">✓ Add comments</p><p style="margin: 4px 0;">✓ Edit task details</p>' : ''}
-                  </div>
-                  <div style="text-align: center; margin: 30px 0;">
-                    <a href="${inviteLink}" style="background: #2563eb; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; display: inline-block; font-weight: bold;">
-                      Accept Invitation & View Task
-                    </a>
-                  </div>
-                  <p style="color: #6b7280; font-size: 14px; text-align: center;">
-                    This invitation will expire in 7 days.
-                  </p>
-                </div>
-              `,
+              html: inviteEmailHtml,
             })
           } catch (e) {
             console.error("Error sending client invitation email:", e)

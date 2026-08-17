@@ -105,6 +105,7 @@ export default function Sidebar({
   const [boardType, setBoardType] = useState("channels");
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [orgName, setOrgName] = useState<string | null>(null);
+  const [aiEnabled, setAiEnabled] = useState(true);
 
   // Permission-based check for creating projects/channels
   const perms = usePermissions() as any;
@@ -250,7 +251,10 @@ export default function Sidebar({
       "message:created",
       onMessageCreated as EventListener,
     );
-    window.addEventListener("messages:read", fetchUnreadCounts as EventListener);
+    window.addEventListener(
+      "messages:read",
+      fetchUnreadCounts as EventListener,
+    );
 
     return () => {
       window.removeEventListener(
@@ -277,7 +281,10 @@ export default function Sidebar({
         "message:created",
         onMessageCreated as EventListener,
       );
-      window.removeEventListener("messages:read", fetchUnreadCounts as EventListener);
+      window.removeEventListener(
+        "messages:read",
+        fetchUnreadCounts as EventListener,
+      );
     };
   }, []);
 
@@ -290,6 +297,9 @@ export default function Sidebar({
         const payload = await res.json();
         const name = payload?.organization?.name || null;
         setOrgName(name);
+        if (payload?.organization?.aiEnabled !== undefined) {
+          setAiEnabled(payload.organization.aiEnabled);
+        }
       } catch (err) {
         console.error("Failed to fetch organization:", err);
       }
@@ -315,12 +325,16 @@ export default function Sidebar({
         href: "/dashboard",
         icon: <LucideLayoutDashboard className="h-5 w-5" />,
       },
-      // {
-      //   title: "AI Assistant",
-      //   href: "/dashboard/ai-assistant",
-      //   icon: <Bot className="h-5 w-5" />,
-      //   badge: <Sparkles className="h-3 w-3 text-yellow-500" />,
-      // },
+      ...(aiEnabled
+        ? [
+            {
+              title: "AI Assistant",
+              href: "/dashboard/ai-assistant",
+              icon: <Bot className="h-5 w-5" />,
+              badge: <Sparkles className="h-3 w-3 text-yellow-500" />,
+            },
+          ]
+        : []),
       {
         title: "Calendar",
         href: "/dashboard/calendar",
@@ -344,12 +358,16 @@ export default function Sidebar({
         href: "/dashboard",
         icon: <LucideLayoutDashboard className="h-5 w-5" />,
       },
-      // {
-      //   title: "AI Assistant",
-      //   href: "/dashboard/ai-assistant",
-      //   icon: <Bot className="h-5 w-5" />,
-      //   badge: <Sparkles className="h-3 w-3 text-yellow-500" />,
-      // },
+      ...(aiEnabled
+        ? [
+            {
+              title: "AI Assistant",
+              href: "/dashboard/ai-assistant",
+              icon: <Bot className="h-5 w-5" />,
+              badge: <Sparkles className="h-3 w-3 text-yellow-500" />,
+            },
+          ]
+        : []),
       {
         title: "Calendar",
         href: "/dashboard/calendar",
@@ -375,25 +393,33 @@ export default function Sidebar({
 
   //
 
-  const filteredChannels = (Array.isArray(channels) ? channels : []).filter((channel) => {
-    if (!channel?.name) return false;
-    const name = channel.name.toLowerCase();
-    if (name.startsWith("task") || name.startsWith("internal")) return false;
-    const query = searchQuery.toLowerCase();
+  const filteredChannels = (Array.isArray(channels) ? channels : []).filter(
+    (channel) => {
+      if (!channel?.name) return false;
+      const name = channel.name.toLowerCase();
+      if (name.startsWith("task") || name.startsWith("internal")) return false;
+      const query = searchQuery.toLowerCase();
 
-    return name.includes(query);
-  });
+      return name.includes(query);
+    },
+  );
 
   // Filter for workspace view
-  const filteredWorkspaceChats = (Array.isArray(recentChats) ? recentChats : []).filter((contact) =>
+  const filteredWorkspaceChats = (
+    Array.isArray(recentChats) ? recentChats : []
+  ).filter((contact) =>
     contact?.name?.toLowerCase().includes(workspaceSearchQuery.toLowerCase()),
   );
 
-  const filteredWorkspaceProjects = (Array.isArray(recentTasks) ? recentTasks : []).filter((task) =>
+  const filteredWorkspaceProjects = (
+    Array.isArray(recentTasks) ? recentTasks : []
+  ).filter((task) =>
     task?.title?.toLowerCase().includes(workspaceSearchQuery.toLowerCase()),
   );
 
-  const filteredWorkspaceChannels = (Array.isArray(channels) ? channels : []).filter((channel) => {
+  const filteredWorkspaceChannels = (
+    Array.isArray(channels) ? channels : []
+  ).filter((channel) => {
     if (!channel?.name) return false;
     const name = channel.name.toLowerCase();
     if (name.startsWith("task") || name.startsWith("internal")) return false;
@@ -424,7 +450,9 @@ export default function Sidebar({
                   (session as any)?.user?.organizationName ||
                   "Workspace"}
               </h2>
-              <span className="text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">Enterprise</span>
+              <span className="text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
+                Enterprise
+              </span>
             </div>
           </div>
         )}
@@ -460,7 +488,7 @@ export default function Sidebar({
                 href={item.href}
                 prefetch={true}
                 className={cn(
-                  "flex items-center px-3 py-2.5 rounded-xl text-xs sm:text-[13.5px] font-bold transition-all duration-150 group",
+                  "flex items-center px-3 py-2.5 rounded-xl text-xs sm:text-[13.5px] font-semibold transition-all duration-150 group",
                   pathname === item.href
                     ? "bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border border-indigo-200/60 dark:border-indigo-800/60 shadow-xs font-bold"
                     : "text-slate-700 dark:text-slate-300 hover:bg-slate-100/70 dark:hover:bg-slate-800/70 hover:text-slate-900 dark:hover:text-slate-100",
@@ -476,7 +504,11 @@ export default function Sidebar({
                 >
                   {item.icon}
                 </div>
-                {!isCollapsed && <span className="ml-3 truncate tracking-wide">{item.title}</span>}
+                {!isCollapsed && (
+                  <span className="ml-3 truncate tracking-wide">
+                    {item.title}
+                  </span>
+                )}
               </Link>
             ))}
           </nav>
@@ -573,9 +605,24 @@ export default function Sidebar({
                     <SelectValue placeholder="Select view" />
                   </SelectTrigger>
                   <SelectContent className="rounded-xl border-slate-200 dark:border-slate-800 shadow-lg">
-                    <SelectItem value="recent-chats" className="text-xs font-semibold">Recent Chats</SelectItem>
-                    <SelectItem value="projects" className="text-xs font-semibold">Projects</SelectItem>
-                    <SelectItem value="channels" className="text-xs font-semibold">Channels</SelectItem>
+                    <SelectItem
+                      value="recent-chats"
+                      className="text-xs font-semibold"
+                    >
+                      Recent Chats
+                    </SelectItem>
+                    <SelectItem
+                      value="projects"
+                      className="text-xs font-semibold"
+                    >
+                      Projects
+                    </SelectItem>
+                    <SelectItem
+                      value="channels"
+                      className="text-xs font-semibold"
+                    >
+                      Channels
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               )}
@@ -598,157 +645,156 @@ export default function Sidebar({
               <div className="space-y-1">
                 {isLoading
                   ? Array.from({ length: 3 }).map((_, i) => (
-                    <Skeleton
-                      key={i}
-                      className="h-8 w-full bg-slate-200/80 dark:bg-slate-800 rounded-xl"
-                    />
-                  ))
+                      <Skeleton
+                        key={i}
+                        className="h-8 w-full bg-slate-200/80 dark:bg-slate-800 rounded-xl"
+                      />
+                    ))
                   : boardType === "recent-chats"
                     ? filteredWorkspaceChats.length > 0
                       ? filteredWorkspaceChats.map((contact) => (
-                        <Link
-                          key={contact.id}
-                          href={`/dashboard/messages/${contact.id}`}
-                          prefetch={true}
-                          onMouseEnter={() => prefetchChannel(contact.id)}
-                          onClick={() =>
-                            handleChannelNavigation(contact.id)
-                          }
-                          className={cn(
-                            "flex items-center px-3 py-2.5 rounded-xl text-xs sm:text-[13px] font-semibold transition-all duration-150 group",
-                            navigatingTo === contact.id
-                              ? "bg-indigo-100 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 opacity-70"
-                              : pathname ===
-                                `/dashboard/messages/${contact.id}`
-                                ? "bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 border border-indigo-200/60 dark:border-indigo-800/60 font-bold shadow-xs"
-                                : "text-slate-600 dark:text-slate-400 hover:bg-slate-100/70 dark:hover:bg-slate-800/70 hover:text-slate-900 dark:hover:text-slate-100",
-                          )}
-                        >
-                          <div className="relative flex-shrink-0">
-                            {navigatingTo === contact.id ? (
-                              <div className="w-5 h-5 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center">
-                                <div className="w-2 h-2 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
-                              </div>
-                            ) : (
-                              <>
-                                <div className="w-6 h-6 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-[11px] text-white font-extrabold shadow-2xs">
-                                  {contact.name?.charAt(0)?.toUpperCase() ||
-                                    "U"}
-                                </div>
-                                {onlineUsers?.includes(contact.id) && (
-                                  <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 border border-white dark:border-slate-900"></div>
-                                )}
-                              </>
-                            )}
-                          </div>
-                          {!isCollapsed && (
-                            <span className="ml-2.5 truncate flex-1 text-xs sm:text-[13px] font-bold text-slate-800 dark:text-slate-200 tracking-wide">
-                              {contact.name || "Unknown User"}
-                            </span>
-                          )}
-                          {(unreadCounts?.dms?.[contact.id] || 0) > 0 && (
-                            <Badge className="ml-auto bg-indigo-600 dark:bg-indigo-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0">
-                              {(unreadCounts.dms[contact.id] || 0) > 99
-                                ? "99+"
-                                : unreadCounts.dms[contact.id]}
-                            </Badge>
-                          )}
-                        </Link>
-                      ))
-                      : !isCollapsed && (
-                        <p className="text-xs text-slate-400 dark:text-slate-500 text-center py-2 font-medium">
-                          No recent chats
-                        </p>
-                      )
-                    : boardType === "projects"
-                      ? filteredWorkspaceProjects.length > 0
-                        ? filteredWorkspaceProjects.map((task) => (
                           <Link
-                            key={task.id}
-                            href={`/dashboard/tasks/${task.id}/record`}
+                            key={contact.id}
+                            href={`/dashboard/messages/${contact.id}`}
                             prefetch={true}
-                            onMouseEnter={() => prefetchChannel(task.id)}
-                            onClick={() => handleChannelNavigation(task.id)}
+                            onMouseEnter={() => prefetchChannel(contact.id)}
+                            onClick={() => handleChannelNavigation(contact.id)}
                             className={cn(
                               "flex items-center px-3 py-2.5 rounded-xl text-xs sm:text-[13px] font-semibold transition-all duration-150 group",
-                              navigatingTo === task.id
-                                ? "bg-indigo-100 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 opacity-70"
-                                : pathname === `/dashboard/tasks/${task.id}`
-                                  ? "bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 border border-indigo-200/60 dark:border-indigo-800/60 font-bold shadow-xs"
-                                  : "text-slate-600 dark:text-slate-400 hover:bg-slate-100/70 dark:hover:bg-slate-800/70 hover:text-slate-900 dark:hover:text-slate-100",
-                            )}
-                          >
-                            {navigatingTo === task.id ? (
-                              <div className="w-4 h-4 mr-3 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
-                            ) : (
-                              <Briefcase className="h-4 w-4 mr-2.5 text-indigo-500 group-hover:scale-110 transition-transform shrink-0" />
-                            )}
-                            {!isCollapsed && (
-                              <span className="truncate flex-1 text-xs sm:text-[13px] font-bold text-slate-800 dark:text-slate-200 tracking-wide">
-                                {task.title}
-                              </span>
-                            )}
-                          </Link>
-                        ))
-                        : !isCollapsed && (
-                          <p className="text-xs text-slate-400 dark:text-slate-500 text-center py-2 font-medium">
-                            No projects
-                          </p>
-                        )
-                      : filteredWorkspaceChannels.length > 0
-                        ? filteredWorkspaceChannels.map((channel) => (
-                          <Link
-                            key={channel.id}
-                            href={`/dashboard/channels/${channel.id}`}
-                            prefetch={true}
-                            onMouseEnter={() => prefetchChannel(channel.id)}
-                            onClick={() =>
-                              handleChannelNavigation(channel.id)
-                            }
-                            className={cn(
-                              "flex items-center px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-150 group",
-                              navigatingTo === channel.id
+                              navigatingTo === contact.id
                                 ? "bg-indigo-100 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 opacity-70"
                                 : pathname ===
-                                  `/dashboard/channels/${channel.id}`
+                                    `/dashboard/messages/${contact.id}`
                                   ? "bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 border border-indigo-200/60 dark:border-indigo-800/60 font-bold shadow-xs"
                                   : "text-slate-600 dark:text-slate-400 hover:bg-slate-100/70 dark:hover:bg-slate-800/70 hover:text-slate-900 dark:hover:text-slate-100",
                             )}
                           >
-                            {navigatingTo === channel.id ? (
-                              <div className="w-4 h-4 mr-3 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin shrink-0"></div>
-                            ) : channel.image ? (
-                              <img
-                                src={channel.image}
-                                alt={channel.name}
-                                className="w-10 h-10 rounded-md object-cover mr-2.5 shrink-0 border border-indigo-200 dark:border-indigo-800 shadow-2xs"
-                              />
-                            ) : (
-                              <Hash className="h-4 w-4 mr-2.5 text-indigo-500 group-hover:scale-110 transition-transform shrink-0" />
-                            )}
-
+                            <div className="relative flex-shrink-0">
+                              {navigatingTo === contact.id ? (
+                                <div className="w-5 h-5 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center">
+                                  <div className="w-2 h-2 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+                                </div>
+                              ) : (
+                                <>
+                                  <div className="w-6 h-6 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-[11px] text-white font-extrabold shadow-2xs">
+                                    {contact.name?.charAt(0)?.toUpperCase() ||
+                                      "U"}
+                                  </div>
+                                  {onlineUsers?.includes(contact.id) && (
+                                    <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 border border-white dark:border-slate-900"></div>
+                                  )}
+                                </>
+                              )}
+                            </div>
                             {!isCollapsed && (
-                              <span className="truncate flex-1 text-xs sm:text-[13px] font-bold text-slate-800 dark:text-slate-200 tracking-wide">
-                                {channel?.name
-                                  ? channel.name.charAt(0).toUpperCase() +
-                                  channel.name.slice(1)
-                                  : "Unnamed Channel"}
+                              <span className="ml-2.5 truncate flex-1 text-xs sm:text-[13px] font-bold text-slate-800 dark:text-slate-200 tracking-wide">
+                                {contact.name || "Unknown User"}
                               </span>
                             )}
-                            {(unreadCounts?.channels?.[channel.id] || 0) > 0 && (
+                            {(unreadCounts?.dms?.[contact.id] || 0) > 0 && (
                               <Badge className="ml-auto bg-indigo-600 dark:bg-indigo-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0">
-                                {(unreadCounts.channels[channel.id] || 0) > 99
+                                {(unreadCounts.dms[contact.id] || 0) > 99
                                   ? "99+"
-                                  : unreadCounts.channels[channel.id]}
+                                  : unreadCounts.dms[contact.id]}
                               </Badge>
                             )}
                           </Link>
                         ))
-                        : !isCollapsed && (
+                      : !isCollapsed && (
                           <p className="text-xs text-slate-400 dark:text-slate-500 text-center py-2 font-medium">
-                            No channels
+                            No recent chats
                           </p>
-                        )}
+                        )
+                    : boardType === "projects"
+                      ? filteredWorkspaceProjects.length > 0
+                        ? filteredWorkspaceProjects.map((task) => (
+                            <Link
+                              key={task.id}
+                              href={`/dashboard/tasks/${task.id}/record`}
+                              prefetch={true}
+                              onMouseEnter={() => prefetchChannel(task.id)}
+                              onClick={() => handleChannelNavigation(task.id)}
+                              className={cn(
+                                "flex items-center px-3 py-2.5 rounded-xl text-xs sm:text-[13px] font-semibold transition-all duration-150 group",
+                                navigatingTo === task.id
+                                  ? "bg-indigo-100 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 opacity-70"
+                                  : pathname === `/dashboard/tasks/${task.id}`
+                                    ? "bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 border border-indigo-200/60 dark:border-indigo-800/60 font-bold shadow-xs"
+                                    : "text-slate-600 dark:text-slate-400 hover:bg-slate-100/70 dark:hover:bg-slate-800/70 hover:text-slate-900 dark:hover:text-slate-100",
+                              )}
+                            >
+                              {navigatingTo === task.id ? (
+                                <div className="w-4 h-4 mr-3 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+                              ) : (
+                                <Briefcase className="h-4 w-4 mr-2.5 text-indigo-500 group-hover:scale-110 transition-transform shrink-0" />
+                              )}
+                              {!isCollapsed && (
+                                <span className="truncate flex-1 text-xs sm:text-[13px] font-bold text-slate-800 dark:text-slate-200 tracking-wide">
+                                  {task.title}
+                                </span>
+                              )}
+                            </Link>
+                          ))
+                        : !isCollapsed && (
+                            <p className="text-xs text-slate-400 dark:text-slate-500 text-center py-2 font-medium">
+                              No projects
+                            </p>
+                          )
+                      : filteredWorkspaceChannels.length > 0
+                        ? filteredWorkspaceChannels.map((channel) => (
+                            <Link
+                              key={channel.id}
+                              href={`/dashboard/channels/${channel.id}`}
+                              prefetch={true}
+                              onMouseEnter={() => prefetchChannel(channel.id)}
+                              onClick={() =>
+                                handleChannelNavigation(channel.id)
+                              }
+                              className={cn(
+                                "flex items-center px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-150 group",
+                                navigatingTo === channel.id
+                                  ? "bg-indigo-100 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 opacity-70"
+                                  : pathname ===
+                                      `/dashboard/channels/${channel.id}`
+                                    ? "bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 border border-indigo-200/60 dark:border-indigo-800/60 font-bold shadow-xs"
+                                    : "text-slate-600 dark:text-slate-400 hover:bg-slate-100/70 dark:hover:bg-slate-800/70 hover:text-slate-900 dark:hover:text-slate-100",
+                              )}
+                            >
+                              {navigatingTo === channel.id ? (
+                                <div className="w-4 h-4 mr-3 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin shrink-0"></div>
+                              ) : channel.image ? (
+                                <img
+                                  src={channel.image}
+                                  alt={channel.name}
+                                  className="w-10 h-10 rounded-md object-cover mr-2.5 shrink-0 border border-indigo-200 dark:border-indigo-800 shadow-2xs"
+                                />
+                              ) : (
+                                <Hash className="h-4 w-4 mr-2.5 text-indigo-500 group-hover:scale-110 transition-transform shrink-0" />
+                              )}
+
+                              {!isCollapsed && (
+                                <span className="truncate flex-1 text-xs sm:text-[13px] font-bold text-slate-800 dark:text-slate-200 tracking-wide">
+                                  {channel?.name
+                                    ? channel.name.charAt(0).toUpperCase() +
+                                      channel.name.slice(1)
+                                    : "Unnamed Channel"}
+                                </span>
+                              )}
+                              {(unreadCounts?.channels?.[channel.id] || 0) >
+                                0 && (
+                                <Badge className="ml-auto bg-indigo-600 dark:bg-indigo-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0">
+                                  {(unreadCounts.channels[channel.id] || 0) > 99
+                                    ? "99+"
+                                    : unreadCounts.channels[channel.id]}
+                                </Badge>
+                              )}
+                            </Link>
+                          ))
+                        : !isCollapsed && (
+                            <p className="text-xs text-slate-400 dark:text-slate-500 text-center py-2 font-medium">
+                              No channels
+                            </p>
+                          )}
               </div>
             </div>
           </div>
@@ -757,9 +803,14 @@ export default function Sidebar({
 
       {/* User Profile */}
       <div className="p-3.5 border-t border-slate-200/80 dark:border-slate-800/80 bg-slate-50/40 dark:bg-slate-900/40">
-        <div className={cn("flex items-center gap-3", isCollapsed && "justify-center space-x-0")}>
+        <div
+          className={cn(
+            "flex items-center gap-3",
+            isCollapsed && "justify-center space-x-0",
+          )}
+        >
           <div className="relative shrink-0">
-            {((user as any)?.image || (session?.user as any)?.image) ? (
+            {(user as any)?.image || (session?.user as any)?.image ? (
               <img
                 src={(user as any)?.image || (session?.user as any)?.image}
                 alt={user?.name || "User DP"}

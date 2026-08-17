@@ -330,62 +330,106 @@
 // Add your Perplexity API key in .env: PERPLEXITY_API_KEY=your_key_here
 
 export class PerplexityClient {
-  private apiKey: string;
+  private apiKey?: string;
   private baseUrl: string = 'https://api.perplexity.ai';
+  private provider: 'perplexity' | 'ollama' = 'perplexity';
+  private model: string = 'sonar';
 
+  constructor(apiKey?: string) {
+    const provider = (process.env.AI_PROVIDER || 'perplexity').toLowerCase() as 'perplexity' | 'ollama';
+    this.provider = provider;
 
-
-constructor(apiKey?: string) {
-  const key = (apiKey ?? process.env.PERPLEXITY_API_KEY ?? '').trim();
-
-  if (!key) {
-    throw new Error('Perplexity API key is required');
+    if (provider === 'ollama') {
+      this.baseUrl = (process.env.OLLAMA_BASE_URL || 'http://localhost:11434').trim();
+      if (this.baseUrl.endsWith('/')) {
+        this.baseUrl = this.baseUrl.slice(0, -1);
+      }
+      this.model = (process.env.OLLAMA_MODEL || 'qwen3-coder:30b').trim();
+      this.apiKey = '';
+    } else {
+      const key = (apiKey ?? process.env.PERPLEXITY_API_KEY ?? '').trim();
+      // Fallback: If no Perplexity key is found, but Ollama URL is configured, default to Ollama provider
+      if (!key && process.env.OLLAMA_BASE_URL) {
+        this.provider = 'ollama';
+        this.baseUrl = process.env.OLLAMA_BASE_URL.trim();
+        if (this.baseUrl.endsWith('/')) {
+          this.baseUrl = this.baseUrl.slice(0, -1);
+        }
+        this.model = (process.env.OLLAMA_MODEL || 'qwen3-coder:30b').trim();
+        this.apiKey = '';
+      } else {
+        this.apiKey = key;
+        this.baseUrl = 'https://api.perplexity.ai';
+        this.model = 'sonar';
+      }
+    }
   }
 
-  this.apiKey = key;
-  this.baseUrl = 'https://api.perplexity.ai';
-
- 
-}
-
-
   /**
-   * Generate AI response using Perplexity
+   * Generate AI response using Perplexity or local Ollama
    */
   async chat(
     messages: Array<{ role: string; content: string }>,
-    model: string = 'sonar'
+    modelOverride?: string
   ): Promise<any> {
     try {
-      const response = await fetch(`${this.baseUrl}/chat/completions`, {
+      const isOllama = this.provider === 'ollama';
+      const targetModel = modelOverride || (isOllama ? this.model : 'sonar');
+
+      let url: string;
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      };
+
+      if (isOllama) {
+        if (this.baseUrl.includes('/v1') || this.baseUrl.includes('/api/')) {
+          url = this.baseUrl;
+        } else {
+          url = `${this.baseUrl}/v1/chat/completions`;
+        }
+      } else {
+        url = `${this.baseUrl}/chat/completions`;
+        if (this.apiKey) {
+          headers['Authorization'] = `Bearer ${this.apiKey}`;
+        }
+      }
+
+      const body = {
+        model: targetModel,
+        messages,
+        temperature: 0.2,
+        max_tokens: 1024,
+        stream: false,
+      };
+
+      if (process.env.AI_DEBUG === 'true') {
+        console.log(`[AIClient] Requesting ${this.provider} API:`, {
+          url,
+          model: targetModel,
+          messagesCount: messages.length,
+        });
+      }
+
+      const response = await fetch(url, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model,
-          messages,
-          temperature: 0.2,
-          max_tokens: 1024,
-        }),
+        headers,
+        body: JSON.stringify(body),
       });
 
       // Diagnostic: helpful to see if something else already read the body
-      console.log('[PerplexityClient] response.bodyUsed (before read):', response.bodyUsed);
+      console.log(`[AIClient] response.bodyUsed (before read):`, response.bodyUsed);
 
       // Read the body exactly once. If bodyUsed is true, attempt to recover via clone()
       let rawBody: string | null = null;
 
       if (response.bodyUsed) {
-        // Some runtimes may allow clone(); try it as a fallback
         if (typeof (response as any).clone === 'function') {
           try {
             const cloned = (response as any).clone();
             rawBody = await cloned.text();
-            console.warn('[PerplexityClient] response.bodyUsed was true — read body from clone() fallback.');
+            console.warn('[AIClient] response.bodyUsed was true — read body from clone() fallback.');
           } catch (cloneErr) {
-            console.error('[PerplexityClient] clone() attempted but failed:', cloneErr);
+            console.error('[AIClient] clone() attempted but failed:', cloneErr);
             throw new Error('Response body was already consumed and clone() failed to recover it.');
           }
         } else {
@@ -402,12 +446,10 @@ constructor(apiKey?: string) {
       try {
         data = rawBody ? JSON.parse(rawBody) : null;
       } catch (parseErr) {
-        // not JSON — leave data as null
         data = null;
       }
 
       if (!response.ok) {
-        // Build detailed error message
         let errorMsg: string;
         try {
           if (data && (data.error || data.message)) {
@@ -418,14 +460,14 @@ constructor(apiKey?: string) {
         } catch (e) {
           errorMsg = rawBody || `${response.status} ${response.statusText}`;
         }
-        throw new Error(`Perplexity API error: ${response.status} ${response.statusText}\n${errorMsg}`);
+        throw new Error(`AI API error (${this.provider}): ${response.status} ${response.statusText}\n${errorMsg}`);
       }
 
       // Normal success — prefer structured content if present
-      const content = data?.choices?.[0]?.message?.content ?? data ?? rawBody;
+      const content = data?.choices?.[0]?.message?.content ?? data?.message?.content ?? data ?? rawBody;
       return content;
     } catch (error) {
-      console.error('[PerplexityClient] chat error:', error);
+      console.error(`[AIClient] chat error (${this.provider}):`, error);
       throw error;
     }
   }

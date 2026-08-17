@@ -25,8 +25,12 @@ import {
   Zap,
   LayoutGrid,
   Loader2,
+  Sparkles,
+  ListChecks,
+  Plus,
 } from "lucide-react";
 import { toast } from "sonner";
+import { DescriptionGenerator } from "@/components/description-generator";
 import { useSocket } from "@/hooks/use-socket";
 import RealTimeMessages from "./real-time-messages";
 import MessageInput from "./message-input";
@@ -102,6 +106,28 @@ export function TaskDetail({
   const { data: session } = useSession();
   const router = useRouter();
   const [showActivityLog, setShowActivityLog] = useState(false);
+  const [aiEnabled, setAiEnabled] = useState(true);
+  const [breakdownLoading, setBreakdownLoading] = useState(false);
+  const [subtasks, setSubtasks] = useState<string[]>([]);
+  const [checkedSubtasks, setCheckedSubtasks] = useState<Record<number, boolean>>({});
+  const [creatingSubtask, setCreatingSubtask] = useState<Record<number, boolean>>({});
+  const [createdSubtasks, setCreatedSubtasks] = useState<Record<number, boolean>>({});
+
+  useEffect(() => {
+    const fetchOrg = async () => {
+      try {
+        const res = await fetch("/api/organization/me");
+        if (!res.ok) return;
+        const payload = await res.json();
+        if (payload?.organization?.aiEnabled !== undefined) {
+          setAiEnabled(payload.organization.aiEnabled);
+        }
+      } catch (err) {
+        console.error("Failed to fetch organization setting for AI in TaskDetail:", err);
+      }
+    };
+    fetchOrg();
+  }, []);
   const [activePanel, setActivePanel] = useState<"admin" | "client">("admin");
   const [hasUnreadClientMessages, setHasUnreadClientMessages] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -619,9 +645,23 @@ export function TaskDetail({
 
               {/* Description Card */}
               <div className="space-y-1 bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs">
-                <label className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-                  Description
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                    Description
+                  </label>
+                  {aiEnabled && (
+                    <DescriptionGenerator
+                      title={editedTask.title || ""}
+                      onGenerate={(desc) =>
+                        setEditedTask({
+                          ...editedTask,
+                          description: desc,
+                        })
+                      }
+                      type="task"
+                    />
+                  )}
+                </div>
                 <Textarea
                   value={editedTask.description || ""}
                   onChange={(e) =>
@@ -635,6 +675,123 @@ export function TaskDetail({
                   className="text-xs text-slate-700 dark:text-slate-300 border-none shadow-none focus-visible:ring-1 focus-visible:ring-indigo-500 p-0 resize-none bg-transparent"
                 />
               </div>
+
+              {/* AI Smart Task Breakdown */}
+              {aiEnabled && (
+                <div className="space-y-2 bg-white dark:bg-slate-900 p-3.5 rounded-2xl border border-indigo-100/60 dark:border-indigo-800/30 shadow-2xs">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <ListChecks className="h-3.5 w-3.5 text-indigo-500" />
+                      <label className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                        AI Task Breakdown
+                      </label>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={breakdownLoading}
+                      onClick={async () => {
+                        setBreakdownLoading(true);
+                        setSubtasks([]);
+                        setCheckedSubtasks({});
+                        setCreatedSubtasks({});
+                        try {
+                          const res = await fetch("/api/ai/task-breakdown", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              taskId: task.id,
+                              title: editedTask.title,
+                              description: editedTask.description || "",
+                            }),
+                          });
+                          const data = await res.json();
+                          if (!res.ok) throw new Error(data.error || "Failed");
+                          const arr = data.subtasks || data.breakdown || [];
+                          setSubtasks(Array.isArray(arr) ? arr : []);
+                        } catch (e: any) {
+                          toast.error(e.message || "AI breakdown failed");
+                        } finally {
+                          setBreakdownLoading(false);
+                        }
+                      }}
+                      className="h-6 text-[10px] px-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg gap-1"
+                    >
+                      {breakdownLoading ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <Sparkles className="h-3 w-3" />
+                      )}
+                      {subtasks.length > 0 ? "Re-analyze" : "Breakdown"}
+                    </Button>
+                  </div>
+
+                  {breakdownLoading && (
+                    <div className="flex items-center gap-2 text-[11px] text-slate-400 dark:text-slate-500 py-2">
+                      <Loader2 className="h-3 w-3 animate-spin text-indigo-400" />
+                      <span>AI is breaking down the task...</span>
+                    </div>
+                  )}
+
+                  {subtasks.length > 0 && !breakdownLoading && (
+                    <div className="space-y-1.5">
+                      {subtasks.map((st, idx) => (
+                        <div key={idx} className="flex items-center gap-2 group">
+                          <input
+                            type="checkbox"
+                            checked={checkedSubtasks[idx] || false}
+                            onChange={(e) => setCheckedSubtasks(prev => ({ ...prev, [idx]: e.target.checked }))}
+                            className="h-3.5 w-3.5 rounded accent-indigo-600 shrink-0"
+                          />
+                          <span className={cn(
+                            "text-xs flex-1 leading-snug",
+                            checkedSubtasks[idx] ? "line-through text-slate-400" : "text-slate-700 dark:text-slate-300"
+                          )}>{st}</span>
+                          {!createdSubtasks[idx] ? (
+                            <button
+                              type="button"
+                              disabled={creatingSubtask[idx]}
+                              onClick={async () => {
+                                setCreatingSubtask(prev => ({ ...prev, [idx]: true }));
+                                try {
+                                  const res = await fetch("/api/tasks", {
+                                    method: "POST",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({
+                                      title: st,
+                                      description: `Subtask of: ${editedTask.title}`,
+                                      priority: (editedTask.priority || "medium").toUpperCase(),
+                                    }),
+                                  });
+                                  if (!res.ok) throw new Error("Failed to create task");
+                                  setCreatedSubtasks(prev => ({ ...prev, [idx]: true }));
+                                  toast.success(`Subtask created: "${st}"`);
+                                } catch (e: any) {
+                                  toast.error(e.message);
+                                } finally {
+                                  setCreatingSubtask(prev => ({ ...prev, [idx]: false }));
+                                }
+                              }}
+                              className="opacity-0 group-hover:opacity-100 transition-opacity h-5 w-5 rounded-md bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0"
+                              title="Create as task"
+                            >
+                              {creatingSubtask[idx] ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
+                            </button>
+                          ) : (
+                            <CheckCircle className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {subtasks.length === 0 && !breakdownLoading && (
+                    <p className="text-[10px] text-slate-400 dark:text-slate-500 leading-relaxed">
+                      Click <strong>Breakdown</strong> to let AI split this task into actionable subtasks.
+                    </p>
+                  )}
+                </div>
+              )}
 
               {/* Properties Grid Card */}
               <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs space-y-4">
@@ -839,30 +996,33 @@ export function TaskDetail({
 
                 {/* Existing Tag Chips */}
                 <div className="flex flex-wrap gap-1.5">
-                  {tags.map((tag) => {
-                    const tagKey = tag.id || tag.tagId || tag.name;
-                    const tagName = tag.name || tagKey;
-                    const isSelected = (editedTask.tags || []).some((t: any) => {
-                      if (!t) return false;
-                      const tKey = typeof t === "string" ? t : t.id || t.tagId || t.name;
-                      const tName = typeof t === "string" ? t : t.name || tKey;
-                      return (
-                        (tag.id && t.id && t.id === tag.id) ||
-                        (tagKey && tKey && tKey === tagKey) ||
-                        (tagName && tName && tName.toLowerCase() === tagName.toLowerCase())
-                      );
-                    });
+                  {tags
+                    .filter((tag) => {
+                      const tagKey = tag.id || tag.tagId || tag.name;
+                      const tagName = tag.name || tagKey;
+                      return (editedTask.tags || []).some((t: any) => {
+                        if (!t) return false;
+                        const tKey = typeof t === "string" ? t : t.id || t.tagId || t.name;
+                        const tName = typeof t === "string" ? t : t.name || tKey;
+                        return (
+                          (tag.id && t.id && t.id === tag.id) ||
+                          (tagKey && tKey && tKey === tagKey) ||
+                          (tagName && tName && tName.toLowerCase() === tagName.toLowerCase())
+                        );
+                      });
+                    })
+                    .map((tag) => {
+                      const tagKey = tag.id || tag.tagId || tag.name;
+                      const tagName = tag.name || tagKey;
 
-                    return (
-                      <Badge
-                        key={tagKey}
-                        onClick={() => {
-                          const current = Array.isArray(editedTask.tags)
-                            ? [...editedTask.tags]
-                            : [];
-                          let next;
-                          if (isSelected) {
-                            next = current.filter((t: any) => {
+                      return (
+                        <Badge
+                          key={tagKey}
+                          onClick={() => {
+                            const current = Array.isArray(editedTask.tags)
+                              ? [...editedTask.tags]
+                              : [];
+                            const next = current.filter((t: any) => {
                               if (!t) return false;
                               const tKey = typeof t === "string" ? t : t.id || t.tagId || t.name;
                               const tName = typeof t === "string" ? t : t.name || tKey;
@@ -872,22 +1032,15 @@ export function TaskDetail({
                                 (!tag.id || t.id !== tag.id)
                               );
                             });
-                          } else {
-                            next = [...current, tag];
-                          }
-                          setEditedTask({ ...editedTask, tags: next });
-                        }}
-                        className={cn(
-                          "cursor-pointer select-none border text-xs px-2.5 py-1 rounded-xl font-bold transition-all",
-                          isSelected
-                            ? "bg-indigo-600 text-white border-indigo-600 shadow-2xs"
-                            : "bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100"
-                        )}
-                      >
-                        {tagName} {isSelected && "✓"}
-                      </Badge>
-                    );
-                  })}
+                            setEditedTask({ ...editedTask, tags: next });
+                          }}
+                          className="cursor-pointer select-none border text-xs px-2.5 py-1 rounded-xl font-bold bg-indigo-600 text-white border-indigo-600 shadow-2xs hover:bg-rose-600 hover:border-rose-600 transition-all flex items-center gap-1"
+                        >
+                          <span>{tagName}</span>
+                          <span className="text-[10px] font-bold">✕</span>
+                        </Badge>
+                      );
+                    })}
                 </div>
 
                 {/* Select Existing Tag Selector */}

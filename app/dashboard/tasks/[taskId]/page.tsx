@@ -184,6 +184,11 @@ export default async function TaskDetailPage({
     }
   };
 
+  // Get unique assignments by user ID to avoid displaying duplicate assignees
+  const uniqueAssignments = Array.from(
+    new Map(task.assignments.map((a: any) => [a.userId, a])).values()
+  );
+
   return (
     <div className="w-full space-y-4">
       {/* Full Width Top Navigation & Task Header Strip */}
@@ -364,7 +369,7 @@ export default async function TaskDetailPage({
               <div className="flex items-center justify-between">
                 <CardTitle className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-2">
                   <UserCheck className="h-4 w-4 text-indigo-500" />
-                  Assignees ({task.assignments.length})
+                  Assignees ({uniqueAssignments.length})
                 </CardTitle>
                 {canEdit && (
                   <Link
@@ -378,11 +383,11 @@ export default async function TaskDetailPage({
             </CardHeader>
 
             <CardContent className="p-4">
-              {task.assignments.length === 0 ? (
+              {uniqueAssignments.length === 0 ? (
                 <p className="text-slate-400 text-xs italic text-center py-2">No assignees added yet</p>
               ) : (
                 <div className="flex items-center gap-2.5 flex-wrap">
-                  {task.assignments.map((assignment: any) => (
+                  {uniqueAssignments.map((assignment: any) => (
                     <div
                       key={assignment.id}
                       className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700/60 text-xs font-bold text-slate-800 dark:text-slate-200"

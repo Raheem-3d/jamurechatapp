@@ -48,16 +48,23 @@ export async function GET(req: Request) {
       currentUser.isSuperAdmin ||
       currentUser.role === "SUPER_ADMIN" ||
       currentUser.role === "ORG_ADMIN";
+
+    const userDept = currentUser.departmentId
+      ? await db.department.findUnique({ where: { id: currentUser.departmentId } })
+      : null;
+    const isHR = userDept?.name?.toUpperCase() === "HR" || userDept?.name?.toUpperCase() === "HUMAN RESOURCES";
+    const hasDeptRestriction = isAdmin && currentUser.departmentId && !isHR;
+
     const hasUserScope =
-      isAdmin && Boolean(filterUserId || filterDeptId || filterRole);
+      (isAdmin && Boolean(filterUserId || filterDeptId || filterRole)) || hasDeptRestriction;
 
     // Resolve the selected filters into one consistent user scope.
     let scopedUserIds: string[] = [];
     if (hasUserScope) {
       const scopedUsers = await db.user.findMany({
         where: {
+          ...(hasDeptRestriction ? { departmentId: currentUser.departmentId } : (filterDeptId ? { departmentId: filterDeptId } : {})),
           ...(filterUserId ? { id: filterUserId } : {}),
-          ...(filterDeptId ? { departmentId: filterDeptId } : {}),
           ...(filterRole ? { role: filterRole as any } : {}),
         },
         select: { id: true },
@@ -112,7 +119,6 @@ export async function GET(req: Request) {
     let completedThisWeek = 0;
     let completedThisMonth = 0;
 
-    let totalCompletionTimeHours = 0;
     let fastestTaskDuration: number | null = null;
     let slowestTaskDuration: number | null = null;
     let fastestTaskTitle: string | null = null;
@@ -145,7 +151,6 @@ export async function GET(req: Request) {
               (1000 * 60 * 60),
           ),
         );
-        totalCompletionTimeHours += completionDurationHours;
 
         if (
           fastestTaskDuration === null ||
@@ -213,9 +218,13 @@ export async function GET(req: Request) {
         priority: t.priority,
         creatorName: t.creator?.name || null,
         assignedUsers:
-          t.assignments
-            .map((a: any) => a.user.name || a.user.email)
-            .join(", ") || null,
+          Array.from(
+            new Set(
+              t.assignments
+                .map((a: any) => a.user.name || a.user.email)
+                .filter(Boolean)
+            )
+          ).join(", ") || null,
         currentStage,
         createdAt: t.createdAt,
         deadline: t.deadline,
@@ -232,10 +241,7 @@ export async function GET(req: Request) {
       };
     });
 
-    const avgTaskCompletionHours =
-      completedTasksCount > 0
-        ? Math.round(totalCompletionTimeHours / completedTasksCount)
-        : 0;
+
 
     // -------------------------------------------------------------
     // 2. RECORD PERFORMANCE & COMPLETED RECORDS METRICS
@@ -343,8 +349,13 @@ export async function GET(req: Request) {
         stageName: r.stage ? r.stage.name : null,
         creatorName: r.createdByUser?.name || null,
         assignees:
-          r.assignees.map((a: any) => a.user.name || a.user.email).join(", ") ||
-          null,
+          Array.from(
+            new Set(
+              r.assignees
+                .map((a: any) => a.user.name || a.user.email)
+                .filter(Boolean)
+            )
+          ).join(", ") || null,
         createdAt: r.createdAt,
         dueDate: r.dueDate,
         completedAt: completedAtDate,
@@ -451,6 +462,15 @@ export async function GET(req: Request) {
     // 5. TIMELINE & AUDIT TRAIL
     // -------------------------------------------------------------
     const timelineActivities = await db.taskActivity.findMany({
+      where: hasUserScope
+        ? {
+            OR: [
+              { userId: { in: scopedUserIds } },
+              { taskId: { in: rawTasks.map((t: any) => t.id) } },
+              { record: recordWhere },
+            ],
+          }
+        : undefined,
       include: {
         user: { select: { name: true, email: true, image: true } },
         task: { select: { title: true } },
@@ -589,7 +609,6 @@ export async function GET(req: Request) {
           completedToday,
           completedThisWeek,
           completedThisMonth,
-          avgTaskCompletionHours,
           fastestTaskTitle,
           fastestTaskDuration,
           slowestTaskTitle,

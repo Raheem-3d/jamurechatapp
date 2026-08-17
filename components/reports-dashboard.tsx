@@ -39,6 +39,7 @@ import {
   PieChart as PieIcon,
   Activity,
   Target,
+  Eye,
 } from "lucide-react";
 import {
   Card,
@@ -54,6 +55,7 @@ import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
+import { usePermissions } from "@/hooks/usePermissions";
 
 // High-Performance Interactive Recharts Components
 import AreaChartInteractive, {
@@ -70,18 +72,28 @@ import RadialChartLabel, {
 } from "@/components/reports/radial-chart-label";
 
 export default function ReportsDashboard() {
+  const { isAdmin, canCreateTask } = usePermissions();
+  const showCreatedTasks = isAdmin || canCreateTask;
+
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
 
+  // Pagination states
+  const [tasksPage, setTasksPage] = useState(1);
+  const [recordsPage, setRecordsPage] = useState(1);
+  const [workloadPage, setWorkloadPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
+
+  const [highlightType, setHighlightType] = useState<"fastest" | "slowest">("fastest");
+
   // Filters
-  const [dateRange, setDateRange] = useState<"7d" | "30d" | "90d" | "all">(
+  const [dateRange, setDateRange] = useState<"7d" | "30d" | "90d" | "all" | "custom">(
     "30d",
   );
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [selectedDeptId, setSelectedDeptId] = useState("");
   const [selectedUserId, setSelectedUserId] = useState("");
-  const [selectedRole, setSelectedRole] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
 
   const [overviewData, setOverviewData] = useState<any>(null);
@@ -89,6 +101,9 @@ export default function ReportsDashboard() {
 
   // Fetch report data
   const fetchReports = async () => {
+    if (dateRange === "custom" && (!startDate || !endDate)) {
+      return;
+    }
     setLoading(true);
     try {
       const queryParams = new URLSearchParams();
@@ -107,14 +122,13 @@ export default function ReportsDashboard() {
           "startDate",
           subDays(new Date(), 90).toISOString().split("T")[0],
         );
-      } else if (startDate && endDate) {
+      } else if (dateRange === "custom" && startDate && endDate) {
         queryParams.set("startDate", startDate);
         queryParams.set("endDate", endDate);
       }
 
       if (selectedDeptId) queryParams.set("departmentId", selectedDeptId);
       if (selectedUserId) queryParams.set("userId", selectedUserId);
-      if (selectedRole) queryParams.set("role", selectedRole);
 
       // Fetch Overview & Detailed data in parallel
       const [resOverview, resDetailed] = await Promise.all([
@@ -130,6 +144,11 @@ export default function ReportsDashboard() {
 
       setOverviewData(jsonOverview);
       setDetailedData(jsonDetailed);
+
+      // Auto-select department if restricted admin has exactly 1 department option
+      if (jsonOverview.departments && jsonOverview.departments.length === 1 && !selectedDeptId) {
+        setSelectedDeptId(jsonOverview.departments[0].id);
+      }
     } catch (err: any) {
       console.error("Reporting Error:", err);
       toast.error(err.message || "Failed to load detailed reports");
@@ -140,7 +159,9 @@ export default function ReportsDashboard() {
 
   useEffect(() => {
     fetchReports();
-    const refreshInterval = window.setInterval(fetchReports, 30_000);
+    const refreshInterval = window.setInterval(() => {
+      fetchReports();
+    }, 30_000);
 
     return () => window.clearInterval(refreshInterval);
   }, [
@@ -149,8 +170,13 @@ export default function ReportsDashboard() {
     endDate,
     selectedDeptId,
     selectedUserId,
-    selectedRole,
   ]);
+
+  useEffect(() => {
+    setTasksPage(1);
+    setRecordsPage(1);
+    setWorkloadPage(1);
+  }, [dateRange, startDate, endDate, selectedDeptId, selectedUserId, searchQuery]);
 
   // Export CSV Handler
   const handleExportCSV = () => {
@@ -214,9 +240,6 @@ export default function ReportsDashboard() {
     }
   };
 
-  const handlePrint = () => {
-    window.print();
-  };
 
   // Reset/Clear All Filters Handler
   const handleClearFilters = () => {
@@ -537,7 +560,6 @@ export default function ReportsDashboard() {
 
     */
     setSelectedDeptId("");
-    setSelectedRole("");
     setDateRange("all");
     setStartDate("");
     setEndDate("");
@@ -553,7 +575,6 @@ export default function ReportsDashboard() {
     completedToday: 0,
     completedThisWeek: 0,
     completedThisMonth: 0,
-    avgTaskCompletionHours: 0,
     totalRecords: 0,
     completedRecords: 0,
     activeRecords: 0,
@@ -590,6 +611,24 @@ export default function ReportsDashboard() {
     "email",
     "departmentName",
   ]);
+
+  const totalTasksPages = Math.ceil(filteredTasks.length / ITEMS_PER_PAGE) || 1;
+  const paginatedTasks = filteredTasks.slice(
+    (tasksPage - 1) * ITEMS_PER_PAGE,
+    tasksPage * ITEMS_PER_PAGE
+  );
+
+  const totalRecordsPages = Math.ceil(filteredRecords.length / ITEMS_PER_PAGE) || 1;
+  const paginatedRecords = filteredRecords.slice(
+    (recordsPage - 1) * ITEMS_PER_PAGE,
+    recordsPage * ITEMS_PER_PAGE
+  );
+
+  const totalWorkloadPages = Math.ceil(filteredWorkload.length / ITEMS_PER_PAGE) || 1;
+  const paginatedWorkload = filteredWorkload.slice(
+    (workloadPage - 1) * ITEMS_PER_PAGE,
+    workloadPage * ITEMS_PER_PAGE
+  );
 
   // 1. Area Chart - Interactive Data Computation
   const areaChartData: AreaChartDataPoint[] = (() => {
@@ -761,6 +800,17 @@ export default function ReportsDashboard() {
   );
 
   const [showGuide, setShowGuide] = useState(false);
+  const [guideSection, setGuideSection] = useState<"overview" | "tasks" | "records" | "workload" | "stages" | "storage" | null>(null);
+
+  const handleToggleGuide = (section: "overview" | "tasks" | "records" | "workload" | "stages" | "storage") => {
+    if (showGuide && guideSection === section) {
+      setShowGuide(false);
+      setGuideSection(null);
+    } else {
+      setShowGuide(true);
+      setGuideSection(section);
+    }
+  };
 
   // Detail Modal State on Graph Click
   const [selectedChartDetail, setSelectedChartDetail] = useState<{
@@ -779,15 +829,15 @@ export default function ReportsDashboard() {
     setSelectedChartDetail({
       chartType: "Area",
       title: `📈 Activity Details for ${dataPoint.date}`,
-      subtitle: `Daily activity breakdown: ${dataPoint.completedTasks} tasks completed, ${dataPoint.createdTasks} tasks created, ${dataPoint.createdRecords} records created.`,
+      subtitle: `Daily activity breakdown: ${dataPoint.completedTasks} tasks completed, ${showCreatedTasks ? `${dataPoint.createdTasks} tasks created, ` : ""}${dataPoint.createdRecords} records created.`,
       badgeText: `Total Score: ${dataPoint.totalActivity}`,
       color: "#6366f1",
       metrics: [
         { label: "Completed Tasks", value: dataPoint.completedTasks },
-        { label: "Created Tasks", value: dataPoint.createdTasks },
+        ...(showCreatedTasks ? [{ label: "Created Tasks", value: dataPoint.createdTasks }] : []),
         { label: "Created Records", value: dataPoint.createdRecords },
         { label: "Total Combined Activity", value: dataPoint.totalActivity },
-      ],
+      ].filter(Boolean),
       relatedTasks: detailedData?.detailedTasks || [],
       relatedRecords: detailedData?.detailedRecords || [],
     });
@@ -873,58 +923,27 @@ export default function ReportsDashboard() {
   return (
     <div className="min-h-screen bg-slate-50/50 dark:bg-slate-950 p-4 sm:p-6 lg:p-8 space-y-6">
       {/* Top Control Header Bar */}
-      <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
+      <div className="flex flex-col xl:flex-row items-start xl:items-center justify-between gap-4 bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
         <div className="flex items-center gap-3">
-          <div className="p-3 bg-gradient-to-br from-indigo-500 to-purple-600 text-white rounded-2xl shadow-md">
+          <div className="p-3 bg-gradient-to-br from-indigo-500 to-purple-600 text-white rounded-2xl shadow-md shrink-0">
             <BarChart3 className="h-6 w-6" />
           </div>
           <div>
-            <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
+            <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white flex items-center gap-2 whitespace-nowrap">
               Reporting & Analytics
               <Badge className="bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-extrabold text-[10px] px-2 py-0.5">
                 Enterprise
               </Badge>
             </h1>
-            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
-              Comprehensive performance insights across Tasks, Records, Stages,
-              Automations, Users & Storage
-            </p>
+
           </div>
         </div>
 
         {/* Global Filter Bar */}
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap xl:flex-nowrap w-full xl:w-auto xl:justify-end">
           {/* Department Select (Admin Only) */}
           {overviewData?.departments && overviewData.departments.length > 0 ? (
             <>
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold shadow-2xs">
-                <ShieldAlert className="h-4 w-4 text-rose-500 shrink-0" />
-                <select
-                  value={selectedRole}
-                  onChange={(e) => setSelectedRole(e.target.value)}
-                  className="bg-transparent text-slate-800 dark:text-slate-200 text-xs font-bold outline-none cursor-pointer"
-                >
-                  <option value="" className="dark:bg-slate-900 font-medium">
-                    All Roles
-                  </option>
-                  {Array.from(
-                    new Set(
-                      overviewData?.allUsers
-                        ?.map((u: any) => u.role)
-                        .filter(Boolean),
-                    ),
-                  ).map((role) => (
-                    <option
-                      key={String(role)}
-                      value={String(role)}
-                      className="dark:bg-slate-900 font-medium"
-                    >
-                      {String(role).replace(/_/g, " ")}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
               <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold shadow-2xs">
                 <Building2 className="h-4 w-4 text-indigo-500 shrink-0" />
                 <select
@@ -932,9 +951,11 @@ export default function ReportsDashboard() {
                   onChange={(e) => setSelectedDeptId(e.target.value)}
                   className="bg-transparent text-slate-800 dark:text-slate-200 text-xs font-bold outline-none cursor-pointer"
                 >
-                  <option value="" className="dark:bg-slate-900 font-medium">
-                    All Departments
-                  </option>
+                  {overviewData?.departments?.length > 1 && (
+                    <option value="" className="dark:bg-slate-900 font-medium">
+                      All Departments
+                    </option>
+                  )}
                   {overviewData?.departments?.map((dept: any) => (
                     <option
                       key={dept.id}
@@ -986,10 +1007,17 @@ export default function ReportsDashboard() {
               { id: "30d", label: "30 Days" },
               { id: "90d", label: "90 Days" },
               { id: "all", label: "All Time" },
+              { id: "custom", label: "Custom" },
             ].map((btn: any) => (
               <button
                 key={btn.id}
-                onClick={() => setDateRange(btn.id)}
+                onClick={() => {
+                  setDateRange(btn.id as any);
+                  if (btn.id !== "custom") {
+                    setStartDate("");
+                    setEndDate("");
+                  }
+                }}
                 className={`px-2.5 py-1.5 rounded-xl font-bold transition-all ${
                   dateRange === btn.id
                     ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-2xs"
@@ -1000,6 +1028,24 @@ export default function ReportsDashboard() {
               </button>
             ))}
           </div>
+
+          {dateRange === "custom" && (
+            <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-1 text-xs">
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="bg-transparent text-slate-800 dark:text-slate-200 px-2 py-1 outline-none font-bold cursor-pointer"
+              />
+              <span className="text-slate-400 font-extrabold">-</span>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="bg-transparent text-slate-800 dark:text-slate-200 px-2 py-1 outline-none font-bold cursor-pointer"
+              />
+            </div>
+          )}
 
           <Button
             size="sm"
@@ -1040,100 +1086,83 @@ export default function ReportsDashboard() {
             <Download className="h-3.5 w-3.5" />
             Export CSV
           </Button>
-
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => setShowGuide(!showGuide)}
-            className="h-9 rounded-2xl border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400 gap-1.5 font-bold text-xs bg-indigo-50/50 dark:bg-indigo-950/40"
-          >
-            <Sparkles className="h-3.5 w-3.5 text-indigo-500" />
-            {showGuide ? "Hide Guide" : "💡 Report Guide"}
-          </Button>
-
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={handlePrint}
-            className="h-9 rounded-2xl border-slate-200 dark:border-slate-800 gap-1.5 font-bold text-xs hidden lg:flex"
-          >
-            <Printer className="h-3.5 w-3.5" />
-            Print
-          </Button>
         </div>
       </div>
 
       {/* Expandable Report Guide Banner */}
-      {showGuide && (
+      {showGuide && guideSection && (
         <Card className="rounded-3xl border-indigo-200 dark:border-indigo-900 bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-indigo-500/10 p-5 space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-extrabold text-indigo-900 dark:text-indigo-200 flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-indigo-600" />
-              Reporting Dashboard Guide: Is Report Ko Kaise Samjhein?
+              <Eye className="h-4 w-4 text-indigo-600" />
+              Reporting Dashboard Guide: {
+                guideSection === "overview" ? "Overview & Widgets" :
+                guideSection === "tasks" ? "Task Performance" :
+                guideSection === "records" ? "Record Performance" :
+                guideSection === "workload" ? "Team Workload" :
+                guideSection === "stages" ? "Stage Analytics" : "Storage & Files"
+              }
             </h3>
             <button
-              onClick={() => setShowGuide(false)}
+              onClick={() => {
+                setShowGuide(false);
+                setGuideSection(null);
+              }}
               className="text-slate-400 hover:text-slate-600"
             >
               <X className="h-4 w-4" />
             </button>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
-            <div className="p-3 rounded-2xl bg-white/80 dark:bg-slate-900/80 border border-slate-200/60 dark:border-slate-800">
-              <p className="font-extrabold text-indigo-600 mb-1">
-                📊 1. Overview & Widgets
-              </p>
-              <p className="text-slate-600 dark:text-slate-300">
-                Is tab me workspace ka total status, task completion velocity,
-                aur priority picture graphs ek nazar me dikhte hain.
-              </p>
-            </div>
-            <div className="p-3 rounded-2xl bg-white/80 dark:bg-slate-900/80 border border-slate-200/60 dark:border-slate-800">
-              <p className="font-extrabold text-indigo-600 mb-1">
-                🎯 2. Task Performance
-              </p>
-              <p className="text-slate-600 dark:text-slate-300">
-                Har task ka timing, deadline compliance (Completed Before/After
-                deadline), delay hours aur reassignments ka detailed log.
-              </p>
-            </div>
-            <div className="p-3 rounded-2xl bg-white/80 dark:bg-slate-900/80 border border-slate-200/60 dark:border-slate-800">
-              <p className="font-extrabold text-indigo-600 mb-1">
-                📄 3. Record Performance
-              </p>
-              <p className="text-slate-600 dark:text-slate-300">
-                Har record ka stage status, associated tags (#tag), activity
-                count aur assigned users ki complete list.
-              </p>
-            </div>
-            <div className="p-3 rounded-2xl bg-white/80 dark:bg-slate-900/80 border border-slate-200/60 dark:border-slate-800">
-              <p className="font-extrabold text-indigo-600 mb-1">
-                👥 4. Team Workload
-              </p>
-              <p className="text-slate-600 dark:text-slate-300">
-                Kaunsa employee kitne tasks aur records par kaam kar raha hai
-                aur kis user par overdue risk hai.
-              </p>
-            </div>
-            <div className="p-3 rounded-2xl bg-white/80 dark:bg-slate-900/80 border border-slate-200/60 dark:border-slate-800">
-              <p className="font-extrabold text-indigo-600 mb-1">
-                🔄 5. Stage Analytics
-              </p>
-              <p className="text-slate-600 dark:text-slate-300">
-                Kis workflow stage me kitne records hain, stage conversion rate
-                %, aur kahan kaam atak raha hai (Bottleneck).
-              </p>
-            </div>
-            {/* <div className="p-3 rounded-2xl bg-white/80 dark:bg-slate-900/80 border border-slate-200/60 dark:border-slate-800">
-              <p className="font-extrabold text-indigo-600 mb-1">
-                📜 6. Audit Timeline
-              </p>
-              <p className="text-slate-600 dark:text-slate-300">
-                Har system event (Task creation, Assignment, Status change, User
-                action) ka exact date & time history log.
-              </p>
-            </div> */}
+          <div className="text-xs">
+            {guideSection === "overview" && (
+              <div className="p-4 rounded-2xl bg-white/80 dark:bg-slate-900/80 border border-slate-200/60 dark:border-slate-800">
+                <p className="font-extrabold text-indigo-600 mb-1">📊 1. Overview & Widgets</p>
+                <p className="text-slate-600 dark:text-slate-300">
+                  Is tab me workspace ka total status, task completion velocity, aur priority picture graphs ek nazar me dikhte hain.
+                </p>
+              </div>
+            )}
+            {guideSection === "tasks" && (
+              <div className="p-4 rounded-2xl bg-white/80 dark:bg-slate-900/80 border border-slate-200/60 dark:border-slate-800">
+                <p className="font-extrabold text-indigo-600 mb-1">🎯 2. Task Performance</p>
+                <p className="text-slate-600 dark:text-slate-300">
+                  Har task ka timing, deadline compliance (Completed Before/After deadline), delay hours aur reassignments ka detailed log.
+                </p>
+              </div>
+            )}
+            {guideSection === "records" && (
+              <div className="p-4 rounded-2xl bg-white/80 dark:bg-slate-900/80 border border-slate-200/60 dark:border-slate-800">
+                <p className="font-extrabold text-indigo-600 mb-1">📄 3. Record Performance</p>
+                <p className="text-slate-600 dark:text-slate-300">
+                  Har record ka stage status, rework count, aur assigned users ki complete list.
+                </p>
+              </div>
+            )}
+            {guideSection === "workload" && (
+              <div className="p-4 rounded-2xl bg-white/80 dark:bg-slate-900/80 border border-slate-200/60 dark:border-slate-800">
+                <p className="font-extrabold text-indigo-600 mb-1">👥 4. Team Workload</p>
+                <p className="text-slate-600 dark:text-slate-300">
+                  Kaunsa employee kitne tasks aur records par kaam kar raha hai aur kis user par overdue risk hai.
+                </p>
+              </div>
+            )}
+            {guideSection === "stages" && (
+              <div className="p-4 rounded-2xl bg-white/80 dark:bg-slate-900/80 border border-slate-200/60 dark:border-slate-800">
+                <p className="font-extrabold text-indigo-600 mb-1">🔄 5. Stage Analytics</p>
+                <p className="text-slate-600 dark:text-slate-300">
+                  Kis workflow stage me kitne records hain, stage conversion rate %, aur kahan kaam atak raha hai (Bottleneck).
+                </p>
+              </div>
+            )}
+            {guideSection === "storage" && (
+              <div className="p-4 rounded-2xl bg-white/80 dark:bg-slate-900/80 border border-slate-200/60 dark:border-slate-800">
+                <p className="font-extrabold text-indigo-600 mb-1">📁 6. Storage & Files</p>
+                <p className="text-slate-600 dark:text-slate-300">
+                  Is tab me workspace ki photos, videos, documents aur audio files ki storage and count stats dikhte hain.
+                </p>
+              </div>
+            )}
           </div>
         </Card>
       )}
@@ -1148,47 +1177,124 @@ export default function ReportsDashboard() {
           <TabsList className="bg-slate-100 dark:bg-slate-800 p-1 rounded-xl gap-1 flex-wrap h-auto">
             <TabsTrigger
               value="overview"
-              className="rounded-lg text-xs font-bold gap-1.5 px-3 py-1.5"
+              className="rounded-lg text-xs font-bold gap-1.5 px-3 py-1.5 flex items-center"
             >
               <BarChart3 className="h-4 w-4" /> Overview & Widgets
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleToggleGuide("overview");
+                }}
+                className={`ml-1.5 p-0.5 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors ${
+                  showGuide && guideSection === "overview"
+                    ? "text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40"
+                    : "text-slate-400 hover:text-slate-600"
+                }`}
+                title="View Guide"
+              >
+                <Eye className="h-3.5 w-3.5" />
+              </button>
             </TabsTrigger>
             <TabsTrigger
               value="tasks"
-              className="rounded-lg text-xs font-bold gap-1.5 px-3 py-1.5"
+              className="rounded-lg text-xs font-bold gap-1.5 px-3 py-1.5 flex items-center"
             >
               <ListTodo className="h-4 w-4 text-indigo-500" /> Task Performance
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleToggleGuide("tasks");
+                }}
+                className={`ml-1.5 p-0.5 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors ${
+                  showGuide && guideSection === "tasks"
+                    ? "text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40"
+                    : "text-slate-400 hover:text-slate-600"
+                }`}
+                title="View Guide"
+              >
+                <Eye className="h-3.5 w-3.5" />
+              </button>
             </TabsTrigger>
             <TabsTrigger
               value="records"
-              className="rounded-lg text-xs font-bold gap-1.5 px-3 py-1.5"
+              className="rounded-lg text-xs font-bold gap-1.5 px-3 py-1.5 flex items-center"
             >
               <FileCheck className="h-4 w-4 text-purple-500" /> Record
               Performance
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleToggleGuide("records");
+                }}
+                className={`ml-1.5 p-0.5 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors ${
+                  showGuide && guideSection === "records"
+                    ? "text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40"
+                    : "text-slate-400 hover:text-slate-600"
+                }`}
+                title="View Guide"
+              >
+                <Eye className="h-3.5 w-3.5" />
+              </button>
             </TabsTrigger>
             <TabsTrigger
               value="workload"
-              className="rounded-lg text-xs font-bold gap-1.5 px-3 py-1.5"
+              className="rounded-lg text-xs font-bold gap-1.5 px-3 py-1.5 flex items-center"
             >
               <Users className="h-4 w-4 text-emerald-500" /> Team Workload
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleToggleGuide("workload");
+                }}
+                className={`ml-1.5 p-0.5 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors ${
+                  showGuide && guideSection === "workload"
+                    ? "text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40"
+                    : "text-slate-400 hover:text-slate-600"
+                }`}
+                title="View Guide"
+              >
+                <Eye className="h-3.5 w-3.5" />
+              </button>
             </TabsTrigger>
             <TabsTrigger
               value="stages"
-              className="rounded-lg text-xs font-bold gap-1.5 px-3 py-1.5"
+              className="rounded-lg text-xs font-bold gap-1.5 px-3 py-1.5 flex items-center"
             >
               <Layers className="h-4 w-4 text-amber-500" /> Stage Analytics
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleToggleGuide("stages");
+                }}
+                className={`ml-1.5 p-0.5 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors ${
+                  showGuide && guideSection === "stages"
+                    ? "text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40"
+                    : "text-slate-400 hover:text-slate-600"
+                }`}
+                title="View Guide"
+              >
+                <Eye className="h-3.5 w-3.5" />
+              </button>
             </TabsTrigger>
-            {/* <TabsTrigger value="timelogs" className="rounded-lg text-xs font-bold gap-1.5 px-3 py-1.5">
-              <Clock className="h-4 w-4 text-cyan-500" /> Time Tracking Logs
-            </TabsTrigger>
-            <TabsTrigger value="automations" className="rounded-lg text-xs font-bold gap-1.5 px-3 py-1.5">
-              <Zap className="h-4 w-4 text-rose-500" /> Automation Logs
-            </TabsTrigger> */}
-
             <TabsTrigger
               value="storage"
-              className="rounded-lg text-xs font-bold gap-1.5 px-3 py-1.5"
+              className="rounded-lg text-xs font-bold gap-1.5 px-3 py-1.5 flex items-center"
             >
               <ImageIcon className="h-4 w-4 text-indigo-500" /> Storage & Files
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleToggleGuide("storage");
+                }}
+                className={`ml-1.5 p-0.5 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors ${
+                  showGuide && guideSection === "storage"
+                    ? "text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40"
+                    : "text-slate-400 hover:text-slate-600"
+                }`}
+                title="View Guide"
+              >
+                <Eye className="h-3.5 w-3.5" />
+              </button>
             </TabsTrigger>
           </TabsList>
 
@@ -1219,7 +1325,7 @@ export default function ReportsDashboard() {
         {/* -------------------------------------------------------------------------------- */}
         <TabsContent value="overview" className="space-y-6 m-0">
           {/* Executive Summary Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <Card className="rounded-3xl border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs">
               <CardContent className="p-5 flex items-center justify-between">
                 <div>
@@ -1286,103 +1392,22 @@ export default function ReportsDashboard() {
                     </span>
                   </div>
                 </div>
-                <div className="p-3.5 rounded-2xl bg-purple-50 dark:bg-purple-950/60 text-purple-600">
-                  <FileCheck className="h-6 w-6" />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="rounded-3xl border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs">
-              <CardContent className="p-5 flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                    Avg Completion Time
-                  </p>
-                  <h3 className="text-2xl font-extrabold text-slate-900 dark:text-white mt-1">
-                    {summary.avgTaskCompletionHours}{" "}
-                    <span className="text-xs font-semibold">Hours</span>
-                  </h3>
-                  <div className="flex items-center gap-1 mt-1 text-[11px] text-amber-600 font-bold">
-                    <Clock className="h-3.5 w-3.5" />
-                    <span>Fastest: {summary.fastestTaskDuration}h</span>
-                  </div>
-                </div>
-                <div className="p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/60 text-amber-600">
-                  <Clock className="h-6 w-6" />
-                </div>
               </CardContent>
             </Card>
           </div>
 
-          {/* Fastest vs Slowest Completed Task Highlight */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Card className="rounded-3xl border-emerald-200/80 dark:border-emerald-950 bg-emerald-50/40 dark:bg-emerald-950/20 p-5 flex items-center justify-between">
-              <div className="flex items-center gap-3.5">
-                <div className="p-3 rounded-2xl bg-emerald-600 text-white font-extrabold shadow-md">
-                  <Award className="h-6 w-6" />
-                </div>
-                <div>
-                  <span className="text-[11px] font-extrabold text-emerald-700 dark:text-emerald-400 uppercase">
-                    Fastest Completed Task
-                  </span>
-                  <h4 className="text-sm font-extrabold text-slate-900 dark:text-white mt-0.5">
-                    {summary.fastestTaskTitle}
-                  </h4>
-                  <p className="text-xs text-slate-500 font-medium mt-0.5">
-                    Duration: {summary.fastestTaskDuration} Hours
-                  </p>
-                </div>
-              </div>
-            </Card>
 
-            <Card className="rounded-3xl border-amber-200/80 dark:border-amber-950 bg-amber-50/40 dark:bg-amber-950/20 p-5 flex items-center justify-between">
-              <div className="flex items-center gap-3.5">
-                <div className="p-3 rounded-2xl bg-amber-600 text-white font-extrabold shadow-md">
-                  <Clock className="h-6 w-6" />
-                </div>
-                <div>
-                  <span className="text-[11px] font-extrabold text-amber-700 dark:text-amber-400 uppercase">
-                    Slowest Completed Task
-                  </span>
-                  <h4 className="text-sm font-extrabold text-slate-900 dark:text-white mt-0.5">
-                    {summary.slowestTaskTitle}
-                  </h4>
-                  <p className="text-xs text-slate-500 font-medium mt-0.5">
-                    Duration: {summary.slowestTaskDuration} Hours
-                  </p>
-                </div>
-              </div>
-            </Card>
-          </div>
 
           {/* Interactive Recharts Analytics Grid */}
           <div className="space-y-6 pt-2">
-            {/* Section Header */}
-            <div className="flex items-center justify-between bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
-              <div className="flex items-center gap-2">
-                <div className="p-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/80 text-indigo-600">
-                  <BarChart3 className="h-5 w-5" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">
-                    Interactive Visual Analytics & Graphical Charts
-                  </h3>
-                  <p className="text-xs text-slate-500 font-medium">
-                    Real-time interactive data visualizer powered by Area, Pie,
-                    Radar (Dots), and Radial (Label) charts.
-                  </p>
-                </div>
-              </div>
-              <Badge className="bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-extrabold text-[10px] px-2.5 py-1">
-                4 Interactive Graphs
-              </Badge>
-            </div>
+
 
             {/* Row 1: Full-width Area Chart - Interactive */}
             <Card className="rounded-3xl border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs p-6">
               <AreaChartInteractive
                 data={areaChartData}
                 onSelectPoint={handleAreaClick}
+                showCreatedTasks={showCreatedTasks}
                 title="1. Area Chart - Interactive (Task & Record Velocity Trend)"
                 description="Click toggles or any data point on the chart to open detailed activity report."
               />
@@ -1461,7 +1486,7 @@ export default function ReportsDashboard() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {filteredTasks.length === 0 ? (
+                  {paginatedTasks.length === 0 ? (
                     <tr>
                       <td
                         colSpan={8}
@@ -1471,7 +1496,7 @@ export default function ReportsDashboard() {
                       </td>
                     </tr>
                   ) : (
-                    filteredTasks.map((t: any) => (
+                    paginatedTasks.map((t: any) => (
                       <tr
                         key={t.id}
                         className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors"
@@ -1543,6 +1568,12 @@ export default function ReportsDashboard() {
                 </tbody>
               </table>
             </CardContent>
+            <PaginationControl
+              currentPage={tasksPage}
+              totalPages={totalTasksPages}
+              totalItems={filteredTasks.length}
+              onPageChange={setTasksPage}
+            />
           </Card>
         </TabsContent>
 
@@ -1652,25 +1683,22 @@ export default function ReportsDashboard() {
                     <th className="p-3.5">Status</th>
                     <th className="p-3.5">Deadline (Due Date)</th>
                     <th className="p-3.5">Completed Date</th>
-                    <th className="p-3.5">Deadline Compliance</th>
                     <th className="p-3.5">Rework History</th>
-                    <th className="p-3.5">Created By</th>
                     <th className="p-3.5">Assigned Users</th>
-                    <th className="p-3.5">Tags</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {filteredRecords.length === 0 ? (
+                  {paginatedRecords.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={10}
+                        colSpan={7}
                         className="text-center py-12 text-slate-400"
                       >
                         No records match the selected report filter.
                       </td>
                     </tr>
                   ) : (
-                    filteredRecords.map((r: any) => (
+                    paginatedRecords.map((r: any) => (
                       <tr
                         key={r.id}
                         className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors"
@@ -1720,21 +1748,6 @@ export default function ReportsDashboard() {
                           )}
                         </td>
                         <td className="p-3.5">
-                          <span
-                            className={`inline-flex min-w-max items-center whitespace-nowrap rounded-xl px-2.5 py-1 text-[10px] font-extrabold leading-tight ${
-                              (r.deadlineStatus || "").includes("On-Time") ||
-                              (r.deadlineStatus || "").includes("No Deadline")
-                                ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-200"
-                                : (r.deadlineStatus || "").includes("Late") ||
-                                    (r.deadlineStatus || "").includes("Overdue")
-                                  ? "bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-400 border border-rose-200"
-                                  : "bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-400 border border-indigo-200"
-                            }`}
-                          >
-                            {r.deadlineStatus || "In Progress"}
-                          </span>
-                        </td>
-                        <td className="p-3.5">
                           {r.reworkCount > 0 ? (
                             <Badge className="bg-amber-100 dark:bg-amber-950 text-amber-800 dark:text-amber-300 font-extrabold text-[10px] gap-1">
                               <RotateCcw className="h-3 w-3" /> {r.reworkCount}{" "}
@@ -1746,22 +1759,8 @@ export default function ReportsDashboard() {
                             </span>
                           )}
                         </td>
-                        <td className="p-3.5 font-semibold">{r.creatorName}</td>
                         <td className="p-3.5 font-semibold text-slate-600">
                           {r.assignees}
-                        </td>
-                        <td className="p-3.5">
-                          <div className="flex gap-1 flex-wrap">
-                            {r.tags?.map((tag: string) => (
-                              <Badge
-                                key={tag}
-                                variant="secondary"
-                                className="text-[9px] px-1.5 py-0"
-                              >
-                                #{tag}
-                              </Badge>
-                            ))}
-                          </div>
                         </td>
                       </tr>
                     ))
@@ -1769,6 +1768,12 @@ export default function ReportsDashboard() {
                 </tbody>
               </table>
             </CardContent>
+            <PaginationControl
+              currentPage={recordsPage}
+              totalPages={totalRecordsPages}
+              totalItems={filteredRecords.length}
+              onPageChange={setRecordsPage}
+            />
           </Card>
         </TabsContent>
 
@@ -1804,7 +1809,7 @@ export default function ReportsDashboard() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {filteredWorkload.length === 0 ? (
+                  {paginatedWorkload.length === 0 ? (
                     <tr>
                       <td
                         colSpan={7}
@@ -1814,7 +1819,7 @@ export default function ReportsDashboard() {
                       </td>
                     </tr>
                   ) : (
-                    filteredWorkload.map((u: any) => (
+                    paginatedWorkload.map((u: any) => (
                       <tr
                         key={u.id}
                         className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors"
@@ -1856,6 +1861,12 @@ export default function ReportsDashboard() {
                 </tbody>
               </table>
             </CardContent>
+            <PaginationControl
+              currentPage={workloadPage}
+              totalPages={totalWorkloadPages}
+              totalItems={filteredWorkload.length}
+              onPageChange={setWorkloadPage}
+            />
           </Card>
         </TabsContent>
 
@@ -2256,3 +2267,67 @@ export default function ReportsDashboard() {
     </div>
   );
 }
+
+const PaginationControl = ({
+  currentPage,
+  totalPages,
+  totalItems,
+  onPageChange,
+}: {
+  currentPage: number;
+  totalPages: number;
+  totalItems: number;
+  onPageChange: (page: number) => void;
+}) => {
+  if (totalPages <= 1) return null;
+  return (
+    <div className="flex items-center justify-between border-t border-slate-100 dark:border-slate-800 p-4 bg-white dark:bg-slate-900 rounded-b-3xl">
+      <div className="text-xs text-slate-500 font-medium">
+        Showing page <span className="font-bold text-slate-950 dark:text-white">{currentPage}</span> of{" "}
+        <span className="font-bold text-slate-950 dark:text-white">{totalPages}</span> ({totalItems} items)
+      </div>
+      <div className="flex items-center gap-1">
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={currentPage === 1}
+          onClick={() => onPageChange(currentPage - 1)}
+          className="h-8 rounded-xl px-2.5 text-xs font-bold gap-1 border-slate-200 dark:border-slate-800"
+        >
+          Previous
+        </Button>
+        {Array.from({ length: totalPages }, (_, i) => i + 1)
+          .filter((page) => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 1)
+          .map((page, index, array) => {
+            const showEllipsis = index > 0 && page - array[index - 1] > 1;
+            return (
+              <span key={page} className="flex items-center gap-1">
+                {showEllipsis && <span className="text-slate-400 px-1 text-xs font-bold">...</span>}
+                <Button
+                  variant={currentPage === page ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => onPageChange(page)}
+                  className={`h-8 w-8 p-0 rounded-xl text-xs font-bold ${
+                    currentPage === page
+                      ? "bg-indigo-600 hover:bg-indigo-700 text-white border-0 shadow-sm"
+                      : "border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300"
+                  }`}
+                >
+                  {page}
+                </Button>
+              </span>
+            );
+          })}
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={currentPage === totalPages}
+          onClick={() => onPageChange(currentPage + 1)}
+          className="h-8 rounded-xl px-2.5 text-xs font-bold gap-1 border-slate-200 dark:border-slate-800"
+        >
+          Next
+        </Button>
+      </div>
+    </div>
+  );
+};

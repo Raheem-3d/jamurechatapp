@@ -43,6 +43,7 @@ import DashboardCharts, {
 import { RecentChannelsWidget } from "@/components/recent-channels-widget";
 import { RecentContactsWidget } from "@/components/recent-contacts-widget";
 import TaskAnalyticsSection from "@/components/task-analytics-section";
+import AIDailyBriefing from "@/components/ai-daily-briefing";
 
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions);
@@ -64,6 +65,13 @@ export default async function DashboardPage() {
   const isClient = session.user?.role === "CLIENT";
   const isEmployee = session.user?.role === "EMPLOYEE";
   const userId = session.user.id;
+
+  // Check if AI features are enabled for this organization
+  const orgAISettings = await db.user.findUnique({
+    where: { id: userId },
+    select: { organization: { select: { aiEnabled: true } } },
+  });
+  const aiEnabled = orgAISettings?.organization?.aiEnabled !== false;
 
   // Client: recent channels
   const recentChannelsForClient = await db.channel.findMany({
@@ -571,6 +579,9 @@ export default async function DashboardPage() {
 
               {/* Right Column (4 cols): Quick Stats + Communication Side Panel */}
               <div className="lg:col-span-4 space-y-5 min-w-0">
+                {/* AI Daily Briefing Widget */}
+                {aiEnabled && <AIDailyBriefing />}
+
                 {/* Stats Cards (2x2 Grid) */}
                 <div className="grid grid-cols-2 gap-3">
                   <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs p-3.5">

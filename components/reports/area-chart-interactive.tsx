@@ -27,6 +27,7 @@ interface AreaChartInteractiveProps {
   title?: string;
   description?: string;
   onSelectPoint?: (data: AreaChartDataPoint) => void;
+  showCreatedTasks?: boolean;
 }
 
 export default function AreaChartInteractive({
@@ -34,6 +35,7 @@ export default function AreaChartInteractive({
   title = "Task & Record Activity Velocity (Interactive Area Chart)",
   description = "Interactive time-series representation of workspace completed tasks, created tasks, and records over time.",
   onSelectPoint,
+  showCreatedTasks = true,
 }: AreaChartInteractiveProps) {
   const [activeMetric, setActiveMetric] = useState<"all" | "completed" | "created" | "records">("all");
 
@@ -96,16 +98,18 @@ export default function AreaChartInteractive({
           >
             Completed Tasks
           </button>
-          <button
-            onClick={() => setActiveMetric("created")}
-            className={`px-2.5 py-1 rounded-xl transition-all ${
-              activeMetric === "created"
-                ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-2xs"
-                : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
-            }`}
-          >
-            Created Tasks
-          </button>
+          {showCreatedTasks && (
+            <button
+              onClick={() => setActiveMetric("created")}
+              className={`px-2.5 py-1 rounded-xl transition-all ${
+                activeMetric === "created"
+                  ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-2xs"
+                  : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
+              }`}
+            >
+              Created Tasks
+            </button>
+          )}
           <button
             onClick={() => setActiveMetric("records")}
             className={`px-2.5 py-1 rounded-xl transition-all ${
@@ -170,7 +174,7 @@ export default function AreaChartInteractive({
               />
             )}
 
-            {(activeMetric === "all" || activeMetric === "created") && (
+            {showCreatedTasks && (activeMetric === "all" || activeMetric === "created") && (
               <Area
                 type="monotone"
                 dataKey="createdTasks"

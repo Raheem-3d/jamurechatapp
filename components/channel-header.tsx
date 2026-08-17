@@ -16,12 +16,14 @@ import {
   ArrowLeft,
   SlidersHorizontal,
   Folder,
-  Search
+  Search,
+  ListChecks,
 } from "lucide-react";
 import { SharedContentPanel } from "@/components/shared-content-panel";
 import { WhatsAppMessageSearch } from "@/components/whatsapp-message-search";
 import { Button } from "@/components/ui/button";
 import { MessageSummarizer } from "@/components/message-summarizer";
+import AIActionExtractor from "@/components/ai-action-extractor";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -51,6 +53,24 @@ export default function ChannelHeader({ channel }: ChannelHeaderProps) {
   const [showMembers, setShowMembers] = useState(false);
   const [showSharedMediaPanel, setShowSharedMediaPanel] = useState(false);
   const [showSearchModal, setShowSearchModal] = useState(false);
+  const [aiEnabled, setAiEnabled] = useState(true);
+  const [showActionExtractor, setShowActionExtractor] = useState(false);
+
+  useEffect(() => {
+    const fetchOrg = async () => {
+      try {
+        const res = await fetch("/api/organization/me");
+        if (!res.ok) return;
+        const payload = await res.json();
+        if (payload?.organization?.aiEnabled !== undefined) {
+          setAiEnabled(payload.organization.aiEnabled);
+        }
+      } catch (err) {
+        console.error("Failed to fetch organization setting for AI in header:", err);
+      }
+    };
+    fetchOrg();
+  }, []);
 
   const handleJumpToMessage = (messageId: string) => {
     const el = document.getElementById(`msg-${messageId}`);
@@ -270,6 +290,13 @@ export default function ChannelHeader({ channel }: ChannelHeaderProps) {
             <span className="hidden sm:inline">Shared Content</span>
           </Button>
 
+          {aiEnabled && (
+            <MessageSummarizer
+              channelId={channel.id}
+              className="h-8 rounded-xl border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-indigo-50 dark:hover:bg-indigo-950 px-3 gap-1.5"
+            />
+          )}
+
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -299,6 +326,22 @@ export default function ChannelHeader({ channel }: ChannelHeaderProps) {
                 <Folder className="h-4 w-4 mr-2 text-indigo-500" />
                 Media, Docs & Links
               </DropdownMenuItem>
+
+              {aiEnabled && (
+                <>
+                  <DropdownMenuSeparator className="dark:bg-gray-600" />
+                  <DropdownMenuItem
+                    onClick={() => setShowActionExtractor(true)}
+                    className="flex items-center cursor-pointer dark:hover:bg-gray-700"
+                  >
+                    <ListChecks className="h-4 w-4 mr-2 text-indigo-500" />
+                    <div>
+                      <p className="text-sm">Extract Action Items</p>
+                      <p className="text-[10px] text-slate-400 dark:text-slate-500">AI scans conversation for tasks</p>
+                    </div>
+                  </DropdownMenuItem>
+                </>
+              )}
 
               <DropdownMenuItem asChild className="dark:hover:bg-gray-700">
                 <Link
@@ -466,6 +509,16 @@ export default function ChannelHeader({ channel }: ChannelHeaderProps) {
         channelId={channel.id}
         channelName={channel.name}
       />
+
+      {/* AI Action Item Extractor */}
+      {aiEnabled && (
+        <AIActionExtractor
+          channelId={channel.id}
+          channelName={channel.name}
+          open={showActionExtractor}
+          onClose={() => setShowActionExtractor(false)}
+        />
+      )}
     </div>
   );
 }

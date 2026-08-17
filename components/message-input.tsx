@@ -35,6 +35,7 @@ import EmojiPicker from "emoji-picker-react";
 import { cn } from "@/lib/utils";
 import { useSocket } from "@/hooks/use-socket";
 import { MessageRewriter } from "@/components/message-rewriter";
+import AISmartReply from "@/components/ai-smart-reply";
 import dynamic from "next/dynamic";
 
 export type Mentionable = {
@@ -67,6 +68,25 @@ export default function MessageInput({
 }: MessageInputProps) {
   const [message, setMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [aiEnabled, setAiEnabled] = useState(true);
+  const [smartReplyEnabled, setSmartReplyEnabled] = useState(false);
+  const [lastChannelMessage, setLastChannelMessage] = useState("");
+
+  useEffect(() => {
+    const fetchOrg = async () => {
+      try {
+        const res = await fetch("/api/organization/me");
+        if (!res.ok) return;
+        const payload = await res.json();
+        if (payload?.organization?.aiEnabled !== undefined) {
+          setAiEnabled(payload.organization.aiEnabled);
+        }
+      } catch (err) {
+        console.error("Failed to fetch organization setting for AI in input:", err);
+      }
+    };
+    fetchOrg();
+  }, []);
   const [isBuzzing, setIsBuzzing] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -153,6 +173,20 @@ export default function MessageInput({
     return () =>
       window.removeEventListener("reply:message", handler as EventListener);
   }, []);
+
+  // Track last received channel message for AI Smart Reply
+  useEffect(() => {
+    if (!channelId || typeof window === "undefined") return;
+    const handler = (e: Event) => {
+      const ce = e as CustomEvent<{ channelId?: string; content?: string; senderId?: string }>;
+      const d = ce.detail;
+      if (d?.channelId === channelId && d?.content) {
+        setLastChannelMessage(d.content);
+      }
+    };
+    window.addEventListener("message:received", handler as EventListener);
+    return () => window.removeEventListener("message:received", handler as EventListener);
+  }, [channelId]);
 
   // Listen for reply-to-attachment events
   useEffect(() => {
@@ -941,6 +975,19 @@ export default function MessageInput({
         </div>
       )}
 
+      {/* AI Smart Reply Strip - channel only */}
+      {aiEnabled && channelId && (
+        <div className="border-b border-[#E9EDEF] dark:border-[#2A3942]">
+          <AISmartReply
+            channelId={channelId}
+            lastMessage={lastChannelMessage}
+            onSelectReply={(text) => setMessage(text)}
+            enabled={smartReplyEnabled}
+            onToggle={setSmartReplyEnabled}
+          />
+        </div>
+      )}
+
       {/* Input Form - WhatsApp Style */}
       <form
         onSubmit={handleSubmit}
@@ -1096,6 +1143,14 @@ export default function MessageInput({
               <BellRing className="h-5 w-5" />
             )}
           </Button>
+
+          {aiEnabled && (
+            <MessageRewriter
+              message={message}
+              onApply={(rewritten) => setMessage(rewritten)}
+              disabled={isSubmitting || isUploading}
+            />
+          )}
         </div>
 
         {/* Send/Mic Button - WhatsApp Style */}

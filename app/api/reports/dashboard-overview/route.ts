@@ -22,19 +22,28 @@ export async function GET(req: Request) {
       currentUser.isSuperAdmin ||
       currentUser.role === "SUPER_ADMIN" ||
       currentUser.role === "ORG_ADMIN";
+
+    const userDept = currentUser.departmentId
+      ? await db.department.findUnique({ where: { id: currentUser.departmentId } })
+      : null;
+    const isHR = userDept?.name?.toUpperCase() === "HR" || userDept?.name?.toUpperCase() === "HUMAN RESOURCES";
+    const hasDeptRestriction = isAdmin && currentUser.departmentId && !isHR;
+
     const hasUserScope =
-      isAdmin && Boolean(filterUserId || departmentId || filterRole);
+      (isAdmin && Boolean(filterUserId || departmentId || filterRole)) || hasDeptRestriction;
 
     // Fetch departments and users (restricted if non-admin)
     const [departments, allUsers] = await Promise.all([
       isAdmin
         ? db.department.findMany({
+            where: hasDeptRestriction ? { id: currentUser.departmentId } : undefined,
             select: { id: true, name: true },
             orderBy: { name: "asc" },
           })
         : Promise.resolve([]),
       isAdmin
         ? db.user.findMany({
+            where: hasDeptRestriction ? { departmentId: currentUser.departmentId } : undefined,
             select: {
               id: true,
               name: true,
@@ -59,8 +68,8 @@ export async function GET(req: Request) {
     if (hasUserScope) {
       const scopedUsers = await db.user.findMany({
         where: {
+          ...(hasDeptRestriction ? { departmentId: currentUser.departmentId } : (departmentId ? { departmentId } : {})),
           ...(filterUserId ? { id: filterUserId } : {}),
-          ...(departmentId ? { departmentId } : {}),
           ...(filterRole ? { role: filterRole as any } : {}),
         },
         select: { id: true },

@@ -19,6 +19,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import {
   LayoutGrid,
@@ -67,9 +68,9 @@ import {
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useTeamUsers } from "@/hooks/use-team-users";
-import { DialogDescription } from "@radix-ui/react-dialog";
 import { Separator } from "@radix-ui/react-select";
 import { RangeCalendarPicker } from "@/components/ui/RangeCalendar";
+import { TaskFlowAIAssistantModal } from "@/components/TaskFlowAIAssistantModal";
 
 interface Task {
   id: string;
@@ -293,6 +294,8 @@ export default function TaskManagement() {
   const [automationRules, setAutomationRules] = useState<AutomationRule[]>([]);
   const [automationSearch, setAutomationSearch] = useState("");
   const [isAutomationModalOpen, setIsAutomationModalOpen] = useState(false);
+  const [isAiModalOpen, setIsAiModalOpen] = useState(false);
+  const [aiEnabled, setAiEnabled] = useState(true);
   const [isComplete, setIsComplete] = useState(false);
   const [completingTaskId, setCompletingTaskId] = useState<string | null>(null);
   const [selectedTasks, setSelectedTasks] = useState<string[]>([]);
@@ -346,6 +349,16 @@ export default function TaskManagement() {
     const fetchData = async () => {
       try {
         setLoading(true);
+        // Check organization AI toggle
+        fetch("/api/organization/me")
+          .then((res) => res.json())
+          .then((payload) => {
+            if (payload?.organization?.aiEnabled !== undefined) {
+              setAiEnabled(payload.organization.aiEnabled);
+            }
+          })
+          .catch(() => {});
+
         await Promise.all([
           fetchTasks(),
           fetchStages(),
@@ -2721,6 +2734,29 @@ export default function TaskManagement() {
                 <TagIcon className="h-3.5 w-3.5 text-indigo-500" />
                 <span>+ Tag</span>
               </Button>
+
+              {aiEnabled && (
+                <>
+                  <Button
+                    onClick={() => setIsAiModalOpen(true)}
+                    className="h-8 bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white font-semibold rounded-xl text-xs px-3 shadow-md shadow-purple-500/20 flex items-center gap-1.5 transition-all"
+                  >
+                    <Sparkles className="h-3.5 w-3.5 text-purple-200 animate-pulse" />
+                    <span>AI Co-Pilot ✨</span>
+                  </Button>
+
+                  <TaskFlowAIAssistantModal
+                    isOpen={isAiModalOpen}
+                    onClose={() => setIsAiModalOpen(false)}
+                    target="EXISTING_PROJECT"
+                    parentTaskId={taskId}
+                    onSuccess={() => {
+                      router.refresh();
+                    }}
+                  />
+                </>
+              )}
+
               <Dialog
                 open={isCreateTaskOpen}
                 onOpenChange={setIsCreateTaskOpen}

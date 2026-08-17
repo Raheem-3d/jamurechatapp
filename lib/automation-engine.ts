@@ -428,7 +428,8 @@ export async function runAutomationEngine(context: AutomationContext): Promise<v
   logger.info(`Starting automation evaluation for task: ${currentId}`);
 
   // 1️⃣ Try fetching active rules from Redis cache first
-  const cacheKey = `automation:rules:${currentId}:${parentId || 'global'}`;
+  const projectKey = parentId || currentId;
+  const cacheKey = `automation:rules:${projectKey}`;
   let rules = await cacheGet<AutomationRule[]>(cacheKey);
 
   if (!rules) {

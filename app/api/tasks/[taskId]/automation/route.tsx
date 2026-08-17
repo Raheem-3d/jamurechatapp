@@ -95,13 +95,16 @@ export async function GET(
 
 export async function PUT(
   request: Request,
-  { params }: { params: { taskId: string } }
+  { params }: { params: Promise<{ taskId: string }> | { taskId: string } }
 ) {
   const session = await getServerSession(authOptions);
   const user: any = (session as any)?.user || {};
   if (!user.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const resolvedParams = await params;
+  const taskId = resolvedParams?.taskId;
 
   try {
     const body = await request.json();
@@ -135,7 +138,7 @@ export async function PUT(
       },
     });
 
-    await invalidateAutomationCache();
+    await invalidateAutomationCache(taskId);
 
     return NextResponse.json({ rule: updatedRule }, { status: 200 });
   } catch (error) {
@@ -149,13 +152,16 @@ export async function PUT(
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { taskId: string } }
+  { params }: { params: Promise<{ taskId: string }> | { taskId: string } }
 ) {
   const session = await getServerSession(authOptions);
   const user: any = (session as any)?.user || {};
   if (!user.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const resolvedParams = await params;
+  const taskId = resolvedParams?.taskId;
 
   const { searchParams } = new URL(request.url);
   const ruleId = searchParams.get("id");
@@ -169,7 +175,7 @@ export async function DELETE(
       where: { id: ruleId },
     });
 
-    await invalidateAutomationCache();
+    await invalidateAutomationCache(taskId);
 
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {

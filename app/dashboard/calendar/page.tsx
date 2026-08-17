@@ -210,10 +210,8 @@ export default function TaskCalendarPage() {
   // Unique Task Names List
   const uniqueTaskNames = Array.from(new Set(tasks.map((t) => t.title).filter(Boolean)))
 
-  // Filter Tasks (Admin only filters if canAccessFilter is true; non-admins get all fetched tasks)
+  // Filter Tasks for all users (admins, managers, and employees)
   const filteredTasks = tasks.filter((t) => {
-    if (!canAccessFilter) return true // Non-admins rely strictly on backend security scoping
-
     // 1. User Filter
     let userMatch = true
     if (selectedUser !== "ALL") {
@@ -256,8 +254,26 @@ export default function TaskCalendarPage() {
   const normalizeYMD = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate())
   const parseDate = (val?: string) => (val ? new Date(val) : undefined)
   const getTaskRange = (t: Task) => {
-    let start = parseDate(t.deadlineStart) ?? parseDate(t.deadline) ?? parseDate(t.deadlineEnd) ?? parseDate(t.updatedAt)
-    let end = parseDate(t.deadlineEnd) ?? parseDate(t.deadline) ?? parseDate(t.deadlineStart) ?? parseDate(t.updatedAt)
+    const deadlineDate = parseDate(t.deadline)
+    const dStart = parseDate(t.deadlineStart)
+    const dEnd = parseDate(t.deadlineEnd)
+
+    let start = dStart ?? deadlineDate ?? dEnd ?? parseDate(t.updatedAt)
+    let end = dEnd ?? deadlineDate ?? dStart ?? parseDate(t.updatedAt)
+
+    // If a single updated deadline exists and conflicts with old single-day deadlineStart/deadlineEnd, prioritize the updated deadline
+    if (deadlineDate) {
+      if (!dStart && !dEnd) {
+        start = deadlineDate
+        end = deadlineDate
+      } else if (dStart && dEnd && dStart.getTime() === dEnd.getTime() && deadlineDate.getTime() !== dStart.getTime()) {
+        start = deadlineDate
+        end = deadlineDate
+      } else if (dStart && !dEnd && deadlineDate.getTime() !== dStart.getTime()) {
+        start = deadlineDate
+        end = deadlineDate
+      }
+    }
 
     if (t.status === "DONE") {
       const doneDate = parseDate(t.updatedAt) ?? new Date()
@@ -541,18 +557,17 @@ export default function TaskCalendarPage() {
         </div>
       </div>
 
-      {/* 🔒 ADMIN-ONLY FILTER BAR */}
-      {canAccessFilter && (
-        <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Filter className="h-4 w-4 text-indigo-500" />
-              <h3 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
-                Admin Filters
-              </h3>
-              <Badge variant="outline" className="text-[10px] font-bold border-indigo-200 text-indigo-600">
-                Admin View
-              </Badge>
+      {/* FILTER BAR FOR ALL USERS (ADMINS, MANAGERS & EMPLOYEES) */}
+      <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Filter className="h-4 w-4 text-indigo-500" />
+            <h3 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+              Task Filters
+            </h3>
+            <Badge variant="outline" className="text-[10px] font-bold border-indigo-200 text-indigo-600">
+              {canAccessFilter ? "Name & User Filters" : "Task Name Filter"}
+            </Badge>
             </div>
             <div className="flex items-center gap-2">
               <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
@@ -572,7 +587,7 @@ export default function TaskCalendarPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className={cn("grid grid-cols-1 gap-3", canAccessFilter ? "sm:grid-cols-3" : "sm:grid-cols-2")}>
             {/* 1. Search Input */}
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
@@ -584,8 +599,9 @@ export default function TaskCalendarPage() {
               />
             </div>
 
-            {/* 2. Searchable User Dropdown (Popover with search box inside) */}
-            <div className="relative">
+            {/* 2. Searchable User Dropdown (Admin/Manager only) */}
+            {canAccessFilter && (
+              <div className="relative">
               <Popover open={userDropdownOpen} onOpenChange={setUserDropdownOpen}>
                 <PopoverTrigger asChild>
                   <Button
@@ -685,6 +701,7 @@ export default function TaskCalendarPage() {
                 </PopoverContent>
               </Popover>
             </div>
+            )}
 
             {/* 3. Task Name Dropdown Filter */}
             <div className="relative">
@@ -714,7 +731,6 @@ export default function TaskCalendarPage() {
             </div>
           </div>
         </div>
-      )}
 
       {/* Metric Cards Row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

@@ -41,7 +41,8 @@ export default function ProfileSettings({ user }: ProfileSettingsProps) {
       })
 
       if (!response.ok) {
-        throw new Error("Failed to update profile")
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.message || "Failed to update profile")
       }
 
       toast({
@@ -49,18 +50,17 @@ export default function ProfileSettings({ user }: ProfileSettingsProps) {
         description: "Your profile has been updated successfully",
       })
       router.refresh()
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error updating profile:", error)
       toast({
         title: "Error",
-        description: "Failed to update profile",
+        description: error.message || "Failed to update profile",
         variant: "destructive",
       })
     } finally {
       setIsUpdating(false)
     }
   }
-
 
 
 
@@ -74,25 +74,13 @@ export default function ProfileSettings({ user }: ProfileSettingsProps) {
           <Label htmlFor="name">Full Name</Label>
           <Input id="name" value={name} onChange={(e) => setName(e.target.value)} required />
         </div>
-        {
-          user.role =='ADMIN' ? (
-             <div className="space-y-2">
-          <Label htmlFor="email">Email</Label>
-          <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required  />
-          <p className="text-xs text-gray-500">
-            Email cannot be changed. Contact an admin if you need to update your email.
+        <div className="space-y-2">
+          <Label htmlFor="email">Email Address</Label>
+          <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+          <p className="text-[11px] text-slate-500">
+            Update your email address to change your login credentials.
           </p>
         </div>
-
-          ):
-           <div className="space-y-2">
-          <Label htmlFor="email">Email</Label>
-          <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required disabled />
-          <p className="text-xs text-gray-500">
-            Email cannot be changed. Contact an admin if you need to update your email.
-          </p>
-        </div>
-        }
        
         {
           user.role == "ADMIN" ? (

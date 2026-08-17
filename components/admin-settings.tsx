@@ -20,7 +20,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
-import { Loader2, Shield, CheckCircle2, Lock, Briefcase, Hash, Eye, FileText, Trash2, Users, BarChart3, Globe } from "lucide-react"
+import { Loader2, Shield, CheckCircle2, Lock, Briefcase, Hash, Eye, FileText, Trash2, Users, BarChart3, Globe, Bot } from "lucide-react"
+import { Switch } from "@/components/ui/switch"
 import { cn } from "@/lib/utils"
 
 type Department = {
@@ -127,6 +128,8 @@ export default function AdminSettings() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [editingDepartment, setEditingDepartment] = useState<Department | null>(null)
   const [editedDepartmentName, setEditedDepartmentName] = useState("")
+  const [aiEnabled, setAiEnabled] = useState(true)
+  const [isTogglingAI, setIsTogglingAI] = useState(false)
   const router = useRouter()
   const { toast } = useToast()
 
@@ -153,6 +156,54 @@ export default function AdminSettings() {
 
     fetchData()
   }, [toast])
+
+  useEffect(() => {
+    const fetchFeatures = async () => {
+      try {
+        const res = await fetch("/api/organization/settings/features")
+        if (res.ok) {
+          const data = await res.json()
+          if (data.features && data.features.aiEnabled !== undefined) {
+            setAiEnabled(data.features.aiEnabled)
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch features:", err)
+      }
+    }
+    fetchFeatures()
+  }, [])
+
+  const handleToggleAI = async (checked: boolean) => {
+    setIsTogglingAI(true)
+    try {
+      const response = await fetch("/api/organization/settings/features", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ aiEnabled: checked }),
+      })
+
+      if (!response.ok) throw new Error("Failed to update AI feature setting")
+
+      const data = await response.json()
+      if (data.features && data.features.aiEnabled !== undefined) {
+        setAiEnabled(data.features.aiEnabled)
+      }
+      toast({
+        title: `AI Assistant ${checked ? "Enabled" : "Disabled"}`,
+        description: `The AI Project Assistant has been successfully turned ${checked ? "on" : "off"} for everyone.`,
+      })
+      router.refresh()
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update AI assistant settings",
+        variant: "destructive",
+      })
+    } finally {
+      setIsTogglingAI(false)
+    }
+  }
 
   // When exactly 1 user is selected, fetch their existing permissions
   useEffect(() => {
@@ -318,6 +369,7 @@ export default function AdminSettings() {
       <TabsList>
         <TabsTrigger value="departments">Departments</TabsTrigger>
         <TabsTrigger value="users">Users</TabsTrigger>
+        <TabsTrigger value="features">Feature Controls</TabsTrigger>
         <TabsTrigger value="analytics">Analytics</TabsTrigger>
       </TabsList>
 
@@ -705,15 +757,72 @@ export default function AdminSettings() {
 
       {/* ── Analytics Tab ── */}
       <TabsContent value="analytics">
-        <Card className="dark:bg-gray-900">
-          <CardHeader>
-            <CardTitle>Analytics</CardTitle>
-            <CardDescription>View organization analytics and statistics</CardDescription>
+        <Card className="dark:bg-slate-900 border-slate-200/85 dark:border-slate-800 rounded-3xl overflow-hidden shadow-xs">
+          <CardHeader className="bg-slate-50/50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-800">
+            <CardTitle className="text-base font-extrabold flex items-center gap-2">
+              <BarChart3 className="h-5 w-5 text-indigo-500" />
+              Organization Analytics & Reports
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Redirecting you to the comprehensive reporting and analytics platform...
+            </CardDescription>
           </CardHeader>
-          <CardContent>
-            <p className="text-sm text-gray-500">Analytics feature coming soon</p>
+          <CardContent className="p-6 flex flex-col items-center justify-center text-center space-y-4">
+            <div className="p-3 bg-indigo-50 dark:bg-indigo-950/60 rounded-full text-indigo-600 animate-pulse">
+              <Loader2 className="h-6 w-6 animate-spin" />
+            </div>
+            <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+              You are being redirected to the Reporting Dashboard.
+            </p>
+            <Button
+              onClick={() => router.push("/dashboard/reports")}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold px-6 text-xs shadow-sm"
+            >
+              Go to Reports Now
+            </Button>
           </CardContent>
         </Card>
+        <AnalyticsRedirectTrigger router={router} />
+      </TabsContent>
+
+      {/* ── Feature Controls Tab ── */}
+      <TabsContent value="features">
+        <div className="space-y-6">
+          <Card className="dark:bg-gray-900 overflow-hidden border border-slate-200/80 dark:border-slate-800 shadow-2xs">
+            <CardHeader className="bg-gradient-to-r from-blue-50/50 via-indigo-50/10 to-purple-50/5 dark:from-slate-900/60 dark:to-slate-900 border-b border-slate-100 dark:border-slate-800">
+              <CardTitle className="text-base font-extrabold flex items-center gap-2 text-slate-850 dark:text-white">
+                <Bot className="h-5 w-5 text-indigo-500" />
+                AI Assistant Feature Controls
+              </CardTitle>
+              <CardDescription className="text-xs">
+                Manage global availability of AI-powered capabilities across your organization.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="p-6 space-y-6">
+              <div className="flex items-center justify-between p-4 bg-slate-50/50 dark:bg-slate-850/30 rounded-2xl border border-slate-100 dark:border-slate-800">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-sm text-slate-800 dark:text-white">AI Project Assistant</span>
+                    <Badge className="bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-extrabold text-[9px] px-1.5 py-0.5 border-0">
+                      Ollama Ready
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-slate-400 dark:text-slate-500 max-w-lg leading-relaxed">
+                    Enable or disable access to the AI Chat Panel (/dashboard/ai-assistant) for all team members. When disabled, the AI Assistant link is removed from navigation and direct URL access is blocked.
+                  </p>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    checked={aiEnabled}
+                    onCheckedChange={handleToggleAI}
+                    disabled={isTogglingAI}
+                    className="data-[state=checked]:bg-indigo-600"
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </TabsContent>
 
       {/* Edit Department Dialog */}
@@ -754,4 +863,11 @@ export default function AdminSettings() {
       </Dialog>
     </Tabs>
   )
+}
+
+const AnalyticsRedirectTrigger = ({ router }: { router: any }) => {
+  useEffect(() => {
+    router.push("/dashboard/reports")
+  }, [router])
+  return null
 }

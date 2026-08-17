@@ -44,47 +44,48 @@ model User {
   taskComments          TaskComment[]
   TaskInvitation        TaskInvitation[]
   TaskTimeLog           TaskTimeLog[]
-  department            Department?             @relation(fields: [departmentId], references: [id])
-  manager               User?                   @relation("ManagerTeam", fields: [managerId], references: [id])
+  department            Department?             @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  manager               User?                   @relation("ManagerTeam", fields: [managerId], references: [id], onDelete: SetNull)
   subordinates          User[]                  @relation("ManagerTeam")
-  organization          Organization?           @relation(fields: [organizationId], references: [id])
-  Subscription          Subscription?           @relation(fields: [subscriptionId], references: [id])
+  organization          Organization?           @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  Subscription          Subscription?           @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
 
   @@index([organizationId, role])
   @@index([email])
-  @@index([departmentId], map: "User_departmentId_fkey")
-  @@index([managerId], map: "User_managerId_fkey")
-  @@index([subscriptionId], map: "User_subscriptionId_fkey")
+  @@index([departmentId], map: "User_departmentId_idx")
+  @@index([managerId], map: "User_managerId_idx")
+  @@index([subscriptionId], map: "User_subscriptionId_idx")
 }
 
 model Organization {
-  id             String         @id @default(cuid())
-  name           String
-  slug           String?        @unique
-  industry       String?
-  employeesCount Int?
-  primaryEmail   String         @unique
-  phone          String?
-  address        String?
-  logoUrl        String?
-  themeColor     String?
-  trialStart     DateTime
-  trialEnd       DateTime
-  trialStatus    TrialStatus    @default(ACTIVE)
-  suspended      Boolean        @default(false)
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-  activityLogs   ActivityLog[]
-  announcements  Announcement[]
-  Channel        Channel[]
-  EmailLog       EmailLog[]
-  Message        Message[]
-  notifications  Notification[]
-  invites        OrgInvite[]
-  Payment        Payment[]
-  subscription   Subscription?
-  Task           Task[]
-  users          User[]
+  id               String         @id @default(cuid())
+  name             String
+  slug             String?        @unique
+  industry         String?
+  employeesCount   Int?
+  primaryEmail     String         @unique
+  phone            String?
+  address          String?
+  logoUrl          String?
+  themeColor       String?
+  trialStart       DateTime
+  trialEnd         DateTime
+  trialStatus      TrialStatus    @default(ACTIVE)
+  suspended        Boolean        @default(false)
+  aiEnabled        Boolean        @default(true)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  activityLogs     ActivityLog[]
+  announcements    Announcement[]
+  Channel          Channel[]
+  EmailLog         EmailLog[]
+  Message          Message[]
+  notifications    Notification[]
+  invites          OrgInvite[]
+  Payment          Payment[]
+  subscription     Subscription?
+  Task             Task[]
+  users            User[]
 }
 
 model OrgInvite {
@@ -210,7 +211,7 @@ model Message {
   fileName        String?
   fileType        String?
   seenBy          Json?
- // readAt          DateTime?   // ✅ ADD THIS
+  // readAt          DateTime?   // ✅ ADD THIS
   reactions       Json?
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
@@ -313,25 +314,26 @@ model TaskActivity {
 }
 
 model Record {
-  id            String           @id @default(cuid())
-  title         String
-  description   String?
-  dueDate       DateTime?
-  startDate     DateTime?
-  endDate       DateTime?
-  createdBy     String
-  priority      String
-  status        String?
-  parentTaskId  String?
-  stageId       String?
-  isComplete    Boolean          @default(false)
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
-  createdByUser User             @relation("RecordCreator", fields: [createdBy], references: [id])
-  stage         Stage?           @relation(fields: [stageId], references: [id])
-  activities    TaskActivity[]   @relation("RecordActivities")
-  assignees     TaskAssignment[]
-  tags          Tag[]            @relation("RecordTags")
+  id             String             @id @default(cuid())
+  title          String
+  description    String?
+  dueDate        DateTime?
+  startDate      DateTime?
+  endDate        DateTime?
+  createdBy      String
+  priority       String
+  status         String?
+  parentTaskId   String?
+  stageId        String?
+  isComplete     Boolean            @default(false)
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  createdByUser  User               @relation("RecordCreator", fields: [createdBy], references: [id])
+  stage          Stage?             @relation(fields: [stageId], references: [id])
+  activities     TaskActivity[]     @relation("RecordActivities")
+  assignees      TaskAssignment[]
+  tags           Tag[]              @relation("RecordTags")
+  stageMovements StageMovementLog[]
 
   @@index([createdBy], map: "Record_createdBy_fkey")
   @@index([stageId], map: "Record_stageId_fkey")
@@ -380,7 +382,7 @@ model AutomationLog {
   taskId          String?
   recordId        String?
   userId          String?
-  status          String         // "SUCCESS" | "FAILED" | "SKIPPED"
+  status          String // "SUCCESS" | "FAILED" | "SKIPPED"
   triggerType     String
   actionSummary   String
   executionTimeMs Int            @default(0)
@@ -472,26 +474,29 @@ model AnnouncementDismissal {
 }
 
 model Reminder {
-  id          String           @id @default(cuid())
-  title       String
-  description String?          @db.Text
-  remindAt    DateTime
-  isMuted     Boolean          @default(false)
-  isSent      Boolean          @default(false)
-  isAutomatic Boolean          @default(false)
-  priority    ReminderPriority @default(MEDIUM)
-  type        ReminderType     @default(GENERAL)
-  creatorId   String
-  assigneeId  String
-  taskId      String?
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
-  sentAt      DateTime?
-  assignee    User             @relation("ReminderAssignee", fields: [assigneeId], references: [id])
-  creator     User             @relation("ReminderCreator", fields: [creatorId], references: [id])
-  task        Task?            @relation("TaskReminders", fields: [taskId], references: [id])
+  id           String           @id @default(cuid())
+  title        String
+  description  String?          @db.Text
+  remindAt     DateTime
+  isMuted      Boolean          @default(false)
+  isSent       Boolean          @default(false)
+  isAutomatic  Boolean          @default(false)
+  priority     ReminderPriority @default(MEDIUM)
+  type         ReminderType     @default(GENERAL)
+  creatorId    String
+  assigneeId   String
+  taskId       String?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  sentAt       DateTime?
+  processingAt DateTime?
+  retryCount   Int              @default(0)
+  lastError    String?          @db.Text
+  assignee     User             @relation("ReminderAssignee", fields: [assigneeId], references: [id])
+  creator      User             @relation("ReminderCreator", fields: [creatorId], references: [id])
+  task         Task?            @relation("TaskReminders", fields: [taskId], references: [id])
 
-  @@index([remindAt, isSent, isMuted])
+  @@index([isSent, isMuted, processingAt, remindAt])
   @@index([assigneeId])
   @@index([creatorId])
   @@index([taskId])
