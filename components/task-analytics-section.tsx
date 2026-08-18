@@ -184,142 +184,94 @@ export default function TaskAnalyticsSection() {
   };
 
   return (
-    <Card className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm overflow-hidden transition-colors">
-      {/* Header */}
-      <CardHeader className="p-5 border-b border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs overflow-hidden transition-colors">
+      {/* Sleek Compact Header & Mini KPI Bar */}
+      <CardHeader className="p-4 px-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40">
+        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 rounded-lg border border-indigo-200/60 dark:border-indigo-800/60">
+            <div className="p-2 bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 rounded-xl border border-indigo-100 dark:border-indigo-800/80 shrink-0">
               <BarChart3 className="h-5 w-5" />
             </div>
             <div>
-              <CardTitle className="text-base font-semibold text-slate-900 dark:text-slate-100">
-                Task Time Log & Analytics
-              </CardTitle>
-              <CardDescription className="text-xs text-slate-500 dark:text-slate-400">
-                Stage analysis, completion metrics, and work duration logs
+              <div className="flex items-center gap-2">
+                <CardTitle className="text-sm font-bold text-slate-900 dark:text-white">
+                  Task Time Log & Analytics
+                </CardTitle>
+                <Badge variant="secondary" className="bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-extrabold text-[10px] px-1.5 py-0">
+                  Live Analytics
+                </Badge>
+              </div>
+              <CardDescription className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                Stage analysis, completion metrics & work duration logs
               </CardDescription>
             </div>
           </div>
-          <Badge
-            variant="secondary"
-            className="w-fit bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-medium px-2.5 py-1 rounded-md border border-slate-200 dark:border-slate-700"
-          >
-            Live Analytics
-          </Badge>
+
+          {/* Compact Mini KPI Bar */}
+          <div className="grid grid-cols-3 gap-2 text-xs">
+            <div className="px-3 py-1.5 rounded-xl border border-emerald-200/60 dark:border-emerald-900/50 bg-emerald-50/40 dark:bg-emerald-950/30 flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+              <div>
+                <p className="text-[10px] font-bold text-emerald-800 dark:text-emerald-300 uppercase leading-none">Completion</p>
+                <p className="text-xs font-black text-slate-900 dark:text-white mt-0.5">{summary.completionRatePercentage}% <span className="text-[10px] font-medium text-emerald-600">({summary.completedTasks}/{summary.totalTasks})</span></p>
+              </div>
+            </div>
+
+            <div className="px-3 py-1.5 rounded-xl border border-blue-200/60 dark:border-blue-900/50 bg-blue-50/40 dark:bg-blue-950/30 flex items-center gap-2">
+              <Timer className="h-4 w-4 text-blue-600 shrink-0" />
+              <div>
+                <p className="text-[10px] font-bold text-blue-800 dark:text-blue-300 uppercase leading-none">Avg Time</p>
+                <p className="text-xs font-black text-slate-900 dark:text-white mt-0.5 truncate max-w-[110px]">{formatAvgTime(summary.avgCompletionTimeHours)}</p>
+              </div>
+            </div>
+
+            <div className="px-3 py-1.5 rounded-xl border border-indigo-200/60 dark:border-indigo-900/50 bg-indigo-50/40 dark:bg-indigo-950/30 flex items-center gap-2">
+              <ListTodo className="h-4 w-4 text-indigo-600 shrink-0" />
+              <div>
+                <p className="text-[10px] font-bold text-indigo-800 dark:text-indigo-300 uppercase leading-none">Active Workload</p>
+                <p className="text-xs font-black text-slate-900 dark:text-white mt-0.5">{summary.inProgressTasks + summary.todoTasks} <span className="text-[10px] font-medium text-indigo-600">({summary.inProgressTasks} In Prog)</span></p>
+              </div>
+            </div>
+          </div>
         </div>
       </CardHeader>
 
-      <CardContent className="p-5 space-y-6">
-        {/* Metric Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {/* Completion Rate Card */}
-          <div className="p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900/70 shadow-xs hover:border-slate-300 dark:hover:border-slate-700 transition-all">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                Completion Rate
-              </span>
-              <div className="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-800/50">
-                <CheckCircle2 className="h-4 w-4" />
-              </div>
-            </div>
-            <div className="mt-3 flex items-baseline gap-2">
-              <span className="text-2xl font-bold text-slate-900 dark:text-white">
-                {summary.completionRatePercentage}%
-              </span>
-              <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">
-                {summary.completedTasks} Done
-              </span>
-            </div>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-              {summary.completedTasks} of {summary.totalTasks} total tasks completed
-            </p>
-          </div>
-
-          {/* Avg Completion Time Card */}
-          <div className="p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900/70 shadow-xs hover:border-slate-300 dark:hover:border-slate-700 transition-all">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                Avg Time to Complete
-              </span>
-              <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 border border-blue-200/50 dark:border-blue-800/50">
-                <Timer className="h-4 w-4" />
-              </div>
-            </div>
-            <div className="mt-3">
-              <span className="text-2xl font-bold text-slate-900 dark:text-white truncate block">
-                {formatAvgTime(summary.avgCompletionTimeHours)}
-              </span>
-            </div>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-              Average duration per completed task
-            </p>
-          </div>
-
-          {/* Active Tasks Card */}
-          <div className="p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900/70 shadow-xs hover:border-slate-300 dark:hover:border-slate-700 transition-all">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                Active Workload
-              </span>
-              <div className="p-2 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 border border-indigo-200/50 dark:border-indigo-800/50">
-                <ListTodo className="h-4 w-4" />
-              </div>
-            </div>
-            <div className="mt-3 flex items-baseline gap-2">
-              <span className="text-2xl font-bold text-slate-900 dark:text-white">
-                {summary.inProgressTasks + summary.todoTasks}
-              </span>
-              <span className="text-xs font-medium text-indigo-600 dark:text-indigo-400">
-                {summary.inProgressTasks} In Progress
-              </span>
-            </div>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-              {summary.todoTasks} pending in To-Do stage
-            </p>
-          </div>
-        </div>
-
-        {/* Charts Section */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          {/* Status Breakdown Pie Chart */}
-          <div className="p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-900/40">
-            <div className="flex items-center justify-between mb-3">
-              <h4 className="text-xs font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-emerald-500" />
-                Task Status Distribution
+      <CardContent className="p-4 space-y-3">
+        {/* Charts Row - Super Compact with side-by-side legends */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {/* Status Breakdown Donut Chart */}
+          <div className="p-3 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-900/40">
+            <div className="flex items-center justify-between mb-1">
+              <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                <TrendingUp className="h-3.5 w-3.5 text-emerald-500" />
+                Status Distribution
               </h4>
-              <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                Status Split
-              </span>
+              <span className="text-[10px] font-semibold text-slate-400">Status Split</span>
             </div>
-            <div className="h-52 w-full">
+            <div className="h-36 w-full">
               {statusChart.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
-                  <RechartsPieChart>
+                  <RechartsPieChart margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
                     <Pie
                       data={statusChart}
-                      cx="50%"
+                      cx="35%"
                       cy="50%"
-                      innerRadius={50}
-                      outerRadius={75}
-                      paddingAngle={4}
+                      innerRadius={32}
+                      outerRadius={52}
+                      paddingAngle={3}
                       dataKey="value"
                     >
                       {statusChart.map((entry: any, index: number) => (
-                        <Cell
-                          key={`cell-${index}`}
-                          fill={entry.color}
-                          stroke="transparent"
-                        />
+                        <Cell key={`cell-${index}`} fill={entry.color} stroke="transparent" />
                       ))}
                     </Pie>
                     <Tooltip content={<CustomPieTooltip />} />
                     <Legend
-                      verticalAlign="bottom"
-                      height={36}
+                      layout="vertical"
+                      align="right"
+                      verticalAlign="middle"
                       formatter={(value) => (
-                        <span className="text-xs text-slate-600 dark:text-slate-400 font-medium">
+                        <span className="text-[11px] text-slate-600 dark:text-slate-300 font-medium">
                           {value}
                         </span>
                       )}
@@ -328,50 +280,45 @@ export default function TaskAnalyticsSection() {
                 </ResponsiveContainer>
               ) : (
                 <div className="h-full flex items-center justify-center text-xs text-slate-400">
-                  No task status data available
+                  No status data available
                 </div>
               )}
             </div>
           </div>
 
           {/* Time Taken Distribution Donut Chart */}
-          <div className="p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-900/40">
-            <div className="flex items-center justify-between mb-3">
-              <h4 className="text-xs font-semibold text-slate-900 dark:text-slate-100 flex items-center gap-2">
-                <Clock className="h-4 w-4 text-blue-500" />
-                Completion Duration Breakdown
+          <div className="p-3 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-900/40">
+            <div className="flex items-center justify-between mb-1">
+              <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                <Clock className="h-3.5 w-3.5 text-blue-500" />
+                Completion Duration
               </h4>
-              <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                Time Brackets
-              </span>
+              <span className="text-[10px] font-semibold text-slate-400">Time Brackets</span>
             </div>
-            <div className="h-52 w-full">
+            <div className="h-36 w-full">
               {durationChart.some((d: any) => d.value > 0) ? (
                 <ResponsiveContainer width="100%" height="100%">
-                  <RechartsPieChart>
+                  <RechartsPieChart margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
                     <Pie
                       data={durationChart}
-                      cx="50%"
+                      cx="35%"
                       cy="50%"
-                      innerRadius={48}
-                      outerRadius={75}
-                      paddingAngle={4}
+                      innerRadius={32}
+                      outerRadius={52}
+                      paddingAngle={3}
                       dataKey="value"
                     >
                       {durationChart.map((entry: any, index: number) => (
-                        <Cell
-                          key={`cell-dur-${index}`}
-                          fill={entry.color}
-                          stroke="transparent"
-                        />
+                        <Cell key={`cell-dur-${index}`} fill={entry.color} stroke="transparent" />
                       ))}
                     </Pie>
                     <Tooltip content={<CustomPieTooltip />} />
                     <Legend
-                      verticalAlign="bottom"
-                      height={36}
+                      layout="vertical"
+                      align="right"
+                      verticalAlign="middle"
                       formatter={(value) => (
-                        <span className="text-xs text-slate-600 dark:text-slate-400 font-medium">
+                        <span className="text-[11px] text-slate-600 dark:text-slate-300 font-medium">
                           {value}
                         </span>
                       )}
@@ -387,219 +334,151 @@ export default function TaskAnalyticsSection() {
           </div>
         </div>
 
-        {/* Filter Controls & Report Section */}
-        <div className="space-y-3 pt-1">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        {/* Filter Controls & Sticky Compact Table Section */}
+        <div className="space-y-2">
+          {/* Integrated Filter Bar */}
+          <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-              <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+              <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider">
                 Task Duration Log
               </h4>
-              <span className="text-xs text-slate-500 dark:text-slate-400">
-                ({filteredTasks.length} of {tasksReport.length} tasks)
-              </span>
+              <Badge variant="outline" className="text-[10px] font-bold px-1.5 py-0 border-slate-200">
+                {filteredTasks.length} of {tasksReport.length} tasks
+              </Badge>
             </div>
-
             {activeFiltersCount > 0 && (
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={clearFilters}
-                className="h-8 text-xs text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white flex items-center gap-1.5 px-2.5"
+                className="h-6 text-[11px] font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg px-2 flex items-center gap-1"
               >
-                <RotateCcw className="h-3.5 w-3.5" />
-                Reset Filters
+                <RotateCcw className="h-3 w-3" />
+                Reset
               </Button>
             )}
           </div>
 
-          {/* Filter Bar */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 p-3 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
-            {/* Task Title Search */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
               <Input
                 value={taskFilter}
                 onChange={(e) => setTaskFilter(e.target.value)}
                 placeholder="Filter by title..."
-                className="pl-8 h-8 text-xs bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700/80 rounded-lg focus-visible:ring-indigo-500"
+                className="pl-8 h-8 text-xs bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700/80 rounded-xl"
               />
             </div>
 
-            {/* Project Stage / Status Filter */}
-            <Select
-              value={stageFilter}
-              onValueChange={(val) => setStageFilter(val)}
-            >
-              <SelectTrigger className="h-8 text-xs bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700/80 rounded-lg focus:ring-indigo-500">
-                <div className="flex items-center gap-2 truncate">
+            <Select value={stageFilter} onValueChange={(val) => setStageFilter(val)}>
+              <SelectTrigger className="h-8 text-xs bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700/80 rounded-xl">
+                <div className="flex items-center gap-1.5 truncate">
                   <Layers className="h-3.5 w-3.5 text-slate-400 shrink-0" />
                   <SelectValue placeholder="Stage / Status" />
                 </div>
               </SelectTrigger>
-              <SelectContent className="max-h-64 rounded-lg">
-                <SelectItem value="ALL" className="text-xs font-medium">
-                  All Stages & Statuses
-                </SelectItem>
+              <SelectContent className="max-h-64 rounded-xl">
+                <SelectItem value="ALL" className="text-xs font-medium">All Stages & Statuses</SelectItem>
                 <SelectGroup>
-                  <SelectLabel className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
-                    Status
-                  </SelectLabel>
-                  <SelectItem value="TODO" className="text-xs">
-                    To Do
-                  </SelectItem>
-                  <SelectItem value="IN_PROGRESS" className="text-xs">
-                    In Progress
-                  </SelectItem>
-                  <SelectItem value="DONE" className="text-xs">
-                    Done
-                  </SelectItem>
-                  <SelectItem value="BLOCKED" className="text-xs">
-                    Blocked
-                  </SelectItem>
+                  <SelectLabel className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Status</SelectLabel>
+                  <SelectItem value="TODO" className="text-xs">To Do</SelectItem>
+                  <SelectItem value="IN_PROGRESS" className="text-xs">In Progress</SelectItem>
+                  <SelectItem value="DONE" className="text-xs">Done</SelectItem>
+                  <SelectItem value="BLOCKED" className="text-xs">Blocked</SelectItem>
                 </SelectGroup>
                 {availableStages.length > 0 && (
                   <SelectGroup>
-                    <SelectLabel className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
-                      Stage
-                    </SelectLabel>
+                    <SelectLabel className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Stage</SelectLabel>
                     {availableStages.map((stg) => (
-                      <SelectItem key={stg} value={stg} className="text-xs">
-                        {stg}
-                      </SelectItem>
+                      <SelectItem key={stg} value={stg} className="text-xs">{stg}</SelectItem>
                     ))}
                   </SelectGroup>
                 )}
               </SelectContent>
             </Select>
 
-            {/* Duration Filter */}
-            <Select
-              value={durationFilter}
-              onValueChange={(val) => setDurationFilter(val)}
-            >
-              <SelectTrigger className="h-8 text-xs bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700/80 rounded-lg focus:ring-indigo-500">
-                <div className="flex items-center gap-2 truncate">
+            <Select value={durationFilter} onValueChange={(val) => setDurationFilter(val)}>
+              <SelectTrigger className="h-8 text-xs bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700/80 rounded-xl">
+                <div className="flex items-center gap-1.5 truncate">
                   <Timer className="h-3.5 w-3.5 text-slate-400 shrink-0" />
                   <SelectValue placeholder="Duration" />
                 </div>
               </SelectTrigger>
-              <SelectContent className="rounded-lg">
-                <SelectItem value="ANY" className="text-xs">
-                  Any duration
-                </SelectItem>
-                <SelectItem value="<1" className="text-xs">
-                  &lt; 1 Day (&lt; 24h)
-                </SelectItem>
-                <SelectItem value="1-3" className="text-xs">
-                  1 - 3 Days
-                </SelectItem>
-                <SelectItem value="3-7" className="text-xs">
-                  3 - 7 Days
-                </SelectItem>
-                <SelectItem value=">7" className="text-xs">
-                  &gt; 7 Days
-                </SelectItem>
+              <SelectContent className="rounded-xl">
+                <SelectItem value="ANY" className="text-xs">Any duration</SelectItem>
+                <SelectItem value="<1" className="text-xs">&lt; 1 Day (&lt; 24h)</SelectItem>
+                <SelectItem value="1-3" className="text-xs">1 - 3 Days</SelectItem>
+                <SelectItem value="3-7" className="text-xs">3 - 7 Days</SelectItem>
+                <SelectItem value=">7" className="text-xs">&gt; 7 Days</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
-          {/* Table Container */}
+          {/* Sticky Table with Max Height */}
           <div className="border border-slate-200/80 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900">
-            <div className="overflow-x-auto">
+            <div className="max-h-48 overflow-y-auto">
               <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-slate-50 dark:bg-slate-800/60 text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200/80 dark:border-slate-800">
-                    <th className="py-2.5 px-4">Task</th>
-                    <th className="py-2.5 px-4">Status</th>
-                    <th className="py-2.5 px-4">Stage</th>
-                    <th className="py-2.5 px-4">Assigned</th>
-                    <th className="py-2.5 px-4">Completed</th>
-                    <th className="py-2.5 px-4 text-right">Duration</th>
+                <thead className="sticky top-0 bg-slate-100 dark:bg-slate-800 z-10 shadow-xs">
+                  <tr className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200/80 dark:border-slate-800">
+                    <th className="py-2 px-3">Task</th>
+                    <th className="py-2 px-3">Status</th>
+                    <th className="py-2 px-3">Stage</th>
+                    <th className="py-2 px-3">Assigned</th>
+                    <th className="py-2 px-3">Completed</th>
+                    <th className="py-2 px-3 text-right">Duration</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-xs">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-[11px]">
                   {filteredTasks.length > 0 ? (
                     filteredTasks.map((task: any) => (
                       <tr
                         key={task.id}
-                        className="hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors"
+                        className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors"
                       >
-                        {/* Task Title */}
-                        <td className="py-3 px-4 font-semibold text-slate-900 dark:text-slate-100 max-w-[220px] truncate">
+                        <td className="py-1.5 px-3 font-semibold text-slate-900 dark:text-slate-100 max-w-[200px] truncate">
                           {task.title}
                         </td>
-
-                        {/* Status */}
-                        <td className="py-3 px-4">
+                        <td className="py-1.5 px-3">
                           <span
                             className={cn(
-                              "inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold border",
+                              "inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold border",
                               task.status === "DONE"
                                 ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/60"
                                 : task.status === "IN_PROGRESS"
-                                  ? "bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800/60"
-                                  : task.status === "BLOCKED"
-                                    ? "bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800/60"
-                                    : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700"
+                                ? "bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800/60"
+                                : task.status === "BLOCKED"
+                                ? "bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800/60"
+                                : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700"
                             )}
                           >
                             {task.status}
                           </span>
                         </td>
-
-                        {/* Project Stage */}
-                        <td className="py-3 px-4">
+                        <td className="py-1.5 px-3">
                           {task.stage ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800/60">
-                              <Layers className="h-3 w-3 text-purple-400" />
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-semibold bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800/60">
+                              <Layers className="h-2.5 w-2.5 text-purple-400" />
                               {task.stage}
                             </span>
                           ) : (
-                            <span className="text-slate-400 dark:text-slate-600 text-[11px]">
-                              —
-                            </span>
+                            <span className="text-slate-400 text-[10px]">—</span>
                           )}
                         </td>
-
-                        {/* Assigned Date */}
-                        <td className="py-3 px-4 text-slate-600 dark:text-slate-400">
-                          {task.assignedAt
-                            ? format(new Date(task.assignedAt), "MMM d, yyyy")
-                            : "-"}
+                        <td className="py-1.5 px-3 text-slate-600 dark:text-slate-400">
+                          {task.assignedAt ? format(new Date(task.assignedAt), "MMM d, yyyy") : "-"}
                         </td>
-
-                        {/* Completed Date */}
-                        <td className="py-3 px-4 text-slate-600 dark:text-slate-400">
-                          {task.completedAt
-                            ? format(new Date(task.completedAt), "MMM d, yyyy")
-                            : "-"}
+                        <td className="py-1.5 px-3 text-slate-600 dark:text-slate-400">
+                          {task.completedAt ? format(new Date(task.completedAt), "MMM d, yyyy") : "-"}
                         </td>
-
-                        {/* Duration */}
-                        <td className="py-3 px-4 text-right font-medium text-slate-900 dark:text-slate-200 font-mono text-[11px]">
+                        <td className="py-1.5 px-3 text-right font-semibold text-slate-900 dark:text-slate-200 font-mono text-[10px]">
                           {task.durationFormatted}
                         </td>
                       </tr>
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={6} className="py-10 text-center">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <div className="p-2.5 bg-slate-100 dark:bg-slate-800 rounded-full text-slate-400">
-                            <AlertCircle className="h-5 w-5" />
-                          </div>
-                          <p className="text-xs font-medium text-slate-600 dark:text-slate-400">
-                            No tasks match the selected filters
-                          </p>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={clearFilters}
-                            className="mt-1 h-7 text-xs rounded-lg"
-                          >
-                            Reset Filters
-                          </Button>
-                        </div>
+                      <td colSpan={6} className="py-6 text-center text-xs text-slate-400">
+                        No tasks match the selected filters
                       </td>
                     </tr>
                   )}

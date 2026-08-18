@@ -18,65 +18,72 @@ export async function GET(req: Request) {
     const filterTaskId = searchParams.get("taskId");
     const departmentId = searchParams.get("departmentId");
 
-    const isAdmin =
-      currentUser.isSuperAdmin ||
-      currentUser.role === "SUPER_ADMIN" ||
-      currentUser.role === "ORG_ADMIN";
-
-    const userDept = currentUser.departmentId
-      ? await db.department.findUnique({ where: { id: currentUser.departmentId } })
-      : null;
-    const isHR = userDept?.name?.toUpperCase() === "HR" || userDept?.name?.toUpperCase() === "HUMAN RESOURCES";
-    const hasDeptRestriction = isAdmin && currentUser.departmentId && !isHR;
-
-    const hasUserScope =
-      (isAdmin && Boolean(filterUserId || departmentId || filterRole)) || hasDeptRestriction;
-
-    // Fetch departments and users (restricted if non-admin)
-    const [departments, allUsers] = await Promise.all([
-      isAdmin
-        ? db.department.findMany({
-            where: hasDeptRestriction ? { id: currentUser.departmentId } : undefined,
-            select: { id: true, name: true },
-            orderBy: { name: "asc" },
-          })
-        : Promise.resolve([]),
-      isAdmin
-        ? db.user.findMany({
-            where: hasDeptRestriction ? { departmentId: currentUser.departmentId } : undefined,
-            select: {
-              id: true,
-              name: true,
-              email: true,
-              departmentId: true,
-              role: true,
-            },
-            orderBy: { name: "asc" },
-          })
-        : Promise.resolve([
-            {
-              id: currentUser.id,
-              name: currentUser.name || "Me",
-              email: currentUser.email,
-              departmentId: currentUser.departmentId,
-              role: currentUser.role,
-            },
-          ]),
-    ]);
-
-    let scopedUserIds: string[] = [];
-    if (hasUserScope) {
-      const scopedUsers = await db.user.findMany({
-        where: {
-          ...(hasDeptRestriction ? { departmentId: currentUser.departmentId } : (departmentId ? { departmentId } : {})),
-          ...(filterUserId ? { id: filterUserId } : {}),
-          ...(filterRole ? { role: filterRole as any } : {}),
-        },
+    // Resolve user's team scope (users in the same department + logged-in user)
+    let teamUserIds: string[] = [];
+    if (currentUser.departmentId) {
+      const deptUsers = await db.user.findMany({
+        where: { departmentId: currentUser.departmentId },
         select: { id: true },
       });
-      scopedUserIds = scopedUsers.map((u) => u.id);
-      if (scopedUserIds.length === 0) scopedUserIds = ["__no_matching_user__"];
+      teamUserIds = deptUsers.map((u) => u.id);
     }
+
+    const isSuperAdmin = Boolean(
+      currentUser.isSuperAdmin || currentUser.role === "SUPER_ADMIN"
+    );
+
+    let baseTeamUserIds: string[] = Array.from(
+      new Set([currentUser.id, ...teamUserIds])
+    );
+
+    if (isSuperAdmin && !currentUser.departmentId && !departmentId) {
+      const orgUsers = await db.user.findMany({ select: { id: true } });
+      baseTeamUserIds = orgUsers.map((u) => u.id);
+    }
+
+    let scopedUserIds: string[] = baseTeamUserIds;
+
+    if (filterUserId) {
+      if (baseTeamUserIds.includes(filterUserId) || isSuperAdmin) {
+        scopedUserIds = [filterUserId];
+      } else {
+        scopedUserIds = ["__no_matching_user__"];
+      }
+    } else if (departmentId) {
+      const deptUsers = await db.user.findMany({
+        where: { departmentId },
+        select: { id: true },
+      });
+      const deptUserIds = deptUsers.map((u) => u.id);
+      if (isSuperAdmin) {
+        scopedUserIds = deptUserIds.length > 0 ? deptUserIds : ["__no_matching_user__"];
+      } else {
+        scopedUserIds = baseTeamUserIds.filter((id) => deptUserIds.includes(id));
+        if (scopedUserIds.length === 0) scopedUserIds = ["__no_matching_user__"];
+      }
+    }
+
+    // Fetch departments and users (restricted strictly to user's team/scope)
+    const [departments, allUsers] = await Promise.all([
+      db.department.findMany({
+        where: currentUser.departmentId && !isSuperAdmin
+          ? { id: currentUser.departmentId }
+          : undefined,
+        select: { id: true, name: true },
+        orderBy: { name: "asc" },
+      }),
+      db.user.findMany({
+        where: { id: { in: baseTeamUserIds } },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          departmentId: true,
+          role: true,
+        },
+        orderBy: { name: "asc" },
+      }),
+    ]);
 
     let dateFilter: any = {};
     if (startDateParam || endDateParam) {
@@ -93,19 +100,14 @@ export async function GET(req: Request) {
       }
     }
 
-    // 1. Task Metrics
-    const taskWhere: any = { ...dateFilter };
-    if (!isAdmin) {
-      taskWhere.OR = [
-        { creatorId: currentUser.id },
-        { assignments: { some: { userId: currentUser.id } } },
-      ];
-    } else if (hasUserScope) {
-      taskWhere.OR = [
+    // 1. Task Metrics (Strict Team & User Created/Assigned Filter)
+    const taskWhere: any = {
+      ...dateFilter,
+      OR: [
         { creatorId: { in: scopedUserIds } },
         { assignments: { some: { userId: { in: scopedUserIds } } } },
-      ];
-    }
+      ],
+    };
 
     const [totalTasks, tasksByStatus, tasksByPriority, overdueTasks] =
       await Promise.all([
@@ -129,22 +131,15 @@ export async function GET(req: Request) {
         }),
       ]);
 
-    // 2. Record & Stage Metrics
-    const recordWhere: any = { ...dateFilter };
-    if (!isAdmin) {
-      recordWhere.OR = [
-        { createdBy: currentUser.id },
-        { assignees: { some: { userId: currentUser.id } } },
-      ];
-    } else {
-      if (filterTaskId) recordWhere.parentTaskId = filterTaskId;
-      if (hasUserScope) {
-        recordWhere.OR = [
-          { createdBy: { in: scopedUserIds } },
-          { assignees: { some: { userId: { in: scopedUserIds } } } },
-        ];
-      }
-    }
+    // 2. Record & Stage Metrics (Strict Team & User Created/Assigned Filter)
+    const recordWhere: any = {
+      ...dateFilter,
+      OR: [
+        { createdBy: { in: scopedUserIds } },
+        { assignees: { some: { userId: { in: scopedUserIds } } } },
+      ],
+    };
+    if (filterTaskId) recordWhere.parentTaskId = filterTaskId;
 
     const [totalRecords, completedRecords, recordsByStage] = await Promise.all([
       db.record.count({ where: recordWhere }),
@@ -197,7 +192,7 @@ export async function GET(req: Request) {
 
     // 4. Tag Metrics
     const tags = await db.tag.findMany({
-      where: hasUserScope ? { records: { some: recordWhere } } : undefined,
+      where: { records: { some: recordWhere } },
       include: {
         records: { where: recordWhere, select: { id: true } },
       },
@@ -212,22 +207,17 @@ export async function GET(req: Request) {
     // 5. Automation Rule Metrics
     const [totalAutomations, enabledAutomations] = await Promise.all([
       db.automationRule.count({
-        where: hasUserScope ? { userId: { in: scopedUserIds } } : undefined,
+        where: { userId: { in: scopedUserIds } },
       }),
       db.automationRule.count({
-        where: hasUserScope
-          ? { enabled: true, userId: { in: scopedUserIds } }
-          : { enabled: true },
+        where: { enabled: true, userId: { in: scopedUserIds } },
       }),
     ]);
 
     // 6. User Activity & Productivity
-    const userWhere: any = {};
-    if (!isAdmin) {
-      userWhere.id = currentUser.id;
-    } else if (hasUserScope) {
-      userWhere.id = { in: scopedUserIds };
-    }
+    const userWhere: any = {
+      id: { in: scopedUserIds },
+    };
 
     const users = await db.user.findMany({
       where: userWhere,
@@ -248,29 +238,26 @@ export async function GET(req: Request) {
           },
         },
       },
-      take: 20,
+      take: 50,
     });
 
     // 7. Channel & Chat Metrics
-    const scopedPeopleFilter = hasUserScope
-      ? {
-          OR: [
-            { creatorId: { in: scopedUserIds } },
-            { members: { some: { userId: { in: scopedUserIds } } } },
-          ],
-        }
-      : undefined;
+    const scopedPeopleFilter = {
+      OR: [
+        { creatorId: { in: scopedUserIds } },
+        { members: { some: { userId: { in: scopedUserIds } } } },
+      ],
+    };
+
     const [totalChannels, totalMessages] = await Promise.all([
       db.channel.count({ where: scopedPeopleFilter }),
       db.message.count({
-        where: hasUserScope
-          ? {
-              OR: [
-                { senderId: { in: scopedUserIds } },
-                { receiverId: { in: scopedUserIds } },
-              ],
-            }
-          : undefined,
+        where: {
+          OR: [
+            { senderId: { in: scopedUserIds } },
+            { receiverId: { in: scopedUserIds } },
+          ],
+        },
       }),
     ]);
 
@@ -281,7 +268,7 @@ export async function GET(req: Request) {
           {
             OR: [{ fileUrl: { not: null } }, { attachments: { not: null } }],
           },
-          ...(hasUserScope
+          ...(scopedUserIds.length > 0
             ? [
                 {
                   OR: [

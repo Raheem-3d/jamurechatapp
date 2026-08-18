@@ -80,7 +80,14 @@ export function RecentChannelsWidget({ channels }: RecentChannelsWidgetProps) {
                 <div className="flex items-center gap-2.5 min-w-0">
                   <div className="h-8 w-8 rounded-lg bg-blue-100/80 dark:bg-blue-900/40 flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold shrink-0 overflow-hidden">
                     {channel.image ? (
-                      <img src={channel.image} alt={channel.name} className="w-full h-full object-cover" />
+                      <img
+                        src={channel.image}
+                        alt={channel.name}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          (e.target as HTMLElement).style.display = "none";
+                        }}
+                      />
                     ) : (
                       <Hash className="h-3.5 w-3.5" />
                     )}
