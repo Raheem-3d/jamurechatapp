@@ -8,6 +8,8 @@ import { authOptions } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { getPerplexityClient } from '@/lib/perplexity-client';
 
+export const maxDuration = 120; // 2 minutes for local AI processing
+
 export async function POST(req: NextRequest) {
   try {
     const session: any = await getServerSession(authOptions);

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { useSession } from "next-auth/react";
 import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,12 +23,16 @@ type Task = {
   priority: string;
   deadline?: string;
   updatedAt?: string;
+  creator?: { id: string };
+  assignments?: { user?: { id: string } }[];
 };
 
 export function TaskCalendarWidget() {
+  const { data: session } = useSession();
+  const currentUserId = (session?.user as any)?.id;
+
   const [date, setDate] = useState<Date | undefined>(new Date());
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [tasksForDate, setTasksForDate] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showPopover, setShowPopover] = useState(false);
 
@@ -68,20 +73,28 @@ export function TaskCalendarWidget() {
     };
   }, []);
 
-  // Update tasks for selected date
-  useEffect(() => {
-    if (!date) return;
+  // Filter tasks strictly for the current logged in user (creator or assigned)
+  const userOnlyTasks = useMemo(() => {
+    return tasks.filter((t) => {
+      if (!currentUserId) return true;
+      const isAssigned = t.assignments?.some((a) => a.user?.id === currentUserId);
+      const isCreator = t.creator?.id === currentUserId;
+      return isAssigned || isCreator;
+    });
+  }, [tasks, currentUserId]);
 
-    const filtered = tasks.filter((task) => {
+  // Tasks for selected date computed cleanly via useMemo
+  const tasksForDate = useMemo(() => {
+    if (!date) return [];
+    return userOnlyTasks.filter((task) => {
       const tDate = getTaskCalendarDate(task);
       return tDate ? isSameDay(tDate, date) : false;
     });
-    setTasksForDate(filtered);
-  }, [date, tasks]);
+  }, [date, userOnlyTasks]);
 
   // Function to check if a date has tasks
   const hasTasksOnDate = (day: Date) => {
-    return tasks.some((task) => {
+    return userOnlyTasks.some((task) => {
       const tDate = getTaskCalendarDate(task);
       return tDate ? isSameDay(tDate, day) : false;
     });
@@ -118,7 +131,7 @@ export function TaskCalendarWidget() {
   };
 
   // Count upcoming tasks (excluding DONE tasks)
-  const upcomingTasksCount = tasks.filter(
+  const upcomingTasksCount = userOnlyTasks.filter(
     (task) => task.status !== "DONE" && task.deadline && new Date(task.deadline) >= new Date()
   ).length;
 

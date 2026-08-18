@@ -54,7 +54,12 @@ export default function ChannelHeader({ channel }: ChannelHeaderProps) {
   const [showSharedMediaPanel, setShowSharedMediaPanel] = useState(false);
   const [showSearchModal, setShowSearchModal] = useState(false);
   const [aiEnabled, setAiEnabled] = useState(true);
+  const [imgError, setImgError] = useState(false);
   const [showActionExtractor, setShowActionExtractor] = useState(false);
+
+  useEffect(() => {
+    setImgError(false);
+  }, [channel.id, channel.image]);
 
   useEffect(() => {
     const fetchOrg = async () => {
@@ -208,8 +213,13 @@ export default function ChannelHeader({ channel }: ChannelHeaderProps) {
           </Button>
 
           <div className="h-9 w-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center border border-indigo-100 dark:border-indigo-800/80 shrink-0 font-bold overflow-hidden">
-            {channel.image ? (
-              <img src={channel.image} alt={channel.name} className="w-full h-full object-cover" />
+            {channel.image && !imgError ? (
+              <img
+                src={channel.image}
+                alt={channel.name}
+                className="w-full h-full object-cover"
+                onError={() => setImgError(true)}
+              />
             ) : (
               <Hash className="h-4 w-4" />
             )}

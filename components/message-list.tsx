@@ -358,7 +358,25 @@ const renderMessageWithLinks = (text: string) => {
       }
     }
 
-    // Web browser environment: Copy path to clipboard & notify user
+    // Try opening directly via server API if running on local environment
+    try {
+      const apiRes = await fetch("/api/open-folder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ folderPath: cleanPath }),
+      });
+      if (apiRes.ok) {
+        const data = await apiRes.json();
+        if (data.success) {
+          toast.success("Opening folder in File Explorer");
+          return;
+        }
+      }
+    } catch (err) {
+      console.log("Local open-folder API unavailable, fallback to clipboard:", err);
+    }
+
+    // Web browser environment fallback: Copy path to clipboard & notify user
     try {
       if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(cleanPath);
@@ -410,16 +428,16 @@ const renderMessageWithLinks = (text: string) => {
       unquotedPart.match(/^\/\/[^\n<>"']+/)
     ) {
       return (
-        <a
+        <button
           key={index}
-          href={`file:///${unquotedPart.replace(/\\/g, "/")}`}
+          type="button"
           onClick={(e) => handleOpenFolder(e, part)}
-          className="text-[#027EB5] dark:text-[#53BDEB] hover:underline inline-flex items-center gap-1 cursor-pointer font-medium bg-[#027EB5]/10 dark:bg-[#53BDEB]/10 px-1.5 py-0.5 rounded"
+          className="text-[#027EB5] dark:text-[#53BDEB] hover:underline inline-flex items-center gap-1 cursor-pointer font-medium bg-[#027EB5]/10 dark:bg-[#53BDEB]/10 px-1.5 py-0.5 rounded text-left"
           title={`Click to open folder: ${unquotedPart}`}
         >
-          <FolderIcon className="h-3.5 w-3.5 inline-block text-[#027EB5] dark:text-[#53BDEB]" />
-          {unquotedPart}
-        </a>
+          <FolderIcon className="h-3.5 w-3.5 inline-block text-[#027EB5] dark:text-[#53BDEB] shrink-0" />
+          <span>{unquotedPart}</span>
+        </button>
       );
     }
 

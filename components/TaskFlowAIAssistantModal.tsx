@@ -165,10 +165,10 @@ export function TaskFlowAIAssistantModal({
       }
 
       toast.success(`Success! Created project "${data.taskTitle}" with ${data.recordsCreated} assigned records!`);
-      
+
       // Dispatch task assigned window event to update UI across views
       window.dispatchEvent(new CustomEvent("task:assigned"));
-      
+
       if (onSuccess) onSuccess();
       handleResetAndClose();
     } catch (err: any) {
@@ -190,7 +190,7 @@ export function TaskFlowAIAssistantModal({
     if (!plan) return;
     const updatedRecords = [...plan.records];
     updatedRecords[index] = { ...updatedRecords[index], [field]: value };
-    
+
     // Update assignee name if id changed
     if (field === "suggestedAssigneeId") {
       const member = teamMembers.find((m) => m.id === value);
@@ -298,7 +298,7 @@ export function TaskFlowAIAssistantModal({
                     <Badge className="bg-purple-600/30 text-purple-300 border-purple-500/40">
                       Project Title
                     </Badge>
-                    <Badge className={cn("text-xs font-semibold", 
+                    <Badge className={cn("text-xs font-semibold",
                       plan?.priority === 'HIGH' || plan?.priority === 'URGENT' ? 'bg-red-500/20 text-red-300 border-red-500/30' : 'bg-blue-500/20 text-blue-300 border-blue-500/30'
                     )}>
                       {plan?.priority} Priority
