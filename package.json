@@ -69,9 +69,9 @@
     }
   },
   "scripts": {
-    "dev": "pnpm exec next dev",
+    "dev": "node scripts/start-ollama.js && pnpm exec next dev",
     "build": "pnpm exec next build",
-    "start": "cross-env NODE_ENV=production node server.js",
+    "start": "node scripts/start-ollama.js && cross-env NODE_ENV=production node server.js",
     "test": "pnpm vitest run",
     "dist:win": "pnpm exec electron-builder --win nsis",
     "dist": "pnpm exec electron-builder",
@@ -79,7 +79,8 @@
     "electron": "concurrently \"cross-env BROWSER=none pnpm exec next dev\" \"wait-on http://localhost:3000 && pnpm exec electron ./main.js\"",
     "electron:prod": "pnpm run build && concurrently \"cross-env BROWSER=none node server.js\" \"wait-on http://localhost:3000 && pnpm exec electron ./main.js\"",
     "release": "pnpm exec electron-builder --publish=always",
-    "migrate:subs": "node scripts/migrate-subscriptions.js"
+    "migrate:subs": "node scripts/migrate-subscriptions.js",
+    "ollama:start": "node scripts/start-ollama.js"
   },
   "dependencies": {
     "@auth/core": "latest",

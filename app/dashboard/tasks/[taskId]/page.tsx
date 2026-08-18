@@ -155,17 +155,17 @@ export default async function TaskDetailPage({
       user: assignment.user,
     })),
     ...(task.updatedAt &&
-    new Date(task.updatedAt).getTime() !== new Date(task.createdAt).getTime()
+      new Date(task.updatedAt).getTime() !== new Date(task.createdAt).getTime()
       ? [
-          {
-            id: `updated-${task.id}-${task.updatedAt}`,
-            title: `Status: ${task.status === "DONE" ? "Completed" : task.status}`,
-            description: `Last updated on ${formatDate(task.updatedAt)}`,
-            date: new Date(task.updatedAt),
-            iconType: "status",
-            user: null,
-          },
-        ]
+        {
+          id: `updated-${task.id}-${task.updatedAt}`,
+          title: `Status: ${task.status === "DONE" ? "Completed" : task.status}`,
+          description: `Last updated on ${formatDate(task.updatedAt)}`,
+          date: new Date(task.updatedAt),
+          iconType: "status",
+          user: null,
+        },
+      ]
       : []),
   ].sort((a, b) => b.date.getTime() - a.date.getTime());
 
@@ -241,8 +241,8 @@ export default async function TaskDetailPage({
                       isOverdue
                         ? "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/60 dark:text-rose-300 dark:border-rose-900/60"
                         : isUrgent
-                        ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-900/60"
-                        : "bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700"
+                          ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-900/60"
+                          : "bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700"
                     )}
                   >
                     <CalendarClock className="h-3.5 w-3.5" />
@@ -548,3 +548,6 @@ export default async function TaskDetailPage({
     </div>
   );
 }
+
+
+
