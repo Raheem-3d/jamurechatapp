@@ -4,7 +4,6 @@ import { useState } from "react";
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
@@ -22,18 +21,13 @@ import {
 import {
   Sparkles,
   Wand2,
-  Bot,
   Loader2,
-  CheckCircle2,
   Plus,
   Trash2,
-  UserCheck,
-  Calendar,
   Layers,
-  ArrowRight,
-  Zap,
   RefreshCw,
   Rocket,
+  Bot,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -73,25 +67,6 @@ interface TaskFlowAIAssistantModalProps {
   onSuccess?: () => void;
 }
 
-const TEMPLATE_PROMPTS = [
-  {
-    title: "🚀 Website Launch",
-    prompt: "Create a Website Redesign project with tasks for UI/UX Design, Frontend Development, API Integration, Testing, and Production Deployment. Assign UI to design team and backend to dev team with High priority.",
-  },
-  {
-    title: "⚡ Bug Fixing Sprint",
-    prompt: "Create a 1-week Bug Fixing Sprint with tasks for Critical Authentication Bug, Database Optimization, Mobile Responsive Layout Fix, and API Error Logging.",
-  },
-  {
-    title: "📊 Quarterly Audit",
-    prompt: "Create a Quarterly Financial & Compliance Audit project with tasks for Expense Verification, Client Invoice Audit, Tax Preparation, and Executive Summary Report.",
-  },
-  {
-    title: "📢 Marketing Campaign",
-    prompt: "Create a Product Launch Marketing Campaign with Social Media Ads setup, Email Newsletter Copywriting, Influencer Outreach, and Analytics Setup.",
-  },
-];
-
 export function TaskFlowAIAssistantModal({
   isOpen,
   onClose,
@@ -109,7 +84,7 @@ export function TaskFlowAIAssistantModal({
   const handleGenerate = async (promptText?: string) => {
     const textToUse = promptText || prompt;
     if (!textToUse.trim()) {
-      toast.error("Please enter a prompt or select a template!");
+      toast.error("Please describe what project or tasks you want to create!");
       return;
     }
 
@@ -128,16 +103,16 @@ export function TaskFlowAIAssistantModal({
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || "Failed to generate AI plan");
+        throw new Error(data.error || "Failed to generate AI blueprint");
       }
 
       setPlan(data.plan);
       setTeamMembers(data.teamMembers || []);
       setStep("PREVIEW");
-      toast.success("AI Blueprint generated! Review and customize before creating.");
+      toast.success("Jamure AI Blueprint generated! Review details before creating.");
     } catch (err: any) {
       console.error("AI Generation Error:", err);
-      toast.error(err.message || "Failed to generate plan");
+      toast.error(err.message || "Failed to generate project plan");
     } finally {
       setIsGenerating(false);
     }
@@ -164,10 +139,11 @@ export function TaskFlowAIAssistantModal({
         throw new Error(data.error || "Failed to create project and tasks");
       }
 
-      toast.success(`Success! Created project "${data.taskTitle}" with ${data.recordsCreated} assigned records!`);
+      toast.success(`Success! Created "${data.taskTitle}" with ${data.recordsCreated} assigned task cards!`);
 
-      // Dispatch task assigned window event to update UI across views
       window.dispatchEvent(new CustomEvent("task:assigned"));
+      window.dispatchEvent(new CustomEvent("task:created"));
+      window.dispatchEvent(new CustomEvent("project:created"));
 
       if (onSuccess) onSuccess();
       handleResetAndClose();
@@ -191,7 +167,6 @@ export function TaskFlowAIAssistantModal({
     const updatedRecords = [...plan.records];
     updatedRecords[index] = { ...updatedRecords[index], [field]: value };
 
-    // Update assignee name if id changed
     if (field === "suggestedAssigneeId") {
       const member = teamMembers.find((m) => m.id === value);
       updatedRecords[index].suggestedAssigneeName = member ? member.name : "Unassigned";
@@ -216,90 +191,66 @@ export function TaskFlowAIAssistantModal({
       dueDateDays: 3,
       suggestedAssigneeId: teamMembers[0]?.id || null,
       suggestedAssigneeName: teamMembers[0]?.name || "Unassigned",
-      assignmentReason: "Manually added to plan",
+      assignmentReason: "Manually added item",
     };
     setPlan({ ...plan, records: [...plan.records, newRecord] });
   };
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleResetAndClose()}>
-      <DialogContent className="max-w-3xl bg-slate-950 text-slate-100 border border-slate-800 shadow-2xl overflow-hidden p-0 rounded-2xl">
-        {/* Top Gradient Header */}
-        <div className="bg-gradient-to-r from-purple-900/60 via-indigo-900/60 to-blue-900/60 p-6 border-b border-purple-500/20 relative">
+      <DialogContent className="max-w-3xl bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden p-0 rounded-2xl">
+        {/* Top Header - AI Hub Style */}
+        <div className="bg-gradient-to-r from-indigo-50/80 via-purple-50/60 to-slate-50 dark:from-indigo-950/60 dark:via-purple-950/40 dark:to-slate-900 p-5 border-b border-slate-200/80 dark:border-slate-800 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="p-3 bg-gradient-to-tr from-purple-600 to-indigo-500 rounded-xl shadow-lg shadow-purple-500/25">
-              <Sparkles className="w-6 h-6 text-white animate-pulse" />
+            <div className="p-2.5 bg-indigo-600 rounded-xl shadow-md shadow-indigo-500/20 text-white">
+              <Bot className="w-5 h-5" />
             </div>
             <div>
-              <DialogTitle className="text-xl font-bold text-white flex items-center gap-2">
-                TaskFlow AI Admin Co-Pilot
-                <Badge className="bg-purple-500/20 text-purple-300 border-purple-500/30 text-xs px-2.5 py-0.5">
-                  1-Click AI Assistant
+              <DialogTitle className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                Jamure AI
+                <Badge className="bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border-0 text-[9px] font-extrabold px-1.5 py-0.5">
+                  PROJECT GENERATOR
                 </Badge>
               </DialogTitle>
-              <DialogDescription className="text-slate-300 text-sm mt-0.5">
-                Automatically generate complete project plans, stages, tasks, and team assignments in seconds.
+              <DialogDescription className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Describe your requirements in English, Urdu, or Hindi. Jamure AI will generate tasks, stages & team assignments automatically.
               </DialogDescription>
             </div>
           </div>
         </div>
 
-        <div className="p-6 max-h-[75vh] overflow-y-auto space-y-6">
+        <div className="p-6 max-h-[72vh] overflow-y-auto space-y-5">
           {step === "PROMPT" ? (
-            <div className="space-y-6">
-              {/* Natural Language Input */}
+            <div className="space-y-4">
               <div className="space-y-2">
-                <label className="text-sm font-semibold text-slate-200 flex items-center justify-between">
-                  <span>Describe what you want to create (English / Urdu / Hindi):</span>
-                  <span className="text-xs text-purple-400 font-normal">AI parses project, cards & auto-assigns team</span>
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center justify-between">
+                  <span>Project & Tasks Prompt</span>
+                  <span className="text-[11px] text-indigo-600 dark:text-indigo-400 font-normal">
+                    AI parses project title, task cards & team assignees
+                  </span>
                 </label>
                 <Textarea
                   value={prompt}
                   onChange={(e) => setPrompt(e.target.value)}
-                  placeholder="e.g. Create a Mobile App Launch project with UI design, Auth API, Database setup, and QA tasks. Assign UI to Rahul and Backend to Priya with High priority."
-                  className="bg-slate-900/90 border-slate-700/80 focus:border-purple-500 focus:ring-purple-500/20 min-h-[120px] text-slate-100 placeholder:text-slate-500 rounded-xl p-3.5"
+                  placeholder="Describe your project, e.g. Create a Mobile App Redesign project with UI Design, Auth API, Database setup, and QA Testing tasks. Assign UI to Rahul and Dev tasks to Priya with High priority."
+                  className="bg-slate-50/80 dark:bg-slate-900 border-slate-200 dark:border-slate-800 focus:border-indigo-500 focus:ring-indigo-500/20 min-h-[140px] text-slate-900 dark:text-slate-100 placeholder:text-slate-400 rounded-xl p-3.5 text-xs leading-relaxed"
                 />
-              </div>
-
-              {/* Quick Template Chips */}
-              <div className="space-y-2.5">
-                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                  Quick AI Prompt Templates
-                </span>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                  {TEMPLATE_PROMPTS.map((t, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => {
-                        setPrompt(t.prompt);
-                        handleGenerate(t.prompt);
-                      }}
-                      disabled={isGenerating}
-                      className="text-left p-3 rounded-xl bg-slate-900/60 hover:bg-purple-950/40 border border-slate-800 hover:border-purple-500/40 transition-all duration-200 group"
-                    >
-                      <div className="font-semibold text-sm text-purple-300 group-hover:text-purple-200">
-                        {t.title}
-                      </div>
-                      <div className="text-xs text-slate-400 line-clamp-1 mt-1">
-                        {t.prompt}
-                      </div>
-                    </button>
-                  ))}
-                </div>
               </div>
             </div>
           ) : (
             /* PREVIEW & EDIT STEP */
-            <div className="space-y-6">
+            <div className="space-y-5">
               {/* Project Blueprint Card */}
-              <div className="p-4 rounded-xl bg-slate-900/90 border border-purple-500/30 space-y-3">
+              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    <Badge className="bg-purple-600/30 text-purple-300 border-purple-500/40">
+                    <Badge className="bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border-0 text-[10px] font-bold">
                       Project Title
                     </Badge>
-                    <Badge className={cn("text-xs font-semibold",
-                      plan?.priority === 'HIGH' || plan?.priority === 'URGENT' ? 'bg-red-500/20 text-red-300 border-red-500/30' : 'bg-blue-500/20 text-blue-300 border-blue-500/30'
+                    <Badge className={cn("text-[10px] font-bold px-2 py-0.5 border-0",
+                      plan?.priority === 'HIGH' || plan?.priority === 'URGENT' 
+                        ? 'bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300' 
+                        : 'bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300'
                     )}>
                       {plan?.priority} Priority
                     </Badge>
@@ -308,39 +259,39 @@ export function TaskFlowAIAssistantModal({
                     variant="ghost"
                     size="sm"
                     onClick={() => setStep("PROMPT")}
-                    className="text-slate-400 hover:text-white text-xs h-7 gap-1"
+                    className="text-slate-500 hover:text-slate-900 dark:hover:text-white text-xs h-7 gap-1"
                   >
-                    <RefreshCw className="w-3.5 h-3.5" /> Regenerate
+                    <RefreshCw className="w-3.5 h-3.5" /> Edit Prompt
                   </Button>
                 </div>
 
                 <Input
                   value={plan?.projectTitle || ""}
                   onChange={(e) => setPlan(plan ? { ...plan, projectTitle: e.target.value } : null)}
-                  className="bg-slate-950 border-slate-700 font-bold text-lg text-purple-200"
+                  className="bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 font-bold text-base text-slate-900 dark:text-slate-100"
                 />
 
                 <Textarea
                   value={plan?.projectDescription || ""}
                   onChange={(e) => setPlan(plan ? { ...plan, projectDescription: e.target.value } : null)}
-                  className="bg-slate-950 border-slate-700 text-sm text-slate-300 min-h-[60px]"
+                  className="bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-xs text-slate-700 dark:text-slate-300 min-h-[55px]"
                 />
               </div>
 
               {/* Records / Subtasks List */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-semibold text-slate-200 flex items-center gap-2">
-                    <Layers className="w-4 h-4 text-purple-400" />
+                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-2">
+                    <Layers className="w-4 h-4 text-indigo-500" />
                     Generated Task Cards ({plan?.records.length || 0})
                   </span>
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={handleAddCustomRecord}
-                    className="bg-slate-900 border-slate-700 hover:bg-slate-800 text-xs text-slate-300 gap-1 h-7"
+                    className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-xs text-slate-700 dark:text-slate-300 gap-1 h-7 font-medium"
                   >
-                    <Plus className="w-3.5 h-3.5 text-purple-400" /> Add Item
+                    <Plus className="w-3.5 h-3.5 text-indigo-500" /> Add Task
                   </Button>
                 </div>
 
@@ -348,19 +299,19 @@ export function TaskFlowAIAssistantModal({
                   {plan?.records.map((rec, index) => (
                     <div
                       key={index}
-                      className="p-3.5 rounded-xl bg-slate-900/70 border border-slate-800 hover:border-slate-700 transition-all space-y-3"
+                      className="p-3.5 rounded-xl bg-slate-50/80 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 hover:border-indigo-300 dark:hover:border-indigo-800 transition-all space-y-3"
                     >
                       <div className="flex items-start justify-between gap-2">
                         <Input
                           value={rec.title}
                           onChange={(e) => handleUpdateRecord(index, "title", e.target.value)}
-                          className="bg-slate-950 border-slate-700 text-slate-200 text-sm font-medium h-8"
+                          className="bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-xs font-semibold h-8"
                         />
                         <Button
                           variant="ghost"
                           size="icon"
                           onClick={() => handleDeleteRecord(index)}
-                          className="text-slate-500 hover:text-red-400 h-8 w-8 shrink-0"
+                          className="text-slate-400 hover:text-rose-500 h-8 w-8 shrink-0"
                         >
                           <Trash2 className="w-4 h-4" />
                         </Button>
@@ -369,21 +320,21 @@ export function TaskFlowAIAssistantModal({
                       <Textarea
                         value={rec.description}
                         onChange={(e) => handleUpdateRecord(index, "description", e.target.value)}
-                        className="bg-slate-950 border-slate-800 text-slate-400 text-xs min-h-[44px]"
+                        className="bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 text-xs min-h-[44px]"
                       />
 
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
                         {/* Stage Selector */}
                         <div>
-                          <label className="text-[11px] text-slate-400 mb-1 block">Stage</label>
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">Stage</label>
                           <Select
                             value={rec.stageName}
                             onValueChange={(val) => handleUpdateRecord(index, "stageName", val)}
                           >
-                            <SelectTrigger className="bg-slate-950 border-slate-800 text-xs text-slate-300 h-8">
+                            <SelectTrigger className="bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-xs text-slate-800 dark:text-slate-200 h-8">
                               <SelectValue placeholder="Stage" />
                             </SelectTrigger>
-                            <SelectContent className="bg-slate-900 border-slate-700 text-slate-200">
+                            <SelectContent className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200">
                               {plan.stages.map((st, i) => (
                                 <SelectItem key={i} value={st.name}>
                                   {st.name}
@@ -395,15 +346,15 @@ export function TaskFlowAIAssistantModal({
 
                         {/* Priority Selector */}
                         <div>
-                          <label className="text-[11px] text-slate-400 mb-1 block">Priority</label>
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block">Priority</label>
                           <Select
                             value={rec.priority}
                             onValueChange={(val) => handleUpdateRecord(index, "priority", val)}
                           >
-                            <SelectTrigger className="bg-slate-950 border-slate-800 text-xs text-slate-300 h-8">
+                            <SelectTrigger className="bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-xs text-slate-800 dark:text-slate-200 h-8">
                               <SelectValue placeholder="Priority" />
                             </SelectTrigger>
-                            <SelectContent className="bg-slate-900 border-slate-700 text-slate-200">
+                            <SelectContent className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200">
                               <SelectItem value="HIGH">High</SelectItem>
                               <SelectItem value="MEDIUM">Medium</SelectItem>
                               <SelectItem value="LOW">Low</SelectItem>
@@ -414,10 +365,10 @@ export function TaskFlowAIAssistantModal({
 
                         {/* Assignee Selector */}
                         <div>
-                          <label className="text-[11px] text-slate-400 mb-1 block flex items-center justify-between">
+                          <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1 block flex items-center justify-between">
                             <span>Assignee</span>
                             {rec.assignmentReason && (
-                              <span className="text-[10px] text-purple-400 truncate max-w-[80px]" title={rec.assignmentReason}>
+                              <span className="text-[9px] text-indigo-500 font-semibold truncate max-w-[80px]" title={rec.assignmentReason}>
                                 AI Picked
                               </span>
                             )}
@@ -432,10 +383,10 @@ export function TaskFlowAIAssistantModal({
                               )
                             }
                           >
-                            <SelectTrigger className="bg-slate-950 border-slate-800 text-xs text-slate-300 h-8">
+                            <SelectTrigger className="bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-xs text-slate-800 dark:text-slate-200 h-8">
                               <SelectValue placeholder="Assign User" />
                             </SelectTrigger>
-                            <SelectContent className="bg-slate-900 border-slate-700 text-slate-200">
+                            <SelectContent className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200">
                               <SelectItem value="unassigned">Unassigned</SelectItem>
                               {teamMembers.map((member) => (
                                 <SelectItem key={member.id} value={member.id}>
@@ -455,11 +406,11 @@ export function TaskFlowAIAssistantModal({
         </div>
 
         {/* Footer Actions */}
-        <div className="p-4 bg-slate-900/80 border-t border-slate-800 flex items-center justify-between gap-3">
+        <div className="p-4 bg-slate-50/80 dark:bg-slate-900/80 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3">
           <Button
             variant="ghost"
             onClick={handleResetAndClose}
-            className="text-slate-400 hover:text-white hover:bg-slate-800"
+            className="text-slate-500 hover:text-slate-900 dark:hover:text-white"
           >
             Cancel
           </Button>
@@ -468,17 +419,17 @@ export function TaskFlowAIAssistantModal({
             <Button
               onClick={() => handleGenerate()}
               disabled={isGenerating || !prompt.trim()}
-              className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-medium px-5 gap-2 rounded-xl shadow-lg shadow-purple-600/20"
+              className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-5 gap-2 rounded-xl shadow-sm"
             >
               {isGenerating ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Analyzing & Generating Plan...
+                  Generating Project Plan...
                 </>
               ) : (
                 <>
                   <Wand2 className="w-4 h-4" />
-                  Generate AI Blueprint
+                  Jamure AI
                 </>
               )}
             </Button>
@@ -487,14 +438,14 @@ export function TaskFlowAIAssistantModal({
               <Button
                 variant="outline"
                 onClick={() => setStep("PROMPT")}
-                className="bg-slate-950 border-slate-700 text-slate-300 hover:bg-slate-800"
+                className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300"
               >
                 Back to Prompt
               </Button>
               <Button
                 onClick={handleExecute}
                 disabled={isExecuting || !plan?.records?.length}
-                className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-semibold px-6 gap-2 rounded-xl shadow-lg shadow-emerald-600/25"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 gap-2 rounded-xl shadow-sm"
               >
                 {isExecuting ? (
                   <>
@@ -504,7 +455,7 @@ export function TaskFlowAIAssistantModal({
                 ) : (
                   <>
                     <Rocket className="w-4 h-4" />
-                    Create Project & Assign Tasks
+                    Create Project & Tasks
                   </>
                 )}
               </Button>

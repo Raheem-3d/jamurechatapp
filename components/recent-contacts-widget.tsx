@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { Users, MessageSquare, ChevronLeft, ChevronRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -13,31 +15,87 @@ interface RecentContactsWidgetProps {
 }
 
 export function RecentContactsWidget({ contacts }: RecentContactsWidgetProps) {
+  const pathname = usePathname();
+  const { data: session } = useSession();
+  const currentUserId = (session?.user as any)?.id;
   const [currentPage, setCurrentPage] = useState(1);
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   const itemsPerPage = 4;
   const totalPages = Math.ceil(contacts.length / itemsPerPage);
 
-  useEffect(() => {
-    const fetchUnread = async () => {
-      try {
-        const res = await fetch("/api/messages/unread-counts");
-        if (res.ok) {
-          const data = await res.json();
-          setUnreadCounts(data.dms || {});
-        }
-      } catch (err) {
-        console.error("Failed to fetch DM unread counts:", err);
+  const fetchUnread = async () => {
+    try {
+      const res = await fetch("/api/messages/unread-counts");
+      if (res.ok) {
+        const data = await res.json();
+        setUnreadCounts(data.dms || {});
       }
-    };
+    } catch (err) {
+      console.error("Failed to fetch DM unread counts:", err);
+    }
+  };
+
+  useEffect(() => {
     fetchUnread();
+
+    const onMessageReceived = (event: CustomEvent) => {
+      const msg = event?.detail;
+      if (!msg || !msg.senderId) return;
+      if (currentUserId && msg.senderId === currentUserId) return;
+
+      // Update unread count synchronously
+      setUnreadCounts((prev) => ({
+        ...prev,
+        [msg.senderId]: (prev[msg.senderId] || 0) + 1,
+      }));
+
+      fetchUnread();
+    };
+
     window.addEventListener("messages:read", fetchUnread as EventListener);
     window.addEventListener("message:created", fetchUnread as EventListener);
+    window.addEventListener("message:received", onMessageReceived as EventListener);
+
     return () => {
       window.removeEventListener("messages:read", fetchUnread as EventListener);
       window.removeEventListener("message:created", fetchUnread as EventListener);
+      window.removeEventListener("message:received", onMessageReceived as EventListener);
     };
-  }, []);
+  }, [currentUserId]);
+
+  // Auto-clear unread count if user is on this contact's page
+  useEffect(() => {
+    if (!pathname) return;
+    if (pathname.includes("/dashboard/messages/")) {
+      const activeUserId = pathname.split("/dashboard/messages/")[1]?.split("/")[0]?.trim();
+      if (activeUserId) {
+        setUnreadCounts((prev) => {
+          if (!prev[activeUserId]) return prev;
+          const copy = { ...prev };
+          delete copy[activeUserId];
+          return copy;
+        });
+      }
+    }
+  }, [pathname]);
+
+  const handleContactClick = (contactId: string) => {
+    setUnreadCounts((prev) => {
+      if (!prev[contactId]) return prev;
+      const copy = { ...prev };
+      delete copy[contactId];
+      return copy;
+    });
+    fetch("/api/messages/mark-read", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ senderId: contactId }),
+    })
+      .then(() => {
+        window.dispatchEvent(new CustomEvent("messages:read"));
+      })
+      .catch(() => {});
+  };
 
   const paginatedContacts = contacts.slice(
     (currentPage - 1) * itemsPerPage,
@@ -85,6 +143,7 @@ export function RecentContactsWidget({ contacts }: RecentContactsWidgetProps) {
               <Link
                 key={contact.id}
                 href={`/dashboard/messages/${contact.id}`}
+                onClick={() => handleContactClick(contact.id)}
                 className="flex items-center justify-between p-2.5 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-800/30 hover:bg-purple-50/50 dark:hover:bg-purple-900/20 hover:border-purple-200 dark:hover:border-purple-800 transition-all duration-150 group"
               >
                 <div className="flex items-center gap-2.5 min-w-0">

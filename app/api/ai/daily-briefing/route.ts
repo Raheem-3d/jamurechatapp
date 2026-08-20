@@ -6,7 +6,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { getPerplexityClient } from '@/lib/perplexity-client';
+import { getPerplexityClient, getAIClientForOrg } from '@/lib/perplexity-client';
 
 export async function GET(req: NextRequest) {
   try {
@@ -27,26 +27,23 @@ export async function GET(req: NextRequest) {
     const userId = session.user.id;
     const userRole = session.user.role;
     const userName = session.user.name || 'Team Member';
-    const canViewOrgData = ['ORG_ADMIN', 'ORG_MEMBER', 'MANAGER', 'SUPER_ADMIN'].includes(userRole);
 
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const tomorrowStart = new Date(todayStart);
     tomorrowStart.setDate(tomorrowStart.getDate() + 1);
 
-    // Build task filter based on role
-    const taskFilter = canViewOrgData
-      ? { organizationId: session.user.organizationId }
-      : {
-          organizationId: session.user.organizationId,
-          OR: [
-            { creatorId: userId },
-            { assignments: { some: { userId } } },
-          ],
-        };
+    // Build task filter: Only show projects/tasks created by or assigned to the current user (Admin or Employee)
+    const taskFilter = {
+      organizationId: session.user.organizationId,
+      OR: [
+        { creatorId: userId },
+        { assignments: { some: { userId } } },
+      ],
+    };
 
     // Fetch tasks
-    const allTasks = await db.task.findMany({
+    const allTasks: any[] = await db.task.findMany({
       where: taskFilter,
       include: {
         assignments: { include: { user: { select: { name: true, id: true } } } },
@@ -54,6 +51,38 @@ export async function GET(req: NextRequest) {
       },
       orderBy: { deadline: 'asc' },
       take: 100,
+    });
+
+    // Fetch records for these tasks via parentTaskId
+    const taskIds = allTasks.map((t) => t.id).filter(Boolean);
+    let allRecords: any[] = [];
+    if (taskIds.length > 0) {
+      try {
+        allRecords = await db.record.findMany({
+          where: { parentTaskId: { in: taskIds } },
+          include: {
+            stage: { select: { name: true } },
+            assignees: { include: { user: { select: { name: true, id: true } } } },
+          },
+          orderBy: { dueDate: 'asc' },
+        });
+      } catch (e) {
+        console.warn('Failed to fetch records for daily briefing:', e);
+      }
+    }
+
+    // Group records by parentTaskId
+    const recordsMap = new Map<string, any[]>();
+    for (const r of allRecords) {
+      if (r.parentTaskId) {
+        const list = recordsMap.get(r.parentTaskId) || [];
+        list.push(r);
+        recordsMap.set(r.parentTaskId, list);
+      }
+    }
+
+    allTasks.forEach((t: any) => {
+      t.records = recordsMap.get(t.id) || [];
     });
 
     const overdueTasks = allTasks.filter(
@@ -75,8 +104,21 @@ export async function GET(req: NextRequest) {
       tasks
         .slice(0, 5)
         .map((t) => {
-          const assignees = t.assignments.map((a: any) => a.user.name).join(', ') || 'Unassigned';
-          return `- ${t.title} [${t.status}] (Assigned: ${assignees})`;
+          const uniqueNames = Array.from(
+            new Set((t.assignments || []).map((a: any) => a.user?.name).filter(Boolean))
+          );
+          const assignees = uniqueNames.slice(0, 3).join(', ') || 'Unassigned';
+          let itemStr = `- Project: "${t.title}" [Status: ${t.status}] (Assigned: ${assignees})`;
+          
+          if (t.records && t.records.length > 0) {
+            const recStr = t.records.slice(0, 3).map((r: any) => {
+              const rStage = r.stage?.name || r.status || 'To Do';
+              const rAssignees = (r.assignees || []).map((a: any) => a.user?.name).filter(Boolean).join(', ') || 'Unassigned';
+              return `    └ Card/Record: "${r.title}" [Stage: ${rStage}] (Assigned: ${rAssignees})`;
+            }).join('\n');
+            itemStr += `\n${recStr}`;
+          }
+          return itemStr;
         })
         .join('\n') || 'None';
 
@@ -98,46 +140,72 @@ Currently In Progress (${inProgressTasks.length}):
 ${formatTaskList(inProgressTasks)}
 `;
 
-    const perplexity = getPerplexityClient();
-
-    const aiResponse = await perplexity.chat([
-      {
-        role: 'system',
-        content: `You are an executive assistant generating a concise daily briefing for a team member.
-        
-Generate a structured briefing in this EXACT JSON format:
-{
-  "greeting": "Short personalized morning message (1 sentence, use their name)",
-  "summary": "2-3 sentence overview of their day situation",
-  "focusItem": "The single most important thing they should tackle first today (1 sentence)",
-  "tip": "One actionable productivity or collaboration tip (1 sentence)",
-  "urgencyLevel": "low|medium|high|critical"
-}
-
-Be direct, practical, and motivating. Return ONLY the JSON object.`,
-      },
-      {
-        role: 'user',
-        content: `Generate my daily briefing:\n${contextSummary}`,
-      },
-    ]);
-
     let briefingData: any = {
       greeting: `Good day, ${userName}!`,
-      summary: 'You have tasks requiring your attention today.',
-      focusItem: 'Review your highest priority tasks and ensure blockers are resolved.',
-      tip: 'Consider blocking focused work time in the morning for deep work tasks.',
+      summary: overdueTasks.length > 0 
+        ? `You have ${overdueTasks.length} overdue task(s) and ${dueTodayTasks.length} task(s) due today requiring immediate focus.`
+        : dueTodayTasks.length > 0
+          ? `You have ${dueTodayTasks.length} task(s) due today and ${inProgressTasks.length} task(s) currently in progress.`
+          : `You currently have ${allTasks.length} active project(s) in your workspace. Keep up the great work!`,
+      focusItem: overdueTasks[0]?.title 
+        ? `Tackle overdue task "${overdueTasks[0].title}" first before moving to new items.`
+        : dueTodayTasks[0]?.title 
+          ? `Prioritize task "${dueTodayTasks[0].title}" which is due today.`
+          : allTasks[0]?.title
+            ? `Review and update progress on project "${allTasks[0].title}".`
+            : 'Review your open task list and update task statuses.',
+      tip: 'Block out uninterrupted focus time for your highest priority task early in the day.',
       urgencyLevel: overdueTasks.length > 0 ? 'high' : 'medium',
     };
 
+    // Try generating via Organization AI Client or Fallback Client
     try {
-      const cleaned = String(aiResponse).replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-      const parsed = JSON.parse(cleaned);
-      if (parsed && typeof parsed === 'object') {
-        briefingData = { ...briefingData, ...parsed };
+      let aiClient: any = null;
+      try {
+        aiClient = await getAIClientForOrg(session.user.organizationId);
+      } catch {
+        aiClient = getPerplexityClient();
       }
-    } catch {
-      // Use fallback data
+
+      if (aiClient) {
+        const aiResponse = await aiClient.chat([
+          {
+            role: 'system',
+            content: `You are a high-level executive assistant generating a concise, accurate daily briefing.
+            
+Generate a structured briefing in this EXACT JSON format:
+{
+  "greeting": "Short personalized morning message (1 sentence, use their name)",
+  "summary": "2-3 sentence clear overview of their projects and tasks for today",
+  "focusItem": "The single most critical task they should tackle first today (1 sentence)",
+  "tip": "One practical, high-value productivity tip tailored to their workload (1 sentence)",
+  "urgencyLevel": "low|medium|high|critical"
+}
+
+Be direct, highly practical, precise, and motivating. Base your briefing ONLY on the provided tasks created by or assigned to this user. Return ONLY the raw JSON object.`,
+          },
+          {
+            role: 'user',
+            content: `Generate my daily briefing:\n${contextSummary}`,
+          },
+        ]);
+
+        const cleaned = String(aiResponse).replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+        const parsed = JSON.parse(cleaned);
+        if (parsed && typeof parsed === 'object') {
+          briefingData = { ...briefingData, ...parsed };
+        }
+      }
+    } catch (aiErr) {
+      console.warn('AI Briefing generation error, using smart fallback briefingData:', aiErr);
+    }
+
+    // Sanitize urgencyLevel
+    if (briefingData.urgencyLevel) {
+      const normalized = String(briefingData.urgencyLevel).toLowerCase();
+      briefingData.urgencyLevel = ['low', 'medium', 'high', 'critical'].includes(normalized)
+        ? normalized
+        : overdueTasks.length > 0 ? 'high' : 'medium';
     }
 
     return NextResponse.json({
@@ -155,12 +223,35 @@ Be direct, practical, and motivating. Return ONLY the JSON object.`,
         title: t.title,
         deadline: t.deadline,
         priority: t.priority,
+        records: (t.records || []).slice(0, 3).map((r: any) => ({
+          id: r.id,
+          title: r.title,
+          stageName: r.stage?.name || r.status || 'To Do',
+          priority: r.priority,
+        })),
       })),
       dueTodayTasks: dueTodayTasks.slice(0, 3).map((t: any) => ({
         id: t.id,
         title: t.title,
         deadline: t.deadline,
         priority: t.priority,
+        records: (t.records || []).slice(0, 3).map((r: any) => ({
+          id: r.id,
+          title: r.title,
+          stageName: r.stage?.name || r.status || 'To Do',
+          priority: r.priority,
+        })),
+      })),
+      allTasksWithRecords: allTasks.slice(0, 4).map((t: any) => ({
+        id: t.id,
+        title: t.title,
+        status: t.status,
+        records: (t.records || []).slice(0, 4).map((r: any) => ({
+          id: r.id,
+          title: r.title,
+          stageName: r.stage?.name || r.status || 'To Do',
+          priority: r.priority,
+        })),
       })),
     });
   } catch (error: any) {

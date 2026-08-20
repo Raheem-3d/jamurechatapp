@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { Hash, ChevronRight, ChevronLeft } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -12,31 +14,87 @@ interface RecentChannelsWidgetProps {
 }
 
 export function RecentChannelsWidget({ channels }: RecentChannelsWidgetProps) {
+  const pathname = usePathname();
+  const { data: session } = useSession();
+  const currentUserId = (session?.user as any)?.id;
   const [currentPage, setCurrentPage] = useState(1);
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   const itemsPerPage = 4;
   const totalPages = Math.ceil(channels.length / itemsPerPage);
 
-  useEffect(() => {
-    const fetchUnread = async () => {
-      try {
-        const res = await fetch("/api/messages/unread-counts");
-        if (res.ok) {
-          const data = await res.json();
-          setUnreadCounts(data.channels || {});
-        }
-      } catch (err) {
-        console.error("Failed to fetch unread counts:", err);
+  const fetchUnread = async () => {
+    try {
+      const res = await fetch("/api/messages/unread-counts");
+      if (res.ok) {
+        const data = await res.json();
+        setUnreadCounts(data.channels || {});
       }
-    };
+    } catch (err) {
+      console.error("Failed to fetch unread counts:", err);
+    }
+  };
+
+  useEffect(() => {
     fetchUnread();
+
+    const onMessageReceived = (event: CustomEvent) => {
+      const msg = event?.detail;
+      if (!msg || !msg.channelId) return;
+      if (currentUserId && msg.senderId === currentUserId) return;
+
+      // Update unread count synchronously
+      setUnreadCounts((prev) => ({
+        ...prev,
+        [msg.channelId]: (prev[msg.channelId] || 0) + 1,
+      }));
+
+      fetchUnread();
+    };
+
     window.addEventListener("messages:read", fetchUnread as EventListener);
     window.addEventListener("message:created", fetchUnread as EventListener);
+    window.addEventListener("message:received", onMessageReceived as EventListener);
+
     return () => {
       window.removeEventListener("messages:read", fetchUnread as EventListener);
       window.removeEventListener("message:created", fetchUnread as EventListener);
+      window.removeEventListener("message:received", onMessageReceived as EventListener);
     };
-  }, []);
+  }, [currentUserId]);
+
+  // Auto-clear unread count if user is on this channel's page
+  useEffect(() => {
+    if (!pathname) return;
+    if (pathname.includes("/dashboard/channels/")) {
+      const activeChannelId = pathname.split("/dashboard/channels/")[1]?.split("/")[0]?.trim();
+      if (activeChannelId) {
+        setUnreadCounts((prev) => {
+          if (!prev[activeChannelId]) return prev;
+          const copy = { ...prev };
+          delete copy[activeChannelId];
+          return copy;
+        });
+      }
+    }
+  }, [pathname]);
+
+  const handleChannelClick = (channelId: string) => {
+    setUnreadCounts((prev) => {
+      if (!prev[channelId]) return prev;
+      const copy = { ...prev };
+      delete copy[channelId];
+      return copy;
+    });
+    fetch("/api/messages/mark-read", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ channelId }),
+    })
+      .then(() => {
+        window.dispatchEvent(new CustomEvent("messages:read"));
+      })
+      .catch(() => {});
+  };
 
   const paginatedChannels = channels.slice(
     (currentPage - 1) * itemsPerPage,
@@ -75,6 +133,7 @@ export function RecentChannelsWidget({ channels }: RecentChannelsWidgetProps) {
               <Link
                 key={channel.id}
                 href={`/dashboard/channels/${channel.id}`}
+                onClick={() => handleChannelClick(channel.id)}
                 className="flex items-center justify-between p-2.5 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-800/30 hover:bg-blue-50/50 dark:hover:bg-blue-900/20 hover:border-blue-200 dark:hover:border-blue-800 transition-all duration-150 group"
               >
                 <div className="flex items-center gap-2.5 min-w-0">

@@ -73,6 +73,10 @@ model Organization {
   trialStatus      TrialStatus    @default(ACTIVE)
   suspended        Boolean        @default(false)
   aiEnabled        Boolean        @default(true)
+  aiProvider       String?        @default("OPENROUTER")
+  aiApiKey         String?        @db.Text
+  aiBaseUrl        String?        @db.Text
+  aiModel          String?
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
   activityLogs     ActivityLog[]

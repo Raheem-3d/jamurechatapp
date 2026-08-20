@@ -323,8 +323,14 @@ async function customNodeFetch(
   urlStr: string,
   headers: Record<string, string>,
   bodyStr: string,
-  timeoutMs: number = 600000
-): Promise<{ ok: boolean; status: number; statusText: string; bodyUsed: boolean; text: () => Promise<string> }> {
+  timeoutMs: number = 600000,
+): Promise<{
+  ok: boolean;
+  status: number;
+  statusText: string;
+  bodyUsed: boolean;
+  text: () => Promise<string>;
+}> {
   return new Promise((resolve, reject) => {
     const url = new URL(urlStr);
     const isHttps = url.protocol === "https:";
@@ -355,11 +361,13 @@ async function customNodeFetch(
             text: async () => rawData,
           });
         });
-      }
+      },
     );
 
     req.on("timeout", () => {
-      req.destroy(new Error(`Ollama request timed out after ${timeoutMs / 1000} seconds`));
+      req.destroy(
+        new Error(`Ollama request timed out after ${timeoutMs / 1000} seconds`),
+      );
     });
 
     req.on("error", (err) => {
@@ -372,47 +380,65 @@ async function customNodeFetch(
 }
 
 export class PerplexityClient {
-  private apiKey?: string;
-  private baseUrl: string = "https://api.perplexity.ai";
-  private provider: "perplexity" | "ollama" = "perplexity";
-  private model: string = "sonar";
+  public apiKey: string;
+  public baseUrl: string;
+  public model: string;
+  public provider: string;
 
-  constructor(apiKey?: string) {
-    const provider = (process.env.AI_PROVIDER || "perplexity").toLowerCase() as
-      | "perplexity"
-      | "ollama";
-    this.provider = provider;
-
-    if (provider === "ollama") {
-      this.baseUrl = (
-        process.env.OLLAMA_BASE_URL || "http://localhost:11434"
-      ).trim();
-      if (this.baseUrl.endsWith("/")) {
-        this.baseUrl = this.baseUrl.slice(0, -1);
-      }
-      this.model = (process.env.OLLAMA_MODEL || "qwen2.5:7b").trim();
-      this.apiKey = "";
+  constructor(
+    config?:
+      | string
+      | {
+          apiKey?: string;
+          baseUrl?: string;
+          model?: string;
+          provider?: string;
+        },
+  ) {
+    if (typeof config === "object" && config !== null) {
+      this.provider = (config.provider || "openrouter").toLowerCase();
+      this.apiKey = config.apiKey ? config.apiKey.trim() : "";
+      const defaultUrl =
+        this.provider === "ollama"
+          ? "http://localhost:11434"
+          : this.provider === "perplexity"
+            ? "https://api.perplexity.ai"
+            : "https://openrouter.ai/api/v1";
+      this.baseUrl = (config.baseUrl || defaultUrl).trim().replace(/\/$/, "");
+      this.model =
+        config.model ||
+        (this.provider === "ollama"
+          ? "llama3"
+          : "mistralai/mistral-7b-instruct");
     } else {
-      const key = (apiKey ?? process.env.PERPLEXITY_API_KEY ?? "").trim();
-      // Fallback: If no Perplexity key is found, but Ollama URL is configured, default to Ollama provider
-      if (!key && process.env.OLLAMA_BASE_URL) {
-        this.provider = "ollama";
-        this.baseUrl = process.env.OLLAMA_BASE_URL.trim();
-        if (this.baseUrl.endsWith("/")) {
-          this.baseUrl = this.baseUrl.slice(0, -1);
-        }
-        this.model = (process.env.OLLAMA_MODEL || "qwen2.5:7b").trim();
+      const apiKeyStr = typeof config === "string" ? config : undefined;
+      const provider = (process.env.AI_PROVIDER || "perplexity").toLowerCase();
+      this.provider = provider;
+
+      if (provider === "ollama") {
+        this.baseUrl = (process.env.OLLAMA_BASE_URL || "http://localhost:11434")
+          .trim()
+          .replace(/\/$/, "");
+        this.model = (process.env.OLLAMA_MODEL || "qwen2.5:0.5b").trim();
         this.apiKey = "";
       } else {
-        this.apiKey = key;
-        this.baseUrl = "https://api.perplexity.ai";
-        this.model = "sonar";
+        const key = (apiKeyStr ?? process.env.PERPLEXITY_API_KEY ?? "").trim();
+        if (!key && process.env.OLLAMA_BASE_URL) {
+          this.provider = "ollama";
+          this.baseUrl = process.env.OLLAMA_BASE_URL.trim().replace(/\/$/, "");
+          this.model = (process.env.OLLAMA_MODEL || "qwen2.5:0.5b").trim();
+          this.apiKey = "";
+        } else {
+          this.apiKey = key;
+          this.baseUrl = "https://api.perplexity.ai";
+          this.model = "sonar";
+        }
       }
     }
   }
 
   /**
-   * Generate AI response using Perplexity or local Ollama
+   * Generate AI response using Perplexity, OpenRouter, or local Ollama
    */
   async chat(
     messages: Array<{ role: string; content: string }>,
@@ -420,12 +446,21 @@ export class PerplexityClient {
   ): Promise<any> {
     try {
       const isOllama = this.provider === "ollama";
-      const targetModel = modelOverride || (isOllama ? (process.env.OLLAMA_MODEL || this.model) : "sonar");
+      const targetModel =
+        modelOverride ||
+        (isOllama
+          ? process.env.OLLAMA_MODEL || this.model
+          : this.model || "sonar");
 
       let url: string;
       const headersObj: Record<string, string> = {
         "Content-Type": "application/json",
       };
+
+      if (this.provider === "openrouter") {
+        headersObj["HTTP-Referer"] = "https://jamurechat.app";
+        headersObj["X-Title"] = "JamureChat";
+      }
 
       if (isOllama) {
         if (this.baseUrl.includes("/v1") || this.baseUrl.includes("/api/")) {
@@ -458,7 +493,11 @@ export class PerplexityClient {
 
       const response = isOllama
         ? await customNodeFetch(url, headersObj, JSON.stringify(body), 600000)
-        : await fetch(url, { method: "POST", headers: headersObj, body: JSON.stringify(body) });
+        : await fetch(url, {
+            method: "POST",
+            headers: headersObj,
+            body: JSON.stringify(body),
+          });
 
       if (process.env.AI_DEBUG === "true") {
         console.log(
@@ -790,4 +829,48 @@ export function getPerplexityClient(): PerplexityClient {
     perplexityClient = new PerplexityClient();
   }
   return perplexityClient;
+}
+
+export async function getAIClientForOrg(
+  organizationId?: string,
+): Promise<PerplexityClient> {
+  if (organizationId) {
+    try {
+      const { db } = await import("@/lib/db");
+      const org = await db.organization.findUnique({
+        where: { id: organizationId },
+        select: {
+          aiProvider: true,
+          aiApiKey: true,
+          aiBaseUrl: true,
+          aiModel: true,
+        },
+      });
+      if (
+        org &&
+        (org.aiApiKey ||
+          org.aiProvider === "OLLAMA" ||
+          org.aiBaseUrl ||
+          org.aiModel)
+      ) {
+        return new PerplexityClient({
+          provider: org.aiProvider || "OPENROUTER",
+          apiKey: org.aiApiKey || "",
+          baseUrl:
+            org.aiBaseUrl ||
+            (org.aiProvider === "OLLAMA"
+              ? "http://localhost:11434"
+              : "https://openrouter.ai/api/v1"),
+          model:
+            org.aiModel ||
+            (org.aiProvider === "OLLAMA"
+              ? "llama3"
+              : "mistralai/mistral-7b-instruct"),
+        });
+      }
+    } catch (e) {
+      console.error("Error fetching org AI config:", e);
+    }
+  }
+  return getPerplexityClient();
 }
