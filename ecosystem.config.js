@@ -1,19 +1,21 @@
 module.exports = {
   apps: [
     {
-      name: "chat-3000",
+      name: "jamurechat",
       script: "server.js",
-      env: { PORT: 3000, NODE_ENV: "development" }
+      instances: 1,
+      exec_mode: "fork",
+      env: {
+        NODE_ENV: "production",
+        PORT: 3000,
+      },
+      env_production: {
+        NODE_ENV: "production",
+        PORT: 3000,
+      },
+      max_memory_restart: "1G",
+      watch: false,
+      restart_delay: 3000,
     },
-    {
-      name: "chat-3001",
-      script: "server.js",
-      env: { PORT: 3001, NODE_ENV: "development" }
-    },
-    {
-      name: "chat-3002",
-      script: "server.js",
-      env: { PORT: 3002, NODE_ENV: "development" }
-    }
-  ]
-}
+  ],
+};
