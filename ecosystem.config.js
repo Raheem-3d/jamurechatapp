@@ -3,7 +3,7 @@ module.exports = {
     {
       name: "jamurechat",
       script: "server.js",
-      instances: "max",
+      instances: 1,
       exec_mode: "fork",
       env: {
         NODE_ENV: "production",
