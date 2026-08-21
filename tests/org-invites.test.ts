@@ -3,6 +3,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest"
 const emailLog: any[] = []
 vi.mock("@/lib/db", () => ({
   db: {
+    user: {
+      findUnique: vi.fn(async () => null),
+    },
     orgInvite: {
       create: vi.fn(async ({ data }) => ({ ...data, id: "invite_1" })),
     },

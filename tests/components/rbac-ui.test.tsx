@@ -1,6 +1,4 @@
-import { render, screen, waitFor, fireEvent } from '@testing-library/react'
-import { SessionProvider } from 'next-auth/react'
-import '@testing-library/jest-dom'
+import { describe, it, expect } from 'vitest'
 
 /**
  * UI Permission Rendering Tests
