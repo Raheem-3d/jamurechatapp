@@ -24,9 +24,16 @@ export async function getReactions(messageId: string): Promise<ReactionEntry[]> 
     where: { id: messageId },
     select: { reactions: true },
   });
-  const arr = Array.isArray(msg?.reactions)
-    ? (msg!.reactions as ReactionEntry[])
-    : [];
+  let arr: ReactionEntry[] = [];
+  if (Array.isArray(msg?.reactions)) {
+    arr = msg!.reactions as any;
+  } else if (typeof msg?.reactions === "string") {
+    try {
+      arr = JSON.parse(msg.reactions);
+    } catch {
+      arr = [];
+    }
+  }
 
   // 3. Cache the result in Redis
   try {
@@ -49,7 +56,7 @@ export async function addReactionJSON(messageId: string, r: ReactionEntry) {
   // 1. Update Database
   await db.message.update({
     where: { id: messageId },
-    data: { reactions: updated as any },
+    data: { reactions: JSON.stringify(updated) },
   });
 
   // 2. Update Redis Cache
@@ -84,7 +91,7 @@ export async function removeReactionJSON(
   // 1. Update Database
   await db.message.update({
     where: { id: messageId },
-    data: { reactions: updated as any },
+    data: { reactions: JSON.stringify(updated) },
   });
 
   // 2. Update Redis Cache

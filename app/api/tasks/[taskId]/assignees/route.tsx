@@ -21,7 +21,7 @@ export async function GET(
     // Fetch users assigned to the given task
     const assignees = await db.user.findMany({
       where: {
-        assignedTasks: {
+        taskassignment: {
           some: {
             taskId,
           },
@@ -68,8 +68,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: "User ID is required" }, { status: 400 })
     }
 
+    const taskAssignmentDb = (db as any).taskassignment || (db as any).taskAssignment;
+
     // Check if already assigned
-    const existing = await db.taskAssignment.findFirst({
+    const existing = await taskAssignmentDb.findFirst({
       where: {
         taskId,
         userId,
@@ -81,11 +83,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     // Assign user
-    await db.taskAssignment.create({
+    await taskAssignmentDb.create({
       data: {
         taskId,
         userId,
-        // assignedBy
         createdAt: new Date(),
       },
     })
@@ -115,8 +116,11 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
       return NextResponse.json({ error: "User ID is required" }, { status: 400 })
     }
 
+    const taskAssignmentDb = (db as any).taskassignment || (db as any).taskAssignment;
+    const taskActivityDb = (db as any).taskactivity || (db as any).taskActivity;
+
     // Delete assignment
-    await db.taskAssignment.deleteMany({
+    await taskAssignmentDb.deleteMany({
       where: {
         taskId,
         userId,
@@ -124,13 +128,12 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     })
 
     // Log activity
-    await db.taskActivity.create({
+    await taskActivityDb.create({
       data: {
         taskId,
         userId: user.id,
-        action: "user_unassigned",
+        type: "user_unassigned",
         description: "User unassigned from task",
-        createdAt: new Date(),
       },
     })
 

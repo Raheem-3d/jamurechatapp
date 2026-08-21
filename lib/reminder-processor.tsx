@@ -3,6 +3,7 @@ import { emitToUser } from "./socket-server"
 import { sendEmail } from "./email"
 import { subMinutes } from "date-fns"
 import { getTaskReminderEmailHtml } from "./email-templates"
+import { randomUUID } from "crypto"
 
 const MAX_RETRIES = 3
 const LOCK_TIMEOUT_MINUTES = 5
@@ -178,6 +179,7 @@ export class ReminderProcessor {
       // 1. In-App Notification Database Record
       const notification = await db.notification.create({
         data: {
+          id: randomUUID(),
           type: "REMINDER",
           content: `🔔 ${reminder.title}${reminder.description ? ` - ${reminder.description}` : ""}`,
           userId: reminder.assigneeId,

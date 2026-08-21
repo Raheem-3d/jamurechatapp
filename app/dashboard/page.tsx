@@ -95,7 +95,8 @@ export default async function DashboardPage() {
   });
 
   // Assignee: get task IDs assigned to user
-  const assignedTaskIds = await db.taskAssignment.findMany({
+  const taskAssignmentDb = (db as any).taskAssignment || (db as any).taskassignment;
+  const assignedTaskIds = await taskAssignmentDb.findMany({
     where: { userId: userId },
     select: { taskId: true },
   });
@@ -131,7 +132,7 @@ export default async function DashboardPage() {
   // Attach channel image via raw SQL to bypass Prisma client schema stripping
   try {
     const channelImages: any[] = await db.$queryRawUnsafe(
-      `SELECT id, image FROM \`Channel\``,
+      `SELECT id, image FROM \`channel\``,
     );
     const imageMap = new Map(
       channelImages.map((row: any) => [row.id, row.image]),

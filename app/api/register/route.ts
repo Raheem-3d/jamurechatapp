@@ -170,6 +170,7 @@ export async function POST(req: Request) {
       // Send welcome notification
       await db.notification.create({
         data: {
+          id: crypto.randomUUID(),
           type: "TASK_ASSIGNED",
           content: `You now have access to task: ${taskInvitation.task.title}`,
           userId: user.id,

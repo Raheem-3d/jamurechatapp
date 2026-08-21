@@ -24,7 +24,7 @@ export async function GET(req: Request) {
       },
       include: {
         assignments: { select: { userId: true, createdAt: true } },
-        Stage: {
+        stage: {
           orderBy: { order: "asc" },
           select: { id: true, name: true, color: true },
         },

@@ -2,7 +2,7 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
-import { getSessionUserWithPermissions } from "@/lib/org";
+import { isSuperAdmin as checkIsSuperAdmin } from "@/lib/org";
 
 export async function GET(req: Request) {
   const session = await getServerSession(authOptions);
@@ -14,19 +14,11 @@ export async function GET(req: Request) {
   try {
     const user: any = (session as any).user || {};
     const orgId = user.organizationId;
-
-    let isSuperAdmin = false;
-
-    try {
-      const userWithPerms = await getSessionUserWithPermissions(req as any);
-      isSuperAdmin = userWithPerms?.isSuperAdmin || false;
-    } catch (e) {
-      // Fallback if permission check fails
-    }
+    const userIsSuperAdmin = Boolean(user.isSuperAdmin || checkIsSuperAdmin(user.email));
 
     let whereClause: any = {};
 
-    if (!isSuperAdmin) {
+    if (!userIsSuperAdmin) {
       if (orgId) {
         whereClause.organizationId = orgId;
       }

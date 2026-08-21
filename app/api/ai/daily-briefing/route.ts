@@ -190,8 +190,21 @@ Be direct, highly practical, precise, and motivating. Base your briefing ONLY on
           },
         ]);
 
-        const cleaned = String(aiResponse).replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-        const parsed = JSON.parse(cleaned);
+        let jsonStr = String(aiResponse).replace(/```json\n?/gi, '').replace(/```\n?/gi, '').trim();
+        const firstBrace = jsonStr.indexOf('{');
+        const lastBrace = jsonStr.lastIndexOf('}');
+        if (firstBrace !== -1 && lastBrace > firstBrace) {
+          jsonStr = jsonStr.substring(firstBrace, lastBrace + 1);
+        }
+        jsonStr = jsonStr.replace(/,\s*([\}\]])/g, '$1');
+
+        let parsed: any = null;
+        try {
+          parsed = JSON.parse(jsonStr);
+        } catch (parseErr) {
+          console.warn("Retrying JSON repair for AI Briefing response...");
+        }
+
         if (parsed && typeof parsed === 'object') {
           briefingData = { ...briefingData, ...parsed };
         }

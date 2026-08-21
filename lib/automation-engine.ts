@@ -787,6 +787,7 @@ async function executeRuleActions(
 
                 await tx.notification.create({
                   data: {
+                    id: crypto.randomUUID(),
                     type: "REMINDER",
                     content: notifMsg,
                     userId: String(notifUserId),

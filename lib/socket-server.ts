@@ -301,6 +301,20 @@ export function initializeSocketIO(server: HTTPServer) {
           : [];
         if (!readerId || messageIds.length === 0) return;
 
+        const parseSeenBy = (seenBy: any): string[] => {
+          if (!seenBy) return [];
+          if (Array.isArray(seenBy)) return seenBy;
+          if (typeof seenBy === "string") {
+            try {
+              const parsed = JSON.parse(seenBy);
+              if (Array.isArray(parsed)) return parsed;
+            } catch {
+              return seenBy.split(",").map((s) => s.trim()).filter(Boolean);
+            }
+          }
+          return [];
+        };
+
         const updatedSenders = new Set<string>();
 
         for (const mid of messageIds) {
@@ -309,29 +323,18 @@ export function initializeSocketIO(server: HTTPServer) {
               where: { id: mid },
               select: {
                 seenBy: true,
-                //  readAt: true,
                 senderId: true,
               },
             });
-            const prev = Array.isArray(existing?.seenBy)
-              ? (existing!.seenBy as string[])
-              : [];
-            const prevReadAt = (existing?.readAt || {}) as Record<
-              string,
-              string
-            >;
+
+            const prev = parseSeenBy(existing?.seenBy);
 
             if (!prev.includes(readerId)) {
               const next = [...prev, readerId];
-              const nextReadAt = {
-                ...prevReadAt,
-                [readerId]: new Date().toISOString(),
-              };
               await db.message.update({
                 where: { id: mid },
                 data: {
-                  seenBy: next as any,
-                  // readAt: nextReadAt as any,
+                  seenBy: JSON.stringify(next),
                 },
               });
             }
@@ -510,11 +513,13 @@ export function initializeSocketIO(server: HTTPServer) {
           try {
             buzzMessage = await db.message.create({
               data: {
+                id: crypto.randomUUID(),
                 content: buzzInfo.systemContent,
                 senderId,
                 channelId: payload.channelId,
                 receiverId: payload.receiverId,
                 isBuzz: true,
+                updatedAt: new Date(),
               } as any,
               include: {
                 sender: {

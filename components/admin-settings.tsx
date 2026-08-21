@@ -20,7 +20,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
-import { Loader2, Shield, CheckCircle2, Lock, Briefcase, Hash, Eye, EyeOff, FileText, Trash2, Users, BarChart3, Globe, Bot, Cpu, Key, Zap, Server } from "lucide-react"
+import { Loader2, Shield, CheckCircle2, AlertCircle, Lock, Briefcase, Hash, Eye, EyeOff, FileText, Trash2, Users, BarChart3, Globe, Bot, Cpu, Key, Zap, Server } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
 import { cn } from "@/lib/utils"
 
@@ -139,6 +139,11 @@ export default function AdminSettings() {
   const [showApiKey, setShowApiKey] = useState(false)
   const [isSavingAiConfig, setIsSavingAiConfig] = useState(false)
   const [isTestingAi, setIsTestingAi] = useState(false)
+  const [aiTestResult, setAiTestResult] = useState<{
+    status: "success" | "error"
+    message: string
+    latencyMs?: number
+  } | null>(null)
 
   const router = useRouter()
   const { toast } = useToast()
@@ -252,6 +257,8 @@ export default function AdminSettings() {
 
   const handleTestAiConnection = async () => {
     setIsTestingAi(true)
+    setAiTestResult(null)
+    const startTime = Date.now()
     try {
       const res = await fetch("/api/organization/settings/test-ai", {
         method: "POST",
@@ -264,13 +271,23 @@ export default function AdminSettings() {
         }),
       })
 
+      const latencyMs = Date.now() - startTime
       const data = await res.json()
       if (res.ok && data.success) {
+        setAiTestResult({
+          status: "success",
+          message: data.message || "Connected successfully!",
+          latencyMs,
+        })
         toast({
           title: "Connection Successful!",
           description: data.message,
         })
       } else {
+        setAiTestResult({
+          status: "error",
+          message: data.error || data.message || "Could not connect to the specified AI model. Please check API Key and Base URL.",
+        })
         toast({
           title: "Connection Failed",
           description: data.error || "Could not connect to the specified AI model",
@@ -278,6 +295,10 @@ export default function AdminSettings() {
         })
       }
     } catch (err: any) {
+      setAiTestResult({
+        status: "error",
+        message: err.message || "Failed to test AI connection",
+      })
       toast({
         title: "Error",
         description: err.message || "Failed to test AI connection",
@@ -1041,6 +1062,37 @@ export default function AdminSettings() {
                   />
                 </div>
               </div>
+
+              {/* Inline Test Result Feedback Banner */}
+              {aiTestResult && (
+                <div
+                  className={cn(
+                    "p-3.5 rounded-xl border flex items-start gap-3 transition-all animate-fadeIn text-xs font-medium",
+                    aiTestResult.status === "success"
+                      ? "bg-emerald-50/90 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200"
+                      : "bg-rose-50/90 dark:bg-rose-950/40 border-rose-300 dark:border-rose-800 text-rose-900 dark:text-rose-200"
+                  )}
+                >
+                  {aiTestResult.status === "success" ? (
+                    <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                  ) : (
+                    <AlertCircle className="h-5 w-5 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <span className="font-extrabold text-xs">
+                        {aiTestResult.status === "success" ? "✅ Connection Successful!" : "❌ Connection Failed"}
+                      </span>
+                      {aiTestResult.latencyMs !== undefined && (
+                        <Badge className="bg-emerald-200/80 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 font-mono font-bold text-[10px] px-2 py-0.5 border-0">
+                          {aiTestResult.latencyMs}ms
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="mt-1 text-[11px] font-semibold leading-relaxed opacity-90">{aiTestResult.message}</p>
+                  </div>
+                </div>
+              )}
 
               {/* Action Buttons */}
               <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">

@@ -120,6 +120,7 @@ export default async function AdminOrgDetailPage({ params }: { params: { orgId: 
         uniqueRecipientIds.map(async (userId: string) => {
           const notification = await db.notification.create({
             data: {
+              id: crypto.randomUUID(),
               type: 'ANNOUNCEMENT',
               content: `${title}: ${message.slice(0, 180)}`,
               userId,

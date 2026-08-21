@@ -139,7 +139,7 @@ export function SharedContentPanel({
   return (
     <>
       <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-        <DialogContent className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl shadow-2xl p-0 overflow-hidden max-w-2xl sm:max-w-3xl w-[95vw]">
+        <DialogContent className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl shadow-2xl p-0 overflow-hidden max-w-2xl sm:max-w-3xl w-[95vw] [&>button]:hidden">
           {/* Header */}
           <DialogHeader className="p-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
@@ -156,23 +156,35 @@ export function SharedContentPanel({
               </div>
             </div>
 
-            {/* Search Input */}
-            <div className="relative w-full sm:w-64">
-              <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-              <Input
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search file name, link..."
-                className="h-9 pl-9 pr-8 rounded-2xl text-xs bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 focus-visible:ring-indigo-500"
-              />
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery("")}
-                  className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              )}
+            <div className="flex items-center gap-2.5 w-full sm:w-auto">
+              {/* Search Input */}
+              <div className="relative flex-1 sm:w-64">
+                <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                <Input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search file name, link..."
+                  className="h-9 pl-9 pr-8 rounded-2xl text-xs bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 focus-visible:ring-indigo-500"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery("")}
+                    className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+
+              {/* Explicit Header Close Button */}
+              <button
+                type="button"
+                onClick={onClose}
+                className="h-9 w-9 rounded-full flex items-center justify-center text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 bg-white dark:bg-slate-950 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200/80 dark:border-slate-800 shadow-2xs transition-colors shrink-0"
+                title="Close modal"
+              >
+                <X className="h-4 w-4" />
+              </button>
             </div>
           </DialogHeader>
 

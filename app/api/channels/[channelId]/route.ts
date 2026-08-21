@@ -7,16 +7,14 @@ import { db } from "@/lib/db";
 
 import { ensureDbSchema } from "@/lib/db-init"
 
-export async function GET( request: NextRequest,  { params }: { params: { channelId: string } } ) {
+export async function GET( request: NextRequest,  { params }: { params: Promise<{ channelId: string }> | { channelId: string } } ) {
   try {
+    const { channelId } = await params
     await ensureDbSchema().catch(() => {})
     const session = await getServerSession(authOptions);
     if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-
-    const { channelId } = await params;
-
     const user: any = (session as any).user
     const channelData = await db.channel.findFirst({
       where: {
@@ -34,7 +32,7 @@ export async function GET( request: NextRequest,  { params }: { params: { channe
 
     if (channelData) {
       try {
-        const rows: any[] = await db.$queryRawUnsafe(`SELECT image FROM \`Channel\` WHERE id = ?`, channelId);
+        const rows: any[] = await db.$queryRawUnsafe(`SELECT image FROM \`channel\` WHERE id = ?`, channelId);
         if (rows && rows[0]) {
           (channelData as any).image = rows[0].image || null;
         }
@@ -55,7 +53,7 @@ export async function GET( request: NextRequest,  { params }: { params: { channe
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { channelId: string } }
+  { params }: { params: Promise<{ channelId: string }> | { channelId: string } }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -144,7 +142,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ channelI
 
     if (image !== undefined) {
       await db.$executeRawUnsafe(
-        "UPDATE `Channel` SET `image` = ? WHERE `id` = ?",
+        "UPDATE `channel` SET `image` = ? WHERE `id` = ?",
         image,
         channelId
       ).catch((e) => console.error("Error updating channel image via raw SQL:", e));
@@ -153,9 +151,11 @@ export async function PUT(req: Request, { params }: { params: Promise<{ channelI
 
     // Re-add members with admin status for creator and current user
     const newMembers = (members || []).map((userId: string) => ({
+      id: crypto.randomUUID(),
       userId,
       channelId: updatedChannel.id,
       isAdmin: userId === existing.creatorId || userId === user.id,
+      updatedAt: new Date(),
     }));
 
     await db.channelMember.createMany({

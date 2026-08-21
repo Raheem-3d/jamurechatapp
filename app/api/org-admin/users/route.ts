@@ -36,16 +36,27 @@ export async function GET(req: Request) {
         createdAt: true,
         _count: {
           select: {
-            createdTasks: true,
-            assignedTasks: true,
-            sentMessages: true,
-            subordinates: true,
+            task: true,
+            taskassignment: true,
+            message_message_senderIdTouser: true,
+            other_user: true,
           },
         },
       },
       orderBy: { createdAt: 'desc' }
-    })
-    return NextResponse.json(users)
+    });
+
+    const mappedUsers = users.map((u: any) => ({
+      ...u,
+      _count: {
+        createdTasks: u._count?.task || 0,
+        assignedTasks: u._count?.taskassignment || 0,
+        sentMessages: u._count?.message_message_senderIdTouser || 0,
+        subordinates: u._count?.other_user || 0,
+      },
+    }));
+
+    return NextResponse.json(mappedUsers);
   } catch (error: any) {
     console.error('Org-admin users list error', error)
     return NextResponse.json({ message: error.message || 'Failed' }, { status: error.status || 500 })

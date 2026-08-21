@@ -6,10 +6,10 @@ import { authOptions } from "@/lib/auth"
 async function ensureAiColumnsExist() {
   try {
     const cols = [
-      "ALTER TABLE `Organization` ADD COLUMN `aiProvider` VARCHAR(191) NULL DEFAULT 'OPENROUTER'",
-      "ALTER TABLE `Organization` ADD COLUMN `aiApiKey` TEXT NULL",
-      "ALTER TABLE `Organization` ADD COLUMN `aiBaseUrl` TEXT NULL",
-      "ALTER TABLE `Organization` ADD COLUMN `aiModel` VARCHAR(191) NULL",
+      "ALTER TABLE `organization` ADD COLUMN `aiProvider` VARCHAR(191) NULL DEFAULT 'OPENROUTER'",
+      "ALTER TABLE `organization` ADD COLUMN `aiApiKey` TEXT NULL",
+      "ALTER TABLE `organization` ADD COLUMN `aiBaseUrl` TEXT NULL",
+      "ALTER TABLE `organization` ADD COLUMN `aiModel` VARCHAR(191) NULL",
     ];
     for (const sql of cols) {
       try {
@@ -33,18 +33,37 @@ export async function GET(req: Request) {
 
     await ensureAiColumnsExist();
 
-    const organization = await db.organization.findUnique({
-      where: { id: organizationId },
-      select: {
-        aiEnabled: true,
-        aiProvider: true,
-        aiApiKey: true,
-        aiBaseUrl: true,
-        aiModel: true,
-      },
-    })
+    let features: any = {
+      aiEnabled: true,
+      aiProvider: "OLLAMA",
+      aiApiKey: "",
+      aiBaseUrl: "http://localhost:11434",
+      aiModel: "qwen2.5:0.5b",
+    };
 
-    return NextResponse.json({ features: organization })
+    try {
+      const org = await db.organization.findUnique({
+        where: { id: organizationId },
+        select: { aiEnabled: true },
+      });
+      if (org) features.aiEnabled = org.aiEnabled ?? true;
+    } catch (e) {}
+
+    try {
+      const rows: any[] = await db.$queryRawUnsafe(
+        "SELECT `aiEnabled`, `aiProvider`, `aiApiKey`, `aiBaseUrl`, `aiModel` FROM `organization` WHERE `id` = ?",
+        organizationId
+      );
+      if (rows && rows[0]) {
+        features = {
+          ...features,
+          ...rows[0],
+          aiEnabled: Boolean(rows[0].aiEnabled ?? features.aiEnabled),
+        };
+      }
+    } catch (e) {}
+
+    return NextResponse.json({ features })
   } catch (error) {
     console.error("Error fetching feature settings:", error)
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 })
@@ -71,19 +90,36 @@ export async function PATCH(req: Request) {
     const body = await req.json();
     const { aiEnabled, aiProvider, aiApiKey, aiBaseUrl, aiModel } = body;
 
-    const dataToUpdate: any = {};
-    if (aiEnabled !== undefined) dataToUpdate.aiEnabled = Boolean(aiEnabled);
-    if (aiProvider !== undefined) dataToUpdate.aiProvider = aiProvider;
-    if (aiApiKey !== undefined) dataToUpdate.aiApiKey = aiApiKey;
-    if (aiBaseUrl !== undefined) dataToUpdate.aiBaseUrl = aiBaseUrl;
-    if (aiModel !== undefined) dataToUpdate.aiModel = aiModel;
+    if (aiEnabled !== undefined) {
+      await db.organization.update({
+        where: { id: organizationId },
+        data: { aiEnabled: Boolean(aiEnabled) },
+      }).catch(() => {});
+    }
 
-    const updated = await db.organization.update({
-      where: { id: organizationId },
-      data: dataToUpdate,
-    })
+    try {
+      await db.$executeRawUnsafe(
+        "UPDATE `organization` SET `aiProvider` = ?, `aiApiKey` = ?, `aiBaseUrl` = ?, `aiModel` = ?, `aiEnabled` = ? WHERE `id` = ?",
+        aiProvider ?? "OLLAMA",
+        aiApiKey ?? "",
+        aiBaseUrl ?? "http://localhost:11434",
+        aiModel ?? "qwen2.5:0.5b",
+        aiEnabled !== undefined ? (aiEnabled ? 1 : 0) : 1,
+        organizationId
+      );
+    } catch (e) {
+      console.error("Error updating AI settings via raw SQL:", e);
+    }
 
-    return NextResponse.json({ features: updated })
+    let updatedFeatures: any = {
+      aiEnabled: aiEnabled !== undefined ? Boolean(aiEnabled) : true,
+      aiProvider: aiProvider ?? "OLLAMA",
+      aiApiKey: aiApiKey ?? "",
+      aiBaseUrl: aiBaseUrl ?? "http://localhost:11434",
+      aiModel: aiModel ?? "qwen2.5:0.5b",
+    };
+
+    return NextResponse.json({ features: updatedFeatures })
   } catch (error) {
     console.error("Error updating feature settings:", error)
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 })

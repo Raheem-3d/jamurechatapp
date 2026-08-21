@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { PerplexityClient } from "@/lib/perplexity-client";
+import { PerplexityClient, getAIClientForOrg } from "@/lib/perplexity-client";
 import { emitToUser } from "@/lib/socket-server";
 
 export async function POST(req: NextRequest) {
@@ -52,17 +52,17 @@ export async function POST(req: NextRequest) {
         name: true,
         email: true,
         role: true,
-        assignedTasks: {
+        taskassignment: {
           select: { id: true },
         },
       },
     });
 
-    const membersSummary = teamMembers.map((m) => ({
+    const membersSummary = teamMembers.map((m: any) => ({
       id: m.id,
       name: m.name || m.email,
       role: m.role,
-      activeTasksCount: m.assignedTasks?.length || 0,
+      activeTasksCount: m.taskassignment?.length || 0,
     }));
 
     // Mode: Execute directly if customData is provided
@@ -201,6 +201,7 @@ async function executeProjectCreation(
 ) {
   let taskId = existingTaskId;
   let taskTitle = plan.projectTitle || "AI Generated Project";
+  const genId = (prefix: string) => `${prefix}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
   // 1. Create Parent Task/Project if NEW_PROJECT
   if (target === "NEW_PROJECT" || !taskId) {
@@ -209,6 +210,7 @@ async function executeProjectCreation(
 
     const createdTask = await db.task.create({
       data: {
+        id: genId("task"),
         title: taskTitle,
         description: plan.projectDescription || "Created via Jamure AI",
         priority: plan.priority || "MEDIUM",
@@ -216,9 +218,12 @@ async function executeProjectCreation(
         deadline: deadlineDate,
         creatorId: user.id,
         organizationId: user.organizationId || undefined,
+        updatedAt: new Date(),
         assignments: {
           create: {
+            id: genId("ta"),
             userId: user.id,
+            updatedAt: new Date(),
           },
         },
       },
@@ -253,10 +258,12 @@ async function executeProjectCreation(
       const s = defaultStages[i];
       const stage = await db.stage.create({
         data: {
+          id: genId(`stage_${i}`),
           name: s.name,
           color: s.color || "#3b82f6",
           taskId: taskId!,
           order: i,
+          updatedAt: new Date(),
         },
       });
       existingStages.push(stage);
@@ -286,6 +293,7 @@ async function executeProjectCreation(
 
     const newRecord = await db.record.create({
       data: {
+        id: genId("rec"),
         title: rec.title,
         description: rec.description || "",
         priority: rec.priority || "MEDIUM",
@@ -294,10 +302,13 @@ async function executeProjectCreation(
         parentTaskId: taskId!,
         createdBy: user.id,
         dueDate,
+        updatedAt: new Date(),
         assignees: assigneeIds.length > 0 ? {
           create: assigneeIds.map((uId: string) => ({
+            id: genId("ta"),
             userId: uId,
             taskId: taskId!,
+            updatedAt: new Date(),
           })),
         } : undefined,
       },
@@ -314,12 +325,15 @@ async function executeProjectCreation(
 
     // Also add task level assignment if not present
     if (assigneeIds.length > 0) {
+      const taskAssignmentDb = (db as any).taskassignment || (db as any).taskAssignment;
       for (const uId of assigneeIds) {
         try {
-          await db.taskAssignment.create({
+          await taskAssignmentDb.create({
             data: {
+              id: genId("ta"),
               taskId: taskId!,
               userId: uId,
+              updatedAt: new Date(),
             },
           });
         } catch {
@@ -330,6 +344,7 @@ async function executeProjectCreation(
         try {
           const notification = await db.notification.create({
             data: {
+              id: genId("notif"),
               type: "TASK_ASSIGNED",
               content: `You were assigned to AI record "${rec.title}" in project: ${taskTitle}`,
               userId: uId,
@@ -346,8 +361,10 @@ async function executeProjectCreation(
   }
 
   // Log Activity
-  await db.taskActivity.create({
+  const taskActivityDb = (db as any).taskactivity || (db as any).taskActivity;
+  await taskActivityDb.create({
     data: {
+      id: genId("act"),
       taskId: taskId!,
       userId: user.id,
       type: "ai_generation",

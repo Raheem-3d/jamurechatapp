@@ -42,6 +42,8 @@ import {
   Zap,
   Loader2,
   CheckCircle2,
+  Search,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -81,13 +83,51 @@ export function CreateReminderForm({
   const isAdmin =
     currentUser.role === "ORG_ADMIN" ||
     currentUser.role === "SUPER_ADMIN" ||
+    currentUser.role === "ADMIN" ||
     currentUser.role === "MANAGER";
+
+  const [selectedAssigneeIds, setSelectedAssigneeIds] = useState<string[]>([
+    currentUser.id,
+  ]);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const toggleAssignee = (id: string) => {
+    if (!isAdmin) {
+      setSelectedAssigneeIds([currentUser.id]);
+      return;
+    }
+    setSelectedAssigneeIds((prev) => {
+      if (prev.includes(id)) {
+        if (prev.length === 1) {
+          toast.error("Please select at least one assignee");
+          return prev;
+        }
+        return prev.filter((i) => i !== id);
+      } else {
+        return [...prev, id];
+      }
+    });
+  };
+
+  const handleSelectAll = () => {
+    if (!isAdmin) return;
+    if (selectedAssigneeIds.length === users.length) {
+      setSelectedAssigneeIds([currentUser.id]);
+    } else {
+      setSelectedAssigneeIds(users.map((u) => u.id));
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!formData.title.trim()) {
       toast.error("Reminder title is required");
+      return;
+    }
+
+    if (selectedAssigneeIds.length === 0) {
+      toast.error("Please select at least one assignee");
       return;
     }
 
@@ -98,6 +138,8 @@ export function CreateReminderForm({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...formData,
+          assigneeId: selectedAssigneeIds[0],
+          assigneeIds: selectedAssigneeIds,
           remindAt: formData.remindAt.toISOString(),
         }),
       });
@@ -158,7 +200,16 @@ export function CreateReminderForm({
     { value: "PERSONAL", label: "Personal" },
   ];
 
-  const selectedAssignee = users.find((u) => u.id === formData.assigneeId);
+  const selectedAssignees = users.filter((u) => selectedAssigneeIds.includes(u.id));
+
+  const filteredUsers = (isAdmin ? users : users.filter((u) => u.id === currentUser.id)).filter((u) => {
+    if (!searchQuery.trim()) return true;
+    const query = searchQuery.toLowerCase();
+    return (
+      u.name?.toLowerCase().includes(query) ||
+      u.email?.toLowerCase().includes(query)
+    );
+  });
 
   return (
     <div className="w-full space-y-4">
@@ -370,86 +421,134 @@ export function CreateReminderForm({
 
             {/* Assign To Card */}
             <Card className="w-full rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs overflow-hidden">
-              <CardHeader className="pb-3 pt-4 px-4 sm:px-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40">
+              <CardHeader className="pb-3 pt-4 px-4 sm:px-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 flex flex-row items-center justify-between">
                 <CardTitle className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
                   <div className="p-1.5 bg-blue-50 dark:bg-blue-950/60 rounded-lg text-blue-600 dark:text-blue-400">
                     <Users className="h-4 w-4" />
                   </div>
                   Assign To
+                  {isAdmin && (
+                    <Badge variant="secondary" className="ml-1 text-[10px] font-bold bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300">
+                      {selectedAssigneeIds.length} Selected
+                    </Badge>
+                  )}
                 </CardTitle>
+                {isAdmin && (
+                  <button
+                    type="button"
+                    onClick={handleSelectAll}
+                    className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline"
+                  >
+                    {selectedAssigneeIds.length === users.length ? "Deselect All" : "Select All"}
+                  </button>
+                )}
               </CardHeader>
 
               <CardContent className="p-4 sm:p-5 space-y-3">
-                {/* Selected assignee preview */}
-                {selectedAssignee && (
-                  <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-indigo-50/60 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800">
-                    <Avatar className="h-8 w-8 shrink-0">
-                      <AvatarImage src={selectedAssignee.image} />
-                      <AvatarFallback className="bg-indigo-600 text-white font-bold text-xs">
-                        {selectedAssignee.name?.charAt(0) || "U"}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
-                        {selectedAssignee.name}
-                        {selectedAssignee.id === currentUser.id && (
-                          <span className="ml-1.5 text-[10px] text-indigo-500 font-semibold">(You)</span>
+                {/* Search Box */}
+                {isAdmin && (
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                    <Input
+                      type="text"
+                      placeholder="Search member by name or email..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="h-9 pl-9 pr-8 bg-slate-50/80 dark:bg-slate-800/60 border-slate-200 dark:border-slate-800 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                    />
+                    {searchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setSearchQuery("")}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* Selected assignees preview */}
+                {selectedAssignees.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 p-2.5 rounded-xl bg-indigo-50/60 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800">
+                    {selectedAssignees.map((u) => (
+                      <span
+                        key={u.id}
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-white dark:bg-slate-800 border border-indigo-200 dark:border-indigo-700 text-xs font-bold text-slate-900 dark:text-white"
+                      >
+                        <Avatar className="h-4 w-4">
+                          <AvatarImage src={u.image} />
+                          <AvatarFallback className="bg-indigo-600 text-white text-[8px] font-bold">
+                            {u.name?.charAt(0) || "U"}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span className="truncate max-w-[110px]">{u.name}</span>
+                        {isAdmin && selectedAssigneeIds.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => toggleAssignee(u.id)}
+                            className="ml-0.5 text-slate-400 hover:text-rose-500 font-bold px-0.5"
+                          >
+                            ✕
+                          </button>
                         )}
-                      </p>
-                      <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
-                        {selectedAssignee.email}
-                      </p>
-                    </div>
-                    <CheckCircle2 className="h-4 w-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                      </span>
+                    ))}
                   </div>
                 )}
 
                 {/* User list */}
                 <div className="space-y-1.5 max-h-[260px] overflow-y-auto pr-1">
-                  {(isAdmin ? users : users.filter((u) => u.id === currentUser.id)).map((user) => {
-                    const isSelected = formData.assigneeId === user.id;
-                    return (
-                      <button
-                        type="button"
-                        key={user.id}
-                        onClick={() => setFormData({ ...formData, assigneeId: user.id })}
-                        className={cn(
-                          "w-full flex items-center gap-2.5 p-2.5 rounded-xl border transition-all text-left",
-                          isSelected
-                            ? "bg-indigo-50/60 dark:bg-indigo-950/40 border-indigo-200 dark:border-indigo-800 ring-1 ring-indigo-500/20"
-                            : "bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/60"
-                        )}
-                      >
-                        <Avatar className="h-8 w-8 shrink-0">
-                          <AvatarImage src={user.image} />
-                          <AvatarFallback
-                            className={cn(
-                              "font-bold text-xs",
-                              isSelected
-                                ? "bg-indigo-600 text-white"
-                                : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300"
-                            )}
-                          >
-                            {user.name?.charAt(0) || "U"}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
-                            {user.name}
-                            {user.id === currentUser.id && (
-                              <span className="ml-1.5 text-[10px] text-indigo-500 font-semibold">(You)</span>
-                            )}
-                          </p>
-                          <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
-                            {user.email}
-                          </p>
-                        </div>
-                        {isSelected && (
-                          <CheckCircle2 className="h-4 w-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
-                        )}
-                      </button>
-                    );
-                  })}
+                  {filteredUsers.length === 0 ? (
+                    <div className="py-6 text-center text-xs text-slate-400 dark:text-slate-500">
+                      No members found matching &quot;{searchQuery}&quot;
+                    </div>
+                  ) : (
+                    filteredUsers.map((user) => {
+                      const isSelected = selectedAssigneeIds.includes(user.id);
+                      return (
+                        <button
+                          type="button"
+                          key={user.id}
+                          onClick={() => toggleAssignee(user.id)}
+                          className={cn(
+                            "w-full flex items-center gap-2.5 p-2.5 rounded-xl border transition-all text-left",
+                            isSelected
+                              ? "bg-indigo-50/60 dark:bg-indigo-950/40 border-indigo-200 dark:border-indigo-800 ring-1 ring-indigo-500/20"
+                              : "bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/60"
+                          )}
+                        >
+                          <Avatar className="h-8 w-8 shrink-0">
+                            <AvatarImage src={user.image} />
+                            <AvatarFallback
+                              className={cn(
+                                "font-bold text-xs",
+                                isSelected
+                                  ? "bg-indigo-600 text-white"
+                                  : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300"
+                              )}
+                            >
+                              {user.name?.charAt(0) || "U"}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                              {user.name}
+                              {user.id === currentUser.id && (
+                                <span className="ml-1.5 text-[10px] text-indigo-500 font-semibold">(You)</span>
+                              )}
+                            </p>
+                            <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
+                              {user.email}
+                            </p>
+                          </div>
+                          {isSelected && (
+                            <CheckCircle2 className="h-4 w-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                          )}
+                        </button>
+                      );
+                    })
+                  )}
                 </div>
 
                 {!isAdmin && (

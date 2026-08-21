@@ -837,15 +837,14 @@ export async function getAIClientForOrg(
   if (organizationId) {
     try {
       const { db } = await import("@/lib/db");
-      const org = await db.organization.findUnique({
-        where: { id: organizationId },
-        select: {
-          aiProvider: true,
-          aiApiKey: true,
-          aiBaseUrl: true,
-          aiModel: true,
-        },
-      });
+      let org: any = null;
+      try {
+        org = await (db.organization as any).findUnique({
+          where: { id: organizationId },
+        });
+      } catch (err) {
+        org = null;
+      }
       if (
         org &&
         (org.aiApiKey ||
@@ -854,18 +853,10 @@ export async function getAIClientForOrg(
           org.aiModel)
       ) {
         return new PerplexityClient({
-          provider: org.aiProvider || "OPENROUTER",
-          apiKey: org.aiApiKey || "",
-          baseUrl:
-            org.aiBaseUrl ||
-            (org.aiProvider === "OLLAMA"
-              ? "http://localhost:11434"
-              : "https://openrouter.ai/api/v1"),
-          model:
-            org.aiModel ||
-            (org.aiProvider === "OLLAMA"
-              ? "llama3"
-              : "mistralai/mistral-7b-instruct"),
+          provider: org.aiProvider as any,
+          apiKey: org.aiApiKey || undefined,
+          baseUrl: org.aiBaseUrl || undefined,
+          model: org.aiModel || undefined,
         });
       }
     } catch (e) {

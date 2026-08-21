@@ -4,18 +4,22 @@ import { authOptions } from "@/lib/auth"
 import { db } from "@/lib/db"
 
 // GET - Fetch specific reminder
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> | { id: string } }
+) {
   try {
+    const { id } = await params
     const session = await getServerSession(authOptions)
     const user: any = (session as any)?.user || {}
     if (!user.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const reminder = await db.reminder.findUnique({
-      where: { id: params.id },
+    const rawReminder = await db.reminder.findUnique({
+      where: { id },
       include: {
-        creator: {
+        user_reminder_creatorIdTouser: {
           select: {
             id: true,
             name: true,
@@ -23,7 +27,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
             image: true,
           },
         },
-        assignee: {
+        user_reminder_assigneeIdTouser: {
           select: {
             id: true,
             name: true,
@@ -34,16 +38,27 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       },
     })
 
-    if (!reminder) {
+    if (!rawReminder) {
       return NextResponse.json({ error: "Reminder not found" }, { status: 404 })
     }
 
     // Check permissions
     const canView =
-      reminder.assigneeId === user.id || reminder.creatorId === user.id || user.role === "ADMIN"
+      rawReminder.assigneeId === user.id ||
+      rawReminder.creatorId === user.id ||
+      user.role === "ADMIN" ||
+      user.role === "ORG_ADMIN" ||
+      user.role === "SUPER_ADMIN" ||
+      user.role === "MANAGER"
 
     if (!canView) {
       return NextResponse.json({ error: "Access denied" }, { status: 403 })
+    }
+
+    const reminder = {
+      ...rawReminder,
+      creator: (rawReminder as any).creator || (rawReminder as any).user_reminder_creatorIdTouser,
+      assignee: (rawReminder as any).assignee || (rawReminder as any).user_reminder_assigneeIdTouser,
     }
 
     return NextResponse.json(reminder)
@@ -54,8 +69,12 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 }
 
 // PATCH - Update reminder
-export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> | { id: string } }
+) {
   try {
+    const { id } = await params
     const session = await getServerSession(authOptions)
     const user: any = (session as any)?.user || {}
     if (!user.id) {
@@ -66,7 +85,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     const { title, description, remindAt, isMuted, priority, type } = body
 
     const existingReminder = await db.reminder.findUnique({
-      where: { id: params.id },
+      where: { id },
     })
 
     if (!existingReminder) {
@@ -77,7 +96,10 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     const canEdit =
       existingReminder.assigneeId === user.id ||
       existingReminder.creatorId === user.id ||
-      user.role === "ADMIN"
+      user.role === "ADMIN" ||
+      user.role === "ORG_ADMIN" ||
+      user.role === "SUPER_ADMIN" ||
+      user.role === "MANAGER"
 
     if (!canEdit) {
       return NextResponse.json({ error: "Access denied" }, { status: 403 })
@@ -92,11 +114,11 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     if (priority !== undefined) updateData.priority = priority
     if (type !== undefined) updateData.type = type
 
-    const updatedReminder = await db.reminder.update({
-      where: { id: params.id },
+    const rawUpdatedReminder = await db.reminder.update({
+      where: { id },
       data: updateData,
       include: {
-        creator: {
+        user_reminder_creatorIdTouser: {
           select: {
             id: true,
             name: true,
@@ -104,7 +126,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
             image: true,
           },
         },
-        assignee: {
+        user_reminder_assigneeIdTouser: {
           select: {
             id: true,
             name: true,
@@ -115,6 +137,12 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       },
     })
 
+    const updatedReminder = {
+      ...rawUpdatedReminder,
+      creator: (rawUpdatedReminder as any).creator || (rawUpdatedReminder as any).user_reminder_creatorIdTouser,
+      assignee: (rawUpdatedReminder as any).assignee || (rawUpdatedReminder as any).user_reminder_assigneeIdTouser,
+    }
+
     return NextResponse.json(updatedReminder)
   } catch (error) {
     console.error("Error updating reminder:", error)
@@ -123,8 +151,12 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
 }
 
 // DELETE - Delete reminder
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> | { id: string } }
+) {
   try {
+    const { id } = await params
     const session = await getServerSession(authOptions)
     const user: any = (session as any)?.user || {}
     if (!user.id) {
@@ -132,23 +164,31 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     }
 
     const existingReminder = await db.reminder.findUnique({
-      where: { id: params.id },
+      where: { id },
     })
 
     if (!existingReminder) {
-      return NextResponse.json({ error: "Reminder not found" }, { status: 404 })
+      return NextResponse.json({ success: true, message: "Reminder already deleted" })
     }
 
-    // Check permissions  r
-
-  const canDelete = existingReminder.creatorId === user.id || user.role === "ADMIN"
+    // Check permissions
+    const canDelete =
+      existingReminder.creatorId === user.id ||
+      existingReminder.assigneeId === user.id ||
+      user.role === "ADMIN" ||
+      user.role === "ORG_ADMIN" ||
+      user.role === "SUPER_ADMIN" ||
+      user.role === "MANAGER"
 
     if (!canDelete) {
-      return NextResponse.json({ error: "Only creators and admins can delete reminders" }, { status: 403 })
+      return NextResponse.json(
+        { error: "Only creators, assignees, and admins can delete reminders" },
+        { status: 403 }
+      )
     }
 
-    await db.reminder.delete({
-      where: { id: params.id },
+    await db.reminder.deleteMany({
+      where: { id },
     })
 
     return NextResponse.json({ success: true })

@@ -3,8 +3,12 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { db } from "@/lib/db"
 
-export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> | { id: string } }
+) {
   try {
+    const { id } = await params
     const session = await getServerSession(authOptions)
     const user: any = (session as any)?.user || {}
     if (!user.id) {
@@ -12,7 +16,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     }
 
     const existingReminder = await db.reminder.findUnique({
-      where: { id: params.id },
+      where: { id },
     })
 
     if (!existingReminder) {
@@ -24,13 +28,13 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       return NextResponse.json({ error: "Only assignees can mute/unmute reminders" }, { status: 403 })
     }
 
-    const updatedReminder = await db.reminder.update({
-      where: { id: params.id },
+    const rawUpdatedReminder = await db.reminder.update({
+      where: { id },
       data: {
         isMuted: !existingReminder.isMuted,
       },
       include: {
-        creator: {
+        user_reminder_creatorIdTouser: {
           select: {
             id: true,
             name: true,
@@ -38,7 +42,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
             image: true,
           },
         },
-        assignee: {
+        user_reminder_assigneeIdTouser: {
           select: {
             id: true,
             name: true,
@@ -48,6 +52,12 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
         },
       },
     })
+
+    const updatedReminder = {
+      ...rawUpdatedReminder,
+      creator: (rawUpdatedReminder as any).creator || (rawUpdatedReminder as any).user_reminder_creatorIdTouser,
+      assignee: (rawUpdatedReminder as any).assignee || (rawUpdatedReminder as any).user_reminder_assigneeIdTouser,
+    }
 
     return NextResponse.json({
       success: true,

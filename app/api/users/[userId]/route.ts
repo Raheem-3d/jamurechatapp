@@ -4,8 +4,9 @@ import { authOptions } from "@/lib/auth"
 import { db } from "@/lib/db"
 import { channel } from "diagnostics_channel"
 
-export async function GET(req: Request, { params }: { params: { userId: string } }) {
+export async function GET(req: Request, { params }: { params: Promise<{ userId: string }> | { userId: string } }) {
   try {
+    const { userId } = await params
     const session = await getServerSession(authOptions)
 
     if (!session) {
@@ -15,7 +16,7 @@ export async function GET(req: Request, { params }: { params: { userId: string }
     // Fetch user basic info for notifications/buzz display
     const user = await db.user.findUnique({
       where: {
-        id: params.userId,
+        id: userId,
       },
       select: {
         id: true,
@@ -48,8 +49,9 @@ export async function GET(req: Request, { params }: { params: { userId: string }
   }
 }
 
-export async function PATCH(req: Request, { params }: { params: { userId: string } }) {
+export async function PATCH(req: Request, { params }: { params: Promise<{ userId: string }> | { userId: string } }) {
   try {
+    const { userId } = await params
     const session = await getServerSession(authOptions)
 
     if (!session) {
@@ -74,7 +76,7 @@ export async function PATCH(req: Request, { params }: { params: { userId: string
     const { role, departmentId, managerId, online } = await req.json()
 
     // Enforce organization scoping: target user must be in same organization
-    const target = await db.user.findUnique({ where: { id: params.userId }, select: { organizationId: true } })
+    const target = await db.user.findUnique({ where: { id: userId }, select: { organizationId: true } })
     if (!target || (currentUser.organizationId && target.organizationId !== currentUser.organizationId)) {
       return NextResponse.json({ message: "User not found" }, { status: 404 })
     }
@@ -99,7 +101,7 @@ export async function PATCH(req: Request, { params }: { params: { userId: string
     // Update user
     const user = await db.user.update({
       where: {
-        id: params.userId,
+        id: userId,
       },
       data: {
         ...(role && { role }),

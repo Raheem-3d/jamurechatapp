@@ -482,9 +482,9 @@ export default function Header() {
           </div>
 
           {/* Theme Customizer */}
-          <div className="hidden sm:block">
+          {/* <div className="hidden sm:block">
             <ThemeCustomizer />
-          </div>
+          </div> */}
 
           {/* Team Icon for Admin */}
           {isAdmin && (

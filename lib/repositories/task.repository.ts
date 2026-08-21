@@ -109,8 +109,14 @@ export class TaskRepository {
     try {
       logger.database("Creating task", { title: data.title });
 
+      const taskData: any = {
+        id: (data as any).id || crypto.randomUUID(),
+        updatedAt: (data as any).updatedAt || new Date(),
+        ...data,
+      };
+
       const task = await db.task.create({
-        data,
+        data: taskData,
         include: this.defaultInclude,
       });
 

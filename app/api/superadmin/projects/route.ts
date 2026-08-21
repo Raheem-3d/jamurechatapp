@@ -68,7 +68,7 @@ export async function GET(req: Request) {
         },
         _count: {
           select: {
-            comments: true,
+            taskcomment: true,
           },
         },
       },
@@ -116,6 +116,7 @@ export async function POST(req: Request) {
     // Create base task representing the project
     const created = await db.task.create({
       data: {
+        id: crypto.randomUUID(),
         title,
         description: description || null,
         priority,
@@ -123,13 +124,19 @@ export async function POST(req: Request) {
         deadline: deadline ? new Date(deadline) : null,
         organizationId: organizationId || null,
         creatorId: creatorId || user.id,
+        updatedAt: new Date(),
       },
     })
 
     // Assign users
     if (Array.isArray(assignedUserIds) && assignedUserIds.length) {
       await db.taskAssignment.createMany({
-        data: assignedUserIds.map((uid: string) => ({ taskId: created.id, userId: uid })),
+        data: assignedUserIds.map((uid: string) => ({
+          id: crypto.randomUUID(),
+          taskId: created.id,
+          userId: uid,
+          updatedAt: new Date(),
+        })),
         skipDuplicates: true,
       })
     }

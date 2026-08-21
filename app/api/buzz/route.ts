@@ -147,10 +147,12 @@ export async function POST(req: Request) {
       try {
         await db.message.create({
           data: {
+            id: crypto.randomUUID(),
             content: buzzInfo.systemContent,
             senderId: userId,
             receiverId,
             isBuzz: true,
+            updatedAt: new Date(),
           } as any,
         });
       } catch (_) {
@@ -170,10 +172,12 @@ export async function POST(req: Request) {
     try {
       const buzzMsg = await db.message.create({
         data: {
+          id: crypto.randomUUID(),
           content: buzzInfo.systemContent,
           senderId: userId,
           channelId,
           isBuzz: true,
+          updatedAt: new Date(),
         } as any,
         include: {
           sender: {

@@ -5,15 +5,14 @@ import { db } from "@/lib/db";
 
 export async function DELETE(
   _req: Request,
-  { params }: { params: { taskId: string; recordId: string } }
+  { params }: { params: Promise<{ taskId: string; recordId: string }> | { taskId: string; recordId: string } }
 ) {
   try {
+    const { taskId, recordId } = await params;
     const session = await getServerSession(authOptions);
     if (!session || !session.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-
-    const { taskId, recordId } = params;
 
     // Verify record exists and belongs to the parent task
     const record = await db.record.findUnique({

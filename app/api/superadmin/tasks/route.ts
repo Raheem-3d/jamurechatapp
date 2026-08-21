@@ -72,8 +72,7 @@ export async function GET(req: Request) {
         },
         _count: {
           select: {
-            comments: true,
-            Stage: true,
+            taskcomment: true,
           },
         },
       },
@@ -120,6 +119,7 @@ export async function POST(req: Request) {
 
     const createdTask = await db.task.create({
       data: {
+        id: crypto.randomUUID(),
         title,
         description: description || null,
         priority,
@@ -127,13 +127,19 @@ export async function POST(req: Request) {
         deadline: deadline ? new Date(deadline) : null,
         organizationId: organizationId || null,
         creatorId: creatorId || user.id,
+        updatedAt: new Date(),
       },
     })
 
     // Optional assignments
     if (Array.isArray(assignedUserIds) && assignedUserIds.length > 0) {
       await db.taskAssignment.createMany({
-        data: assignedUserIds.map((uid: string) => ({ taskId: createdTask.id, userId: uid })),
+        data: assignedUserIds.map((uid: string) => ({
+          id: crypto.randomUUID(),
+          taskId: createdTask.id,
+          userId: uid,
+          updatedAt: new Date(),
+        })),
         skipDuplicates: true,
       })
     }

@@ -43,14 +43,28 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    const parseSeen = (seenBy: any): string[] => {
+      if (!seenBy) return [];
+      if (Array.isArray(seenBy)) return seenBy;
+      if (typeof seenBy === "string") {
+        try {
+          const parsed = JSON.parse(seenBy);
+          if (Array.isArray(parsed)) return parsed;
+        } catch {
+          return seenBy.split(",").map((s) => s.trim()).filter(Boolean);
+        }
+      }
+      return [];
+    };
+
     let markedCount = 0;
     for (const msg of targetMessages) {
-      const seenArr = Array.isArray(msg.seenBy) ? (msg.seenBy as string[]) : [];
+      const seenArr = parseSeen(msg.seenBy);
       if (!seenArr.includes(userId)) {
         const nextSeen = [...seenArr, userId];
         await db.message.update({
           where: { id: msg.id },
-          data: { seenBy: nextSeen as any },
+          data: { seenBy: JSON.stringify(nextSeen) },
         });
         markedCount++;
       }

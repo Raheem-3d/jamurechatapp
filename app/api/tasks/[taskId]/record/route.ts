@@ -62,9 +62,10 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
     }
 
+    const taskActivityDb = (db as any).taskActivity || (db as any).taskactivity;
     const [stages, activities] = await Promise.all([
       db.stage.findMany({ where: { taskId } }),
-      db.taskActivity.findMany({
+      taskActivityDb.findMany({
         where: { taskId },
         include: {
           user: {
