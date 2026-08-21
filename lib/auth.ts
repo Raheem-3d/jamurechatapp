@@ -3,6 +3,7 @@ import CredentialsProvider from "next-auth/providers/credentials"
 import { db } from "@/lib/db"
 import { compare } from "bcryptjs"
 import { isSuperAdmin } from "@/lib/org"
+import { cacheGet, cacheSet } from "@/lib/redis"
 
 export const authOptions: NextAuthOptions = {
   secret: process.env.NEXTAUTH_SECRET || "jamurechat-secret-key-default-2026",
@@ -85,10 +86,9 @@ export const authOptions: NextAuthOptions = {
 
       // 1. Try fetching cached user session from Redis
       try {
-        const { cacheGet } = require("./redis");
         const cacheKey = `user:${token.email}:jwt`;
         const cachedToken = await cacheGet(cacheKey);
-        if (cachedToken && cachedToken.id && trigger !== "update") {
+        if (cachedToken && (cachedToken as any).id && trigger !== "update") {
           return { ...token, ...cachedToken };
         }
       } catch (e) {
@@ -131,7 +131,6 @@ export const authOptions: NextAuthOptions = {
 
         // 2. Cache session token in Redis for 5 minutes (300 seconds)
         try {
-          const { cacheSet } = require("./redis");
           cacheSet(`user:${token.email}:jwt`, tokenPayload, 300).catch(() => { });
         } catch (e) {
           // non-fatal fallback

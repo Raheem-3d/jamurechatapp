@@ -59,30 +59,34 @@ export function parseBuzzDisplayData(
     return { isBuzz: false, senderName: "Someone", message: "Buzz!" };
   }
 
+  let extractedSender: string | null = null;
+  let extractedMessage: string | null = null;
+
+  // 1. Format: 🔔 **Name** sent a Buzz: Message
+  const boldMatch = content.match(/🔔?\s*\*\*(.+?)\*\*\s+sent a Buzz:\s*(.*)$/i);
+  if (boldMatch) {
+    extractedSender = boldMatch[1]?.trim() || null;
+    extractedMessage = boldMatch[2]?.trim() || null;
+  } else {
+    // 2. Format: 🔔 Name sent a Buzz: Message
+    const plainMatch = content.match(/🔔?\s*(?:Buzz from\s+)?(.+?)\s+sent a Buzz:\s*(.*)$/i);
+    if (plainMatch) {
+      extractedSender = plainMatch[1]?.trim() || null;
+      extractedMessage = plainMatch[2]?.trim() || null;
+    }
+  }
+
   const senderName =
-    message.sender?.name?.trim() || message.sender?.email?.trim() || "Someone";
+    message.sender?.name?.trim() ||
+    extractedSender ||
+    message.sender?.email?.trim() ||
+    "Someone";
 
-  const match = content.match(/🔔\s*\*\*(.+?)\*\*\s+sent a Buzz:\s*(.+)$/i);
-  if (match) {
-    return {
-      isBuzz: true,
-      senderName: match[1]?.trim() || senderName,
-      message: match[2]?.trim() || "Buzz!",
-    };
-  }
-
-  const fallbackMatch = content.match(/sent a Buzz:\s*(.+)$/i);
-  if (fallbackMatch) {
-    return {
-      isBuzz: true,
-      senderName,
-      message: fallbackMatch[1]?.trim() || "Buzz!",
-    };
-  }
+  const messageText = extractedMessage || content.replace(/^🔔?\s*(?:\*\*.+?\*\*\s+)?(?:sent a Buzz:)?/i, "").trim() || "Buzz!";
 
   return {
     isBuzz: true,
     senderName,
-    message: content.trim() || "Buzz!",
+    message: messageText || "Buzz!",
   };
 }

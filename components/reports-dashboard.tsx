@@ -214,12 +214,6 @@ export default function ReportsDashboard() {
         detailedData?.automationLogs?.forEach((a: any) => {
           csvContent += `"${a.id}","${a.ruleName.replace(/"/g, '""')}","${a.triggerType}","${a.status}","${(a.actionSummary || "").replace(/"/g, '""')}","${a.executionTimeMs}","${a.createdAt}"\n`;
         });
-      } else if (activeTab === "stages") {
-        csvContent +=
-          "Stage ID,Stage Name,Total Records,Completed Records,Conversion Rate %,Bottleneck Status\n";
-        detailedData?.stageAnalytics?.forEach((s: any) => {
-          csvContent += `"${s.id}","${s.name.replace(/"/g, '""')}","${s.totalRecords}","${s.completedRecords}","${s.conversionRate}%","${s.isBottleneck ? "Bottleneck Alert" : "Optimal"}"\n`;
-        });
       }
 
       const encodedUri = encodeURI(csvContent);
@@ -275,7 +269,6 @@ export default function ReportsDashboard() {
       const tasks = detailedData?.detailedTasks || [];
       const records = detailedData?.detailedRecords || [];
       const workload = detailedData?.userWorkload || [];
-      const stages = detailedData?.stageAnalytics || [];
 
       const appendTasks = (sectionTitle: string, rows: any[]) =>
         appendSection(
@@ -366,27 +359,6 @@ export default function ReportsDashboard() {
           ]),
         );
 
-      const appendStages = (sectionTitle: string, rows: any[]) =>
-        appendSection(
-          sectionTitle,
-          [
-            "Stage ID",
-            "Stage Name",
-            "Total Records",
-            "Completed Records",
-            "Conversion Rate (%)",
-            "Bottleneck",
-          ],
-          rows.map((stage) => [
-            stage.id,
-            stage.name,
-            stage.totalRecords,
-            stage.completedRecords,
-            stage.conversionRate,
-            stage.isBottleneck,
-          ]),
-        );
-
       if (activeTab === "overview") {
         appendSection(
           "Overview KPIs",
@@ -407,7 +379,6 @@ export default function ReportsDashboard() {
         appendTasks("Task Performance", tasks);
         appendRecords("Record Performance", records);
         appendWorkload("Team Workload", workload);
-        appendStages("Stage Analytics", stages);
         appendSection(
           "Task Status Breakdown",
           ["Status", "Count"],
@@ -496,8 +467,6 @@ export default function ReportsDashboard() {
         appendRecords("Record Performance", filteredRecords);
       } else if (activeTab === "workload") {
         appendWorkload("Team Workload", filteredWorkload);
-      } else if (activeTab === "stages") {
-        appendStages("Stage Analytics", stages);
       } else if (activeTab === "storage") {
         appendSection(
           "File Storage Breakdown",
@@ -800,9 +769,9 @@ export default function ReportsDashboard() {
   );
 
   const [showGuide, setShowGuide] = useState(false);
-  const [guideSection, setGuideSection] = useState<"overview" | "tasks" | "records" | "workload" | "stages" | "storage" | null>(null);
+  const [guideSection, setGuideSection] = useState<"overview" | "tasks" | "records" | "workload" | "storage" | null>(null);
 
-  const handleToggleGuide = (section: "overview" | "tasks" | "records" | "workload" | "stages" | "storage") => {
+  const handleToggleGuide = (section: "overview" | "tasks" | "records" | "workload" | "storage") => {
     if (showGuide && guideSection === section) {
       setShowGuide(false);
       setGuideSection(null);
@@ -1099,8 +1068,7 @@ export default function ReportsDashboard() {
                 guideSection === "overview" ? "Overview & Widgets" :
                 guideSection === "tasks" ? "Task Performance" :
                 guideSection === "records" ? "Record Performance" :
-                guideSection === "workload" ? "Team Workload" :
-                guideSection === "stages" ? "Stage Analytics" : "Storage & Files"
+                guideSection === "workload" ? "Team Workload" : "Storage & Files"
               }
             </h3>
             <button
@@ -1144,14 +1112,6 @@ export default function ReportsDashboard() {
                 <p className="font-extrabold text-indigo-600 mb-1">👥 4. Team Workload</p>
                 <p className="text-slate-600 dark:text-slate-300">
                   Kaunsa employee kitne tasks aur records par kaam kar raha hai aur kis user par overdue risk hai.
-                </p>
-              </div>
-            )}
-            {guideSection === "stages" && (
-              <div className="p-4 rounded-2xl bg-white/80 dark:bg-slate-900/80 border border-slate-200/60 dark:border-slate-800">
-                <p className="font-extrabold text-indigo-600 mb-1">🔄 5. Stage Analytics</p>
-                <p className="text-slate-600 dark:text-slate-300">
-                  Kis workflow stage me kitne records hain, stage conversion rate %, aur kahan kaam atak raha hai (Bottleneck).
                 </p>
               </div>
             )}
@@ -1257,26 +1217,6 @@ export default function ReportsDashboard() {
               </button>
             </TabsTrigger>
             <TabsTrigger
-              value="stages"
-              className="rounded-lg text-xs font-bold gap-1.5 px-3 py-1.5 flex items-center"
-            >
-              <Layers className="h-4 w-4 text-amber-500" /> Stage Analytics
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleToggleGuide("stages");
-                }}
-                className={`ml-1.5 p-0.5 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors ${
-                  showGuide && guideSection === "stages"
-                    ? "text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40"
-                    : "text-slate-400 hover:text-slate-600"
-                }`}
-                title="View Guide"
-              >
-                <Eye className="h-3.5 w-3.5" />
-              </button>
-            </TabsTrigger>
-            <TabsTrigger
               value="storage"
               className="rounded-lg text-xs font-bold gap-1.5 px-3 py-1.5 flex items-center"
             >
@@ -1299,7 +1239,7 @@ export default function ReportsDashboard() {
           </TabsList>
 
           {/* Search Box for Tabs */}
-          {activeTab !== "overview" && activeTab !== "stages" && (
+          {activeTab !== "overview" && (
             <div className="relative w-full sm:w-64">
               <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
               <Input
@@ -1870,67 +1810,7 @@ export default function ReportsDashboard() {
           </Card>
         </TabsContent>
 
-        {/* -------------------------------------------------------------------------------- */}
-        {/* TAB 5: STAGE ANALYTICS REPORT */}
-        {/* -------------------------------------------------------------------------------- */}
-        <TabsContent value="stages" className="space-y-4 m-0">
-          {detailedData?.stageAnalytics?.length ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {detailedData.stageAnalytics.map((s: any) => (
-                <Card
-                  key={s.id}
-                  className="rounded-3xl border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 space-y-3"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className="h-3 w-3 rounded-full"
-                        style={{ backgroundColor: s.color || "#6366f1" }}
-                      />
-                      <h3 className="text-sm font-extrabold text-slate-900 dark:text-white">
-                        {s.name}
-                      </h3>
-                    </div>
-                    {s.isBottleneck ? (
-                      <Badge
-                        variant="destructive"
-                        className="text-[9px] font-extrabold flex gap-1"
-                      >
-                        <AlertTriangle className="h-3 w-3" /> Bottleneck
-                      </Badge>
-                    ) : (
-                      <Badge
-                        variant="secondary"
-                        className="text-[10px] font-bold"
-                      >
-                        {s.conversionRate}% Conversion
-                      </Badge>
-                    )}
-                  </div>
 
-                  <div className="space-y-1.5">
-                    <div className="flex justify-between text-xs font-semibold text-slate-500">
-                      <span>Records in Stage</span>
-                      <span className="font-extrabold text-slate-900 dark:text-white">
-                        {s.totalRecords}
-                      </span>
-                    </div>
-                    <Progress
-                      value={s.conversionRate}
-                      className="h-2 rounded-full"
-                    />
-                  </div>
-                </Card>
-              ))}
-            </div>
-          ) : (
-            <Card className="rounded-3xl border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 p-8 text-center">
-              <p className="text-sm font-semibold text-slate-500">
-                No stage data found for the selected filters.
-              </p>
-            </Card>
-          )}
-        </TabsContent>
 
         {/* -------------------------------------------------------------------------------- */}
         {/* TAB 6: TIME TRACKING LOGS REPORT (Temporarily Commented Out) */}

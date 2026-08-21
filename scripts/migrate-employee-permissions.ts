@@ -7,9 +7,8 @@
  * Run this script ONCE after deploying the RBAC changes.
  */
 
-import { PrismaClient } from '@prisma/client'
-
-const prisma = new PrismaClient()
+import { db } from "../lib/db"
+const prisma = db
 
 async function main() {
 

@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { getToken } from 'next-auth/jwt'
-import prisma from '@/prisma/client'
+import { db } from '@/lib/db'
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -15,9 +15,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
   const { email: targetEmail, enable } = req.body as { email?: string; enable?: string }
   if (!targetEmail) return res.status(400).json({ error: { code: 'INVALID_INPUT', message: 'email required' } })
-  const user = await prisma.user.findUnique({ where: { email: targetEmail } })
+  const user = await db.user.findUnique({ where: { email: targetEmail } })
   if (!user) return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'User not found' } })
   const flag = enable === 'true'
-  await prisma.user.update({ where: { email: targetEmail }, data: { isSuperAdmin: flag } })
+  await db.user.update({ where: { email: targetEmail }, data: { isSuperAdmin: flag } })
   return res.status(200).json({ email: targetEmail, isSuperAdmin: flag })
 }

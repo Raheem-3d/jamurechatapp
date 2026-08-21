@@ -227,10 +227,10 @@ export default function TaskReminder({
                       >
                         {reminder.priority}
                       </span>
-                      {reminder.isMuted && (
+                      {Boolean(reminder.isMuted) && (
                         <span className="text-xs px-2 py-1 rounded bg-gray-100 text-gray-800">Muted</span>
                       )}
-                      {reminder.isSent && (
+                      {Boolean(reminder.isSent) && (
                         <span className="text-xs px-2 py-1 rounded bg-green-100 text-green-800">Sent</span>
                       )}
                     </div>

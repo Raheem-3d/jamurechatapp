@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 
-
+export const dynamic = "force-dynamic";
 
 import { ensureDbSchema } from "@/lib/db-init"
 
@@ -96,11 +96,14 @@ export async function DELETE(
 
 
 
-export async function PUT(req: Request, { params }: { params: Promise<{ channelId: string }> }) {
+export async function PUT(
+  req: Request,
+  { params }: { params: Promise<{ channelId: string }> | { channelId: string } }
+) {
   const { channelId } = await params;
   const body = await req.json();
-  const session = await getServerSession(authOptions as any)
-  const user: any = (session as any)?.user
+  const session = await getServerSession(authOptions);
+  const user: any = (session as any)?.user;
 
   const {
     name,

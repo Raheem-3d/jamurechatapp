@@ -1,12 +1,9 @@
 import { db } from "@/lib/db";
-import { Prisma, Task, TaskPriority, TaskStatus } from "@prisma/client";
 import { logger } from "@/lib/logger";
 import { DatabaseError, NotFoundError } from "@/lib/errors/app-error";
 
-/**
- * Task Repository - Centralized data access for tasks
- * Abstracts Prisma queries and provides reusable methods
- */
+export type TaskPriority = "LOW" | "MEDIUM" | "HIGH" | "URGENT";
+export type TaskStatus = "TODO" | "IN_PROGRESS" | "DONE" | "BLOCKED";
 
 export interface TaskFilters {
   status?: TaskStatus;
@@ -40,11 +37,8 @@ export class TaskRepository {
           select: { id: true, name: true, email: true },
         },
       },
-      orderBy: { createdAt: "desc" as const },
+      orderBy: { createdAt: "desc" },
       take: 5,
-    },
-    _count: {
-      select: { comments: true, assignments: true },
     },
   };
 
@@ -105,13 +99,13 @@ export class TaskRepository {
     }
   }
 
-  async create(data: Prisma.TaskCreateInput) {
+  async create(data: any) {
     try {
       logger.database("Creating task", { title: data.title });
 
       const taskData: any = {
-        id: (data as any).id || crypto.randomUUID(),
-        updatedAt: (data as any).updatedAt || new Date(),
+        id: data.id || crypto.randomUUID(),
+        updatedAt: data.updatedAt || new Date(),
         ...data,
       };
 
@@ -128,7 +122,7 @@ export class TaskRepository {
     }
   }
 
-  async update(taskId: string, data: Prisma.TaskUpdateInput) {
+  async update(taskId: string, data: any) {
     try {
       logger.database("Updating task", { taskId });
 
@@ -165,11 +159,10 @@ export class TaskRepository {
     try {
       logger.database("Assigning users to task", { taskId, userIds });
 
-      // Remove existing assignments and add new ones in a transaction
       await db.$transaction([
         db.taskAssignment.deleteMany({ where: { taskId } }),
         db.taskAssignment.createMany({
-          data: userIds.map((userId) => ({ taskId, userId })),
+          data: userIds.map((userId) => ({ id: crypto.randomUUID(), taskId, userId })),
           skipDuplicates: true,
         }),
       ]);
@@ -199,8 +192,8 @@ export class TaskRepository {
     }
   }
 
-  private buildWhereClause(filters: TaskFilters): Prisma.TaskWhereInput {
-    const where: Prisma.TaskWhereInput = {};
+  private buildWhereClause(filters: TaskFilters): any {
+    const where: any = {};
 
     if (filters.organizationId) {
       where.organizationId = filters.organizationId;
@@ -218,22 +211,12 @@ export class TaskRepository {
       where.creatorId = filters.createdBy;
     }
 
-    if (filters.assigneeId) {
-      where.assignments = {
-        some: { userId: filters.assigneeId },
-      };
-    }
-
     if (filters.search) {
-      where.OR = [
-        { title: { contains: filters.search } },
-        { description: { contains: filters.search } },
-      ];
+      where.title = { contains: filters.search };
     }
 
     return where;
   }
 }
 
-// Singleton instance
 export const taskRepository = new TaskRepository();

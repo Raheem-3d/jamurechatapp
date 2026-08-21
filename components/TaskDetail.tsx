@@ -114,6 +114,31 @@ export function TaskDetail({
   const [createdSubtasks, setCreatedSubtasks] = useState<Record<number, boolean>>({});
 
   useEffect(() => {
+    if (task) {
+      setEditedTask({
+        ...task,
+        dueDate:
+          (task as any)?.startDate ||
+            (task as any)?.endDate ||
+            (task as any)?.dueDate
+            ? {
+              startDate: (task as any)?.startDate
+                ? new Date((task as any).startDate)
+                : (task as any)?.dueDate
+                  ? new Date((task as any).dueDate)
+                  : null,
+              endDate: (task as any)?.endDate
+                ? new Date((task as any).endDate)
+                : (task as any)?.dueDate
+                  ? new Date((task as any).dueDate)
+                  : null,
+            }
+            : null,
+      });
+    }
+  }, [task]);
+
+  useEffect(() => {
     const fetchOrg = async () => {
       try {
         const res = await fetch("/api/organization/me");

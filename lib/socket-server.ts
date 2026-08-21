@@ -516,9 +516,8 @@ export function initializeSocketIO(server: HTTPServer) {
                 id: crypto.randomUUID(),
                 content: buzzInfo.systemContent,
                 senderId,
-                channelId: payload.channelId,
-                receiverId: payload.receiverId,
-                isBuzz: true,
+                channelId: payload.channelId || null,
+                receiverId: payload.receiverId || null,
                 updatedAt: new Date(),
               } as any,
               include: {
@@ -527,7 +526,19 @@ export function initializeSocketIO(server: HTTPServer) {
                 },
               },
             });
+            if (buzzMessage) {
+              buzzMessage.isBuzz = true;
+              if (!buzzMessage.sender) {
+                buzzMessage.sender = {
+                  id: senderId,
+                  name: buzzInfo.senderName,
+                  email: sender?.email || "",
+                  image: null,
+                };
+              }
+            }
           } catch (dbError) {
+            console.error("buzz db create error:", dbError);
             buzzMessage = {
               id: `buzz_${Date.now()}`,
               content: buzzInfo.systemContent,

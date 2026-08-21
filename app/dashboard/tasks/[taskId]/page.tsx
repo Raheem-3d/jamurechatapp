@@ -154,7 +154,7 @@ export default async function TaskDetailPage({
     ...task.assignments.map((assignment: any) => ({
       id: `assignment-${assignment.id}`,
       title: "Team Member Assigned",
-      description: `${assignment.user.name} was assigned on ${formatDate(assignment.createdAt)}`,
+      description: `${assignment.user?.name || "Team Member"} was assigned on ${formatDate(assignment.createdAt)}`,
       date: new Date(assignment.createdAt),
       iconType: "assignment",
       user: assignment.user,

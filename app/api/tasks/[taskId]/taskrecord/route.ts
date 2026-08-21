@@ -5,14 +5,7 @@ import { cacheGet, cacheSet, cacheDel } from "@/lib/redis";
 import { produceKafkaEvent } from "@/lib/kafka";
 import { runAutomationEngine } from "@/lib/automation-engine";
 import { randomUUID } from "crypto";
-import {
-  Task,
-  AutomationRule,
-  User,
-  Tag,
-  TaskStatus,
-  Stage,
-} from "@prisma/client";
+
 import { id } from "date-fns/locale";
 import { getServerSession } from "next-auth";
 import { NextRequest, NextResponse } from "next/server";

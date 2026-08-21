@@ -20,7 +20,15 @@ export function RecentChannelsWidget({ channels }: RecentChannelsWidgetProps) {
   const [currentPage, setCurrentPage] = useState(1);
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   const itemsPerPage = 4;
-  const totalPages = Math.ceil(channels.length / itemsPerPage);
+  const filteredChannels = (Array.isArray(channels) ? channels : []).filter((channel: any) => {
+    if (!channel?.name) return false;
+    if (channel.isTaskThread) return false;
+    const name = String(channel.name).toLowerCase().trim();
+    if (name.startsWith("task") || name.startsWith("internal")) return false;
+    return true;
+  });
+
+  const totalPages = Math.ceil(filteredChannels.length / itemsPerPage);
 
   const fetchUnread = async () => {
     try {
@@ -96,9 +104,9 @@ export function RecentChannelsWidget({ channels }: RecentChannelsWidgetProps) {
       .catch(() => {});
   };
 
-  const paginatedChannels = channels.slice(
+  const paginatedChannels = filteredChannels.slice(
     (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
+    currentPage * itemsPerPage,
   );
 
   return (
