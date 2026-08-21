@@ -409,7 +409,7 @@ export function ReminderManager({ currentUser, users }: ReminderManagerProps) {
                       <h3 className="font-semibold">{reminder.title}</h3>
                       <Badge className={getPriorityColor(reminder.priority)}>{reminder.priority}</Badge>
                       <Badge variant="outline">{reminder.type}</Badge>
-                      {reminder.isSent && (
+                      {Boolean(reminder.isSent) && (
                         <Badge variant="default">
                           <CheckCircle className="h-3 w-3 mr-1" />
                           Sent

@@ -1,4 +1,4 @@
-import prisma from '@/prisma/client'
+import { db } from '@/lib/db'
 
 export type AdminAction = 
   | 'TRIAL_EXTEND'
@@ -53,7 +53,7 @@ export async function logAdminAction({
       produceKafkaEvent("activity-logs", logData).catch(() => {});
     } catch {}
 
-    await prisma.activityLog.create({
+    await db.activitylog.create({
       data: logData,
     })
   } catch (error) {

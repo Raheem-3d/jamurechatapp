@@ -29,6 +29,7 @@ import {
   RotateCcw,
   Layers,
   AlertCircle,
+  Sparkles,
 } from "lucide-react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -73,11 +74,13 @@ export default function TaskAnalyticsSection() {
   const [taskFilter, setTaskFilter] = useState("");
   const [durationFilter, setDurationFilter] = useState("ANY");
   const [stageFilter, setStageFilter] = useState("ALL");
+  const [timingFilter, setTimingFilter] = useState("ALL");
 
   const clearFilters = () => {
     setTaskFilter("");
     setDurationFilter("ANY");
     setStageFilter("ALL");
+    setTimingFilter("ALL");
   };
 
   useEffect(() => {
@@ -170,13 +173,26 @@ export default function TaskAnalyticsSection() {
       }
     }
 
-    return titleMatch && durationMatch && stageMatch;
+    // 4. Completion Timing Filter (e.g. Completed Before Time)
+    let timingMatch = true;
+    if (timingFilter === "EARLY") {
+      timingMatch = task.completedEarly === true || (task.status === "DONE" && !task.completedLate);
+    } else if (timingFilter === "LATE") {
+      timingMatch = task.completedLate === true;
+    } else if (timingFilter === "OVERDUE") {
+      timingMatch = task.isOverdue === true;
+    } else if (timingFilter === "DONE") {
+      timingMatch = task.status === "DONE";
+    }
+
+    return titleMatch && durationMatch && stageMatch && timingMatch;
   });
 
   const activeFiltersCount =
     (taskFilter ? 1 : 0) +
     (durationFilter !== "ALL" && durationFilter !== "ANY" ? 1 : 0) +
-    (stageFilter !== "ALL" ? 1 : 0);
+    (stageFilter !== "ALL" ? 1 : 0) +
+    (timingFilter !== "ALL" ? 1 : 0);
 
   const formatAvgTime = (hours: number) => {
     if (hours === 0) return "N/A";
@@ -217,13 +233,13 @@ export default function TaskAnalyticsSection() {
               </div>
             </div>
 
-            <div className="px-3 py-1.5 rounded-xl border border-blue-200/60 dark:border-blue-900/50 bg-blue-50/40 dark:bg-blue-950/30 flex items-center gap-2">
+            {/* <div className="px-3 py-1.5 rounded-xl border border-blue-200/60 dark:border-blue-900/50 bg-blue-50/40 dark:bg-blue-950/30 flex items-center gap-2">
               <Timer className="h-4 w-4 text-blue-600 shrink-0" />
               <div>
                 <p className="text-[10px] font-bold text-blue-800 dark:text-blue-300 uppercase leading-none">Avg Time</p>
                 <p className="text-xs font-black text-slate-900 dark:text-white mt-0.5 truncate max-w-[110px]">{formatAvgTime(summary.avgCompletionTimeHours)}</p>
               </div>
-            </div>
+            </div> */}
 
             <div className="px-3 py-1.5 rounded-xl border border-indigo-200/60 dark:border-indigo-900/50 bg-indigo-50/40 dark:bg-indigo-950/30 flex items-center gap-2">
               <ListTodo className="h-4 w-4 text-indigo-600 shrink-0" />
@@ -359,7 +375,7 @@ export default function TaskAnalyticsSection() {
             )}
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
               <Input
@@ -412,16 +428,42 @@ export default function TaskAnalyticsSection() {
                 <SelectItem value=">7" className="text-xs">&gt; 7 Days</SelectItem>
               </SelectContent>
             </Select>
+
+            {/* Completion Timing Filter (e.g. Completed Before Time) */}
+            <Select value={timingFilter} onValueChange={(val) => setTimingFilter(val)}>
+              <SelectTrigger className="h-8 text-xs bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700/80 rounded-xl">
+                <div className="flex items-center gap-1.5 truncate">
+                  <Sparkles className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                  <SelectValue placeholder="Completion Timing" />
+                </div>
+              </SelectTrigger>
+              <SelectContent className="rounded-xl">
+                <SelectItem value="ALL" className="text-xs font-medium">All Timing Statuses</SelectItem>
+                <SelectItem value="EARLY" className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                  Completed Before Time (Early)
+                </SelectItem>
+                <SelectItem value="LATE" className="text-xs font-semibold text-amber-600 dark:text-amber-400">
+                  Completed After Deadline (Late)
+                </SelectItem>
+                <SelectItem value="OVERDUE" className="text-xs font-semibold text-rose-600 dark:text-rose-400">
+                  Pending & Overdue
+                </SelectItem>
+                <SelectItem value="DONE" className="text-xs">
+                  All Completed Tasks
+                </SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Sticky Table with Max Height */}
           <div className="border border-slate-200/80 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900">
-            <div className="max-h-48 overflow-y-auto">
+            <div className="max-h-56 overflow-y-auto">
               <table className="w-full text-left border-collapse">
                 <thead className="sticky top-0 bg-slate-100 dark:bg-slate-800 z-10 shadow-xs">
                   <tr className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-200/80 dark:border-slate-800">
                     <th className="py-2 px-3">Task</th>
                     <th className="py-2 px-3">Status</th>
+                    <th className="py-2 px-3">Timing Performance</th>
                     <th className="py-2 px-3">Stage</th>
                     <th className="py-2 px-3">Assigned</th>
                     <th className="py-2 px-3">Completed</th>
@@ -445,14 +487,31 @@ export default function TaskAnalyticsSection() {
                               task.status === "DONE"
                                 ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/60"
                                 : task.status === "IN_PROGRESS"
-                                ? "bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800/60"
-                                : task.status === "BLOCKED"
-                                ? "bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800/60"
-                                : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700"
+                                  ? "bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800/60"
+                                  : task.status === "BLOCKED"
+                                    ? "bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800/60"
+                                    : "bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700"
                             )}
                           >
                             {task.status}
                           </span>
+                        </td>
+                        <td className="py-1.5 px-3">
+                          {task.completedEarly ? (
+                            <Badge className="bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800 text-[9px] px-1.5 py-0 font-extrabold w-fit">
+                              Before Time
+                            </Badge>
+                          ) : task.completedLate ? (
+                            <Badge className="bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800 text-[9px] px-1.5 py-0 font-bold w-fit">
+                              After Deadline
+                            </Badge>
+                          ) : task.isOverdue ? (
+                            <Badge className="bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800 text-[9px] px-1.5 py-0 font-bold w-fit">
+                              Overdue
+                            </Badge>
+                          ) : (
+                            <span className="text-slate-400 text-[10px]">On Schedule</span>
+                          )}
                         </td>
                         <td className="py-1.5 px-3">
                           {task.stage ? (
@@ -477,7 +536,7 @@ export default function TaskAnalyticsSection() {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={6} className="py-6 text-center text-xs text-slate-400">
+                      <td colSpan={7} className="py-6 text-center text-xs text-slate-400">
                         No tasks match the selected filters
                       </td>
                     </tr>

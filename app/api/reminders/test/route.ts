@@ -6,6 +6,7 @@ import { authOptions } from "@/lib/auth"
 import { db } from "@/lib/db"
 import { reminderProcessor } from "@/lib/reminder-processor"
 import { emitToUser } from "@/lib/socket-server"
+import { randomUUID } from "crypto"
 
 export async function POST(request: NextRequest) {
   try {
@@ -20,6 +21,7 @@ export async function POST(request: NextRequest) {
       // Create a test reminder that's due in 1 minute
       const testReminder = await db.reminder.create({
         data: {
+          id: randomUUID(),
           title: "Test Reminder",
           description: "This is a test reminder created for testing notifications",
           remindAt: new Date(Date.now() + 60000), // 1 minute from now
@@ -27,6 +29,7 @@ export async function POST(request: NextRequest) {
           type: "GENERAL",
           creatorId: session.user.id,
           assigneeId: session.user.id,
+          updatedAt: new Date(),
         },
        
       })

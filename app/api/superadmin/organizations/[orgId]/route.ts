@@ -9,14 +9,15 @@ import { checkSuperAdmin } from "@/lib/permissions"
  */
 export async function GET(
   req: Request,
-  { params }: { params: { orgId: string } }
+  { params }: { params: Promise<{ orgId: string }> | { orgId: string } }
 ) {
   try {
+    const { orgId } = await params
     const user = await getSessionUserWithPermissions()
     checkSuperAdmin(user.isSuperAdmin)
 
     const organization = await db.organization.findUnique({
-      where: { id: params.orgId },
+      where: { id: orgId },
       include: {
         subscription: true,
         users: {
@@ -30,10 +31,10 @@ export async function GET(
         },
         _count: {
           select: {
-            Channel: true,
-            Task: true,
-            Message: true,
-            activityLogs: true,
+            channel: true,
+            task: true,
+            message: true,
+            activitylog: true,
           },
         },
       },
@@ -62,16 +63,17 @@ export async function GET(
  */
 export async function PATCH(
   req: Request,
-  { params }: { params: { orgId: string } }
+  { params }: { params: Promise<{ orgId: string }> | { orgId: string } }
 ) {
   try {
+    const { orgId } = await params
     const user = await getSessionUserWithPermissions()
     checkSuperAdmin(user.isSuperAdmin)
 
     const data = await req.json()
 
     const organization = await db.organization.update({
-      where: { id: params.orgId },
+      where: { id: orgId },
       data: {
         name: data.name,
         industry: data.industry,
@@ -99,15 +101,16 @@ export async function PATCH(
  */
 export async function DELETE(
   req: Request,
-  { params }: { params: { orgId: string } }
+  { params }: { params: Promise<{ orgId: string }> | { orgId: string } }
 ) {
   try {
+    const { orgId } = await params
     const user = await getSessionUserWithPermissions()
     checkSuperAdmin(user.isSuperAdmin)
 
     // Delete organization (will cascade)
     await db.organization.delete({
-      where: { id: params.orgId },
+      where: { id: orgId },
     })
 
     return NextResponse.json({ message: "Organization deleted successfully" })

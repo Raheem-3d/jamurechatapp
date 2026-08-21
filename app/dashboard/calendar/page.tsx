@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useMemo } from "react"
 import { useSession } from "next-auth/react"
 import { usePermissions } from "@/lib/rbac-utils"
 import Link from "next/link"
@@ -90,9 +90,19 @@ export default function TaskCalendarPage() {
   // Filters State
   const [selectedTaskName, setSelectedTaskName] = useState<string>("ALL")
   const [searchQuery, setSearchQuery] = useState<string>("")
+  const [selectedUserId, setSelectedUserId] = useState<string>("ALL")
 
   // Permissions & Role Checks
-  const { canCreateTasks } = usePermissions()
+  const permissions = usePermissions()
+  const { canCreateTasks } = permissions
+  const isAdmin =
+    permissions.isAdmin ||
+    permissions.role === "ADMIN" ||
+    permissions.role === "ORG_ADMIN" ||
+    permissions.role === "SUPER_ADMIN" ||
+    (session?.user as any)?.role === "ADMIN" ||
+    (session?.user as any)?.role === "ORG_ADMIN" ||
+    (session?.user as any)?.role === "SUPER_ADMIN"
 
   const currentUserId = (session?.user as any)?.id
 
@@ -141,43 +151,85 @@ export default function TaskCalendarPage() {
   }, [])
 
   // Strictly filter tasks to ONLY those created by or assigned to the logged-in user
-  const userOnlyTasks = tasks.filter((t) => {
-    if (!currentUserId) return true
-    const isAssigned = t.assignments?.some((a) => a.user?.id === currentUserId)
-    const isCreator = t.creator?.id === currentUserId
-    return isAssigned || isCreator
-  })
+  const userOnlyTasks = useMemo(() => {
+    if (!currentUserId) return tasks
+    return tasks.filter((t) => {
+      const isAssigned = t.assignments?.some((a) => a.user?.id === currentUserId)
+      const isCreator = t.creator?.id === currentUserId
+      return isAssigned || isCreator
+    })
+  }, [tasks, currentUserId])
 
-  // Unique Task Names List (from user's accessible tasks)
-  const uniqueTaskNames = Array.from(new Set(userOnlyTasks.map((t) => t.title).filter(Boolean)))
+  // Aggregate user filter options for Admin (only users assigned to or creating the user's tasks)
+  const userFilterOptions = useMemo(() => {
+    const map = new Map<string, { id: string; name: string; email?: string }>()
 
-  // Filter Tasks for current user by Task Name & Search Query
-  const filteredTasks = userOnlyTasks.filter((t) => {
-    // 1. Task Name Filter
-    let taskNameMatch = true
-    if (selectedTaskName !== "ALL") {
-      taskNameMatch = t.title === selectedTaskName
-    }
+    userOnlyTasks.forEach((t) => {
+      if (t.creator?.id && !map.has(t.creator.id)) {
+        map.set(t.creator.id, {
+          id: t.creator.id,
+          name: t.creator.name || t.creator.email || "Unknown User",
+          email: t.creator.email || "",
+        })
+      }
+      t.assignments?.forEach((a) => {
+        if (a.user?.id && !map.has(a.user.id)) {
+          map.set(a.user.id, {
+            id: a.user.id,
+            name: a.user.name || a.user.email || "Unknown User",
+            email: a.user.email || "",
+          })
+        }
+      })
+    })
 
-    // 2. Search Query Filter
-    let searchMatch = true
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase()
-      const inTitle = t.title.toLowerCase().includes(q)
-      const inDesc = t.description?.toLowerCase().includes(q) ?? false
-      searchMatch = inTitle || inDesc
-    }
+    return Array.from(map.values())
+  }, [userOnlyTasks])
 
-    return taskNameMatch && searchMatch
-  })
+  // Unique Task Names List (from accessible tasks)
+  const uniqueTaskNames = useMemo(() => {
+    return Array.from(new Set(userOnlyTasks.map((t) => t.title).filter(Boolean)))
+  }, [userOnlyTasks])
+
+  // Filter Tasks by Task Name, Search Query, and User (Admin only)
+  const filteredTasks = useMemo(() => {
+    return userOnlyTasks.filter((t) => {
+      // 1. Task Name Filter
+      let taskNameMatch = true
+      if (selectedTaskName !== "ALL") {
+        taskNameMatch = t.title === selectedTaskName
+      }
+
+      // 2. Search Query Filter
+      let searchMatch = true
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase()
+        const inTitle = t.title.toLowerCase().includes(q)
+        const inDesc = t.description?.toLowerCase().includes(q) ?? false
+        searchMatch = inTitle || inDesc
+      }
+
+      // 3. User Filter (Admin Only) - Filters tasks by assigned user
+      let userMatch = true
+      if (isAdmin && selectedUserId !== "ALL") {
+        const isAssigned = t.assignments?.some((a) => a.user?.id === selectedUserId)
+        const isCreator = t.creator?.id === selectedUserId
+        userMatch = isAssigned || isCreator
+      }
+
+      return taskNameMatch && searchMatch && userMatch
+    })
+  }, [userOnlyTasks, selectedTaskName, searchQuery, isAdmin, selectedUserId])
 
   const activeFiltersCount =
     (selectedTaskName !== "ALL" ? 1 : 0) +
-    (searchQuery.trim() ? 1 : 0)
+    (searchQuery.trim() ? 1 : 0) +
+    (isAdmin && selectedUserId !== "ALL" ? 1 : 0)
 
   const clearFilters = () => {
     setSelectedTaskName("ALL")
     setSearchQuery("")
+    setSelectedUserId("ALL")
   }
 
   // Range helpers & colors
@@ -514,7 +566,7 @@ export default function TaskCalendarPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className={`grid grid-cols-1 ${isAdmin ? "sm:grid-cols-3" : "sm:grid-cols-2"} gap-3`}>
           {/* 1. Search Input */}
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
@@ -527,33 +579,70 @@ export default function TaskCalendarPage() {
           </div>
 
           {/* 2. Task Name Dropdown Filter */}
+          <div className="relative">
+            <Select value={selectedTaskName} onValueChange={(val) => setSelectedTaskName(val)}>
+              <SelectTrigger className="h-9 text-xs bg-slate-50 dark:bg-slate-800/50 border-slate-200/80 dark:border-slate-700/80 rounded-xl">
+                <div className="flex items-center gap-2 truncate">
+                  <ListTodo className="h-3.5 w-3.5 text-purple-500 shrink-0" />
+                  <SelectValue placeholder="Filter by Task Name" />
+                </div>
+              </SelectTrigger>
+              <SelectContent className="rounded-xl max-h-64">
+                <SelectItem value="ALL" className="text-xs font-semibold">
+                  All Task Names ({uniqueTaskNames.length})
+                </SelectItem>
+                <SelectGroup>
+                  <SelectLabel className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+                    Task Titles
+                  </SelectLabel>
+                  {uniqueTaskNames.map((name) => (
+                    <SelectItem key={name} value={name} className="text-xs">
+                      <span className="truncate">{name}</span>
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* 3. User Dropdown Filter (Admin Only) */}
+          {isAdmin && (
             <div className="relative">
-              <Select value={selectedTaskName} onValueChange={(val) => setSelectedTaskName(val)}>
+              <Select value={selectedUserId} onValueChange={(val) => setSelectedUserId(val)}>
                 <SelectTrigger className="h-9 text-xs bg-slate-50 dark:bg-slate-800/50 border-slate-200/80 dark:border-slate-700/80 rounded-xl">
                   <div className="flex items-center gap-2 truncate">
-                    <ListTodo className="h-3.5 w-3.5 text-purple-500 shrink-0" />
-                    <SelectValue placeholder="Filter by Task Name" />
+                    <UserIcon className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
+                    <SelectValue placeholder="Filter by User" />
                   </div>
                 </SelectTrigger>
                 <SelectContent className="rounded-xl max-h-64">
                   <SelectItem value="ALL" className="text-xs font-semibold">
-                    All Task Names ({uniqueTaskNames.length})
+                    All Users ({userFilterOptions.length})
                   </SelectItem>
                   <SelectGroup>
                     <SelectLabel className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
-                      Task Titles
+                      Assigned Users
                     </SelectLabel>
-                    {uniqueTaskNames.map((name) => (
-                      <SelectItem key={name} value={name} className="text-xs">
-                        <span className="truncate">{name}</span>
+                    {userFilterOptions.map((u) => (
+                      <SelectItem key={u.id} value={u.id} className="text-xs">
+                        <div className="flex items-center gap-1.5 truncate">
+                          <UserCheck className="h-3 w-3 text-indigo-500 shrink-0" />
+                          <span className="truncate">{u.name}</span>
+                          {u.email && (
+                            <span className="text-[10px] text-slate-400 font-normal">
+                              ({u.email})
+                            </span>
+                          )}
+                        </div>
                       </SelectItem>
                     ))}
                   </SelectGroup>
                 </SelectContent>
               </Select>
             </div>
-          </div>
+          )}
         </div>
+      </div>
 
       {/* Metric Cards Row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

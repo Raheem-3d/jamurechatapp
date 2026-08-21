@@ -9,24 +9,24 @@ import { checkSuperAdmin } from "@/lib/permissions"
  */
 export async function GET(
   req: Request,
-  { params }: { params: { userId: string } }
+  { params }: { params: Promise<{ userId: string }> | { userId: string } }
 ) {
   try {
+    const { userId } = await params
     const user = await getSessionUserWithPermissions()
     checkSuperAdmin(user.isSuperAdmin)
 
     const targetUser = await db.user.findUnique({
-      where: { id: params.userId },
+      where: { id: userId },
       include: {
         organization: true,
         department: true,
         _count: {
           select: {
-            createdTasks: true,
-            assignedTasks: true,
-            sentMessages: true,
-            receivedMessages: true,
-            channelMembers: true,
+            task: true,
+            taskassignment: true,
+            message_message_receiverIdTouser: true,
+            channelmember: true,
           },
         },
       },
@@ -55,16 +55,17 @@ export async function GET(
  */
 export async function PATCH(
   req: Request,
-  { params }: { params: { userId: string } }
+  { params }: { params: Promise<{ userId: string }> | { userId: string } }
 ) {
   try {
+    const { userId } = await params
     const user = await getSessionUserWithPermissions()
     checkSuperAdmin(user.isSuperAdmin)
 
     const data = await req.json()
 
     const updatedUser = await db.user.update({
-      where: { id: params.userId },
+      where: { id: userId },
       data: {
         name: data.name,
         email: data.email,
@@ -100,14 +101,15 @@ export async function PATCH(
  */
 export async function DELETE(
   req: Request,
-  { params }: { params: { userId: string } }
+  { params }: { params: Promise<{ userId: string }> | { userId: string } }
 ) {
   try {
+    const { userId } = await params
     const user = await getSessionUserWithPermissions()
     checkSuperAdmin(user.isSuperAdmin)
 
     await db.user.delete({
-      where: { id: params.userId },
+      where: { id: userId },
     })
 
     return NextResponse.json({ message: "User deleted successfully" })

@@ -135,6 +135,7 @@ export async function PUT(
         // ✅ Create Notification
         const notification = await db.notification.create({
           data: {
+            id: crypto.randomUUID(),
             type: "TASK_ASSIGNED",
             content: `You were added to channel "${channel.name}" by ${isCurrentUserAdmin}.`,
             userId: userId,

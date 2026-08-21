@@ -48,8 +48,8 @@ export async function GET(req: Request) {
         createdAt: true,
         _count: {
           select: {
-            assignedTasks: true,
-            sentMessages: true,
+            taskassignment: true,
+            message_message_senderIdTouser: true,
           },
         },
       },

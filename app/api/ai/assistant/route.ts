@@ -6,7 +6,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { getPerplexityClient } from '@/lib/perplexity-client';
+import { getPerplexityClient, getAIClientForOrg } from '@/lib/perplexity-client';
 
 export const maxDuration = 120; // 2 minutes for local AI processing
 
@@ -38,28 +38,17 @@ export async function POST(req: NextRequest) {
     const userId = session.user.id;
     const userRole = session.user.role;
     const organizationId = session.user.organizationId;
+    const isEmployee = userRole === 'EMPLOYEE' || userRole === 'ORG_MEMBER';
 
-    // Role-based filtering
-    const isOrgAdmin = userRole === 'ORG_ADMIN';
-    const isOrgMember = userRole === 'ORG_MEMBER';
-    const isEmployee = userRole === 'EMPLOYEE';
-    const isManager = userRole === 'MANAGER';
-    const isSuperAdmin = userRole === 'SUPER_ADMIN';
-    
-    // For ORG_ADMIN, ORG_MEMBER, MANAGER, and SUPER_ADMIN: show organization-wide data
-    // For EMPLOYEE: show only their own tasks and related information
-    const canViewOrgData = isOrgAdmin || isOrgMember || isManager || isSuperAdmin;
-
-    // Gather project context based on role
-    const taskFilter = canViewOrgData 
-      ? { organizationId }
-      : { 
-          organizationId,
-          OR: [
-            { creatorId: userId },
-            { assignments: { some: { userId } } }
-          ]
-        };
+    // STRICT USER SCOPE:
+    // Both Admin and Employee only see projects/tasks they created or are assigned to
+    const taskFilter = {
+      organizationId,
+      OR: [
+        { creatorId: userId },
+        { assignments: { some: { userId } } },
+      ],
+    };
 
     const tasks = await db.task.findMany({
       where: taskFilter,
@@ -71,21 +60,14 @@ export async function POST(req: NextRequest) {
       orderBy: { createdAt: 'desc' },
     });
 
-    // For messages, employees only see their own or messages in channels they're part of
-    const messageFilter = canViewOrgData
-      ? {
-          OR: [
-            { channel: { organizationId } },
-            { sender: { organizationId } }
-          ]
-        }
-      : {
-          OR: [
-            { senderId: userId },
-            { receiverId: userId },
-            { channel: { members: { some: { userId } } } }
-          ]
-        };
+    // For messages, users only see DMs sent/received or messages in channels they are members of
+    const messageFilter = {
+      OR: [
+        { senderId: userId },
+        { receiverId: userId },
+        { channel: { members: { some: { userId } } } },
+      ],
+    };
 
     const messages = await db.message.findMany({
       where: messageFilter,
@@ -97,70 +79,84 @@ export async function POST(req: NextRequest) {
     // Format context for AI
     const userName = session.user.name || 'User';
     
-    const tasksText = tasks
-      .map(
-        (t: any) => {
-          const assigneeNames = t.assignments.map((a: any) => a.user.name).join(', ') || 'Unassigned';
-          const isAssignedToUser = t.assignments.some((a: any) => a.userId === userId);
-          const isCreatedByUser = t.creatorId === userId;
-          
-          if (isEmployee) {
-            // For employees, make it clear which tasks are theirs
-            return `- ${t.title} (${t.status})${isAssignedToUser ? ' [Assigned to you]' : isCreatedByUser ? ' [Created by you]' : ''}`;
-          } else {
-            // For admins/managers, show full assignment details
-            return `- ${t.title} (${t.status}) - Assigned: ${assigneeNames}`;
-          }
-        }
-      )
-      .join('\n');
+    const tasksText = tasks.length > 0
+      ? tasks
+          .map((t: any) => {
+            // Deduplicate unique assignee names to prevent prompt pollution and repetition loops
+            const uniqueAssigneeNames = Array.from(
+              new Set(
+                (t.assignments || [])
+                  .map((a: any) => a.user?.name || a.user?.email)
+                  .filter(Boolean)
+              )
+            );
+            const assigneeNames = uniqueAssigneeNames.slice(0, 5).join(', ') || 'Unassigned';
+            const extraAssigneesCount = uniqueAssigneeNames.length > 5 ? ` +${uniqueAssigneeNames.length - 5} more` : '';
+            const finalAssignees = `${assigneeNames}${extraAssigneesCount}`;
+            
+            const isAssignedToUser = t.assignments.some((a: any) => a.userId === userId);
+            const isCreatedByUser = t.creatorId === userId;
+            
+            return `- Project/Task: "${t.title}" | Status: ${t.status} | Priority: ${t.priority} | Assignees: ${finalAssignees}${
+              isAssignedToUser ? ' [Assigned to you]' : ''
+            }${isCreatedByUser ? ' [Created by you]' : ''}`;
+          })
+          .join('\n')
+      : 'No active projects or tasks found.';
 
-    const messagesText = messages
-      .slice(0, 20)
-      .map((m: any) => `${m.sender.name}: ${m.content}`)
-      .join('\n');
+    const messagesText = messages.length > 0
+      ? messages
+          .slice(0, 10)
+          .map((m: any) => `${m.sender.name}: ${m.content}`)
+          .join('\n')
+      : 'No recent messages.';
 
-    const roleContext = canViewOrgData 
-      ? 'You have access to organization-wide data including all tasks and team discussions.'
-      : `You have access only to tasks you created or are assigned to. The user's name is "${userName}".`;
+    const scopeNotice = isEmployee
+      ? "You are an AI Assistant for an EMPLOYEE. You ONLY have access to tasks they created or are assigned to."
+      : "You are an AI Assistant for a PROJECT ADMIN. You ONLY have access to projects/tasks created by or assigned to this user.";
 
     const contextText = `
 User Name: ${userName}
 User Role: ${userRole}
-${roleContext}
+${scopeNotice}
 
-Project Overview:
-- Total Tasks (visible to you): ${tasks.length}
-- Recent Tasks:\n${tasksText}
+User's Created / Assigned Projects & Tasks (${tasks.length} total):
+${tasksText}
 
-Recent Team Discussions:\n${messagesText}
+Recent Discussions:
+${messagesText}
 `;
 
     // Get AI response
-    const perplexity = getPerplexityClient();
+    const perplexity = await getAIClientForOrg(organizationId);
     
-    // If frontend provides a mode-specific system prompt, use it; otherwise fall back to role-based default
-    const defaultSystemPrompt = canViewOrgData
-      ? `You are an intelligent project management assistant. Help users with insights about their organization, projects, tasks, team performance, and provide actionable recommendations. You have access to organization-wide data.
+    const defaultSystemPrompt = isEmployee
+      ? `You are an intelligent personal project assistant. Your job is to help this employee with their personal tasks, deadlines, priorities, and project descriptions.
+      
+CRITICAL FORMATTING & CONTENT INSTRUCTIONS:
+- LANGUAGE: Answer in the user's language (English, Roman Urdu, or Hindi). If asked in Roman Urdu (e.g., "mere projects kon kon se hai.?"), reply politely in Roman Urdu or English.
+- TABLE FORMAT: Whenever asked for a list of projects, tasks, or status overview, ALWAYS format them in a clean, beautiful Markdown Table like this:
+| # | Project / Task Title | Status | Priority | Assignees |
+|---|---|---|---|---|
+| 1 | **CRM Project** | DONE | URGENT | Faisal Mohammed, Soef Shaikh |
+- List each project ONCE. Do NOT output unformatted raw lines or repetitive assignee text.
+- Provide a brief 1-sentence summary below the table.
+- DO NOT answer team-management or organization-wide questions outside their scope.`
+      : `You are an intelligent project management co-pilot. Your job is to help this admin with insights, planning, status updates, and reports for the projects they have created or are assigned to.
 
-Guidelines:
-- Provide clear, concise answers
-- Use bullet points for lists
-- Focus on actionable insights
-- Be professional but friendly`
-      : `You are an intelligent project management assistant. Help this employee with insights about their own tasks, assignments, and personal productivity. You only have access to tasks they created or are assigned to. Do not provide organization-wide analytics or team-wide insights.
-
-Guidelines:
-- Be concise and direct - answer what they asked
-- Only show tasks assigned to or created by them
-- Don't mention tasks assigned to others
-- Use simple bullet points
-- Focus on their personal productivity
-- Skip unnecessary explanations or context
-- Format: Just list their active tasks if asked about current tasks`;
+CRITICAL FORMATTING & CONTENT INSTRUCTIONS:
+- LANGUAGE: Answer in the user's language (English, Roman Urdu, or Hindi). If asked in Roman Urdu (e.g., "mere projects kon kon se hai.?"), reply politely in Roman Urdu or English.
+- TABLE FORMAT: Whenever asked for a list of projects, tasks, status overview, or reports, ALWAYS format the data in a clean, beautiful Markdown Table like this:
+| # | Project / Task Title | Status | Priority | Assignees |
+|---|---|---|---|---|
+| 1 | **CRM Project** | DONE | URGENT | Faisal Mohammed, Soef Shaikh |
+- List each project ONCE cleanly with its Title, Status, Priority, and Assignees.
+- NEVER repeat assignee names or duplicate text.
+- Include a brief 1-sentence summary or next steps below the table.
+- ONLY reference tasks and projects created by or assigned to this admin.`;
 
     const systemPrompt = systemPromptOverride
-      ? `${systemPromptOverride}\n\nAccess scope: ${canViewOrgData ? 'Full organization data available.' : 'Only the user\'s own tasks are available.'}`
+      ? `${systemPromptOverride}\n\n${defaultSystemPrompt}`
       : defaultSystemPrompt;
 
     const response = await perplexity.chat([

@@ -21,7 +21,8 @@ export async function GET(req: NextRequest) {
   try {
     // If channelId -> return channel members as mentionables
     if (channelId) {
-      const members = await db.channelMember.findMany({
+      const channelMemberDb = (db as any).channelmember || (db as any).channelMember;
+      const members = await channelMemberDb.findMany({
         where: { channelId },
         include: {
           user: { select: { id: true, name: true, image: true } },

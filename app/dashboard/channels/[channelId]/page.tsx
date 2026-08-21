@@ -9,6 +9,9 @@ import RealTimeMessages from "@/components/real-time-messages"
 import MessageInput from "@/components/message-input"
 import DirectMessageClient from "@/components/DirectMessageClient"
 
+import { isSuperAdmin as checkIsSuperAdmin } from "@/lib/org"
+import { randomUUID } from "crypto"
+
 export default async function ChannelPage({
   params,
 }: {
@@ -42,7 +45,7 @@ export default async function ChannelPage({
 
   // Attach channel image via raw SQL
   try {
-    const rows: any[] = await db.$queryRawUnsafe(`SELECT image FROM \`Channel\` WHERE id = ?`, channel.id)
+    const rows: any[] = await db.$queryRawUnsafe(`SELECT image FROM \`channel\` WHERE id = ?`, channel.id)
     if (rows && rows[0]) {
       (channel as any).image = rows[0].image || null
     }
@@ -52,9 +55,40 @@ export default async function ChannelPage({
 
   // Check if user is a member of the channel
   const userId = (session as any)?.user?.id as string | undefined
-  const isMember = channel.members.some((member: any) => member.userId === userId)
+  const userRole = (session as any)?.user?.role
+  const userEmail = (session as any)?.user?.email
+  const userIsSuperAdmin = Boolean((session as any)?.user?.isSuperAdmin || checkIsSuperAdmin(userEmail))
 
-  if (!isMember && !channel.isPublic) {
+  let isMember = channel.members.some((member: any) => member.userId === userId)
+  const isCreator = channel.creatorId === userId
+  const isAdmin = userIsSuperAdmin || ["SUPER_ADMIN", "ORG_ADMIN", "ADMIN", "MANAGER"].includes(userRole)
+
+  // Auto-heal membership if user is creator, admin, or channel is public
+  if (!isMember && userId && (isCreator || isAdmin || channel.isPublic)) {
+    try {
+      await db.channelMember.upsert({
+        where: {
+          userId_channelId: {
+            userId,
+            channelId: channel.id,
+          },
+        },
+        create: {
+          id: randomUUID(),
+          userId,
+          channelId: channel.id,
+          isAdmin: isCreator || isAdmin,
+          updatedAt: new Date(),
+        },
+        update: {},
+      })
+      isMember = true
+    } catch (e) {
+      console.error("Auto-heal channel membership error:", e)
+    }
+  }
+
+  if (!isMember && !channel.isPublic && !isAdmin) {
     // If not a member and channel is private, redirect
     redirect("/dashboard")
   }

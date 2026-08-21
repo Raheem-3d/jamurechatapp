@@ -189,7 +189,7 @@ export function WhatsAppMessageSearch({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl shadow-2xl p-0 overflow-hidden max-w-xl sm:max-w-2xl w-[95vw]">
+      <DialogContent className="rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl shadow-2xl p-0 overflow-hidden max-w-xl sm:max-w-2xl w-[95vw] [&>button]:hidden">
         {/* Header */}
         <DialogHeader className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 space-y-3">
           <div className="flex items-center justify-between gap-3">
@@ -198,28 +198,40 @@ export function WhatsAppMessageSearch({
               Datewise Message Search
             </DialogTitle>
 
-            {/* Results Navigation Counter */}
-            {results.length > 0 && (
-              <div className="flex items-center gap-1 bg-white dark:bg-slate-950 p-1 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs">
-                <span className="text-xs font-bold text-slate-700 dark:text-slate-300 px-2">
-                  {selectedIndex + 1} of {results.length}
-                </span>
-                <button
-                  onClick={handlePrev}
-                  className="p-1 rounded-lg text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
-                  title="Previous match (Up)"
-                >
-                  <ChevronUp className="h-4 w-4" />
-                </button>
-                <button
-                  onClick={handleNext}
-                  className="p-1 rounded-lg text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800"
-                  title="Next match (Down)"
-                >
-                  <ChevronDown className="h-4 w-4" />
-                </button>
-              </div>
-            )}
+            <div className="flex items-center gap-2">
+              {/* Results Navigation Counter */}
+              {results.length > 0 && (
+                <div className="flex items-center gap-1 bg-white dark:bg-slate-950 p-1 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs">
+                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300 px-2">
+                    {selectedIndex + 1} of {results.length}
+                  </span>
+                  <button
+                    onClick={handlePrev}
+                    className="p-1 rounded-lg text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                    title="Previous match (Up)"
+                  >
+                    <ChevronUp className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={handleNext}
+                    className="p-1 rounded-lg text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                    title="Next match (Down)"
+                  >
+                    <ChevronDown className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
+
+              {/* Explicit Header Close Button */}
+              <button
+                type="button"
+                onClick={onClose}
+                className="h-8 w-8 rounded-full flex items-center justify-center text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 bg-white dark:bg-slate-950 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200/80 dark:border-slate-800 shadow-2xs transition-colors shrink-0"
+                title="Close modal"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
           </div>
 
           {/* Real-time Search Input */}

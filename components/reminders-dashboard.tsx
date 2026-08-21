@@ -309,7 +309,7 @@ export function RemindersDashboard({ currentUser, reminders: initialReminders, u
                         {reminder.title}
                       </h3>
                       {getPriorityBadge(reminder.priority)}
-                      {reminder.isMuted && (
+                      {Boolean(reminder.isMuted) && (
                         <Badge variant="outline" className="text-[9px] font-semibold border-rose-200 text-rose-600 bg-rose-50 dark:bg-rose-950/40 px-1.5 py-0">
                           Muted
                         </Badge>

@@ -123,7 +123,7 @@ export async function GET(req: Request) {
             name: true,
           },
         },
-        Stage: {
+        stage: {
           select: {
             id: true,
             name: true,
@@ -224,6 +224,7 @@ export async function POST(req: Request) {
       // Preferred path: stores deadlineStart/deadlineEnd when available in DB schema
       task = await db.task.create({
         data: {
+          id: crypto.randomUUID(),
           title,
           description,
           priority,
@@ -235,6 +236,7 @@ export async function POST(req: Request) {
           deadlineEnd: deadlineEnd ?? null,
           creatorId: user.id,
           organizationId: user?.organizationId || undefined,
+          updatedAt: new Date(),
         },
         include: {
           creator: {
@@ -253,12 +255,14 @@ export async function POST(req: Request) {
       if (msg.includes("Unknown argument `deadlineStart`") || msg.includes("deadlineStart") || msg.includes("deadlineEnd")) {
         task = await db.task.create({
           data: {
+            id: crypto.randomUUID(),
             title,
             description,
             priority,
             deadline: finalDeadline,
             creatorId: user.id,
             organizationId: user?.organizationId || undefined,
+            updatedAt: new Date(),
           },
           include: {
             creator: {
@@ -407,6 +411,7 @@ const channel = await db.channel.create({
         // Create notification
         const notification = await db.notification.create({
           data: {
+            id: crypto.randomUUID(),
             type: "TASK_ASSIGNED",
             content: `You have been assigned to task: ${task.title}`,
             userId: assigneeId,
@@ -552,6 +557,7 @@ const channel = await db.channel.create({
           // Create notification
           const notification = await db.notification.create({
             data: {
+              id: crypto.randomUUID(),
               type: "TASK_ASSIGNED",
               content: `You have been given ${access} access to task: ${task.title}`,
               userId: clientUser.id,
@@ -781,6 +787,7 @@ export async function PUT(req: Request, { params }: { params: { taskId: string }
 
       const notification = await db.notification.create({
         data: {
+          id: crypto.randomUUID(),
           type: "TASK_ASSIGNED",
           content: notificationContent,
           userId: assignment.userId,
@@ -860,6 +867,7 @@ async function createAutomaticTaskReminders(targetTaskId: string, taskTitle: str
         reminderPromises.push(
           db.reminder.create({
             data: {
+              id: crypto.randomUUID(),
               title: `Task Deadline Reminder: ${taskTitle}`,
               description: `This is an automatic reminder for your task "${taskTitle}" which is due ${interval.label}.`,
               remindAt: reminderTime,
@@ -869,6 +877,7 @@ async function createAutomaticTaskReminders(targetTaskId: string, taskTitle: str
               assigneeId: assigneeId,
               taskId: validTaskId,
               isAutomatic: true,
+              updatedAt: new Date(),
             },
           }),
         )

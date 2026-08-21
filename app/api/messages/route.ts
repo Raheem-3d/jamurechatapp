@@ -54,6 +54,7 @@ export async function POST(req: Request) {
 
     const message = await db.message.create({
       data: {
+        id: crypto.randomUUID(),
         content: hasContent ? content.trim() : "",
         senderId: currentUser.id,
         channelId: channelId || null,
@@ -66,8 +67,9 @@ export async function POST(req: Request) {
         attachments: normalizedFiles ? (normalizedFiles as any) : undefined,
         pinnedMessageId: pinnedMessageId || null,
 
-        // ✅ reactions ko seed karo (refresh-safe)
-        reactions: [] as any,
+        // ✅ reactions stored as stringified JSON
+        reactions: "[]",
+        updatedAt: new Date(),
       },
       select: {
         id: true,
@@ -89,7 +91,7 @@ export async function POST(req: Request) {
         sender: { select: { id: true, name: true, email: true, image: true } },
         receiver: { select: { id: true, name: true, email: true, image: true } },
         pinnedMessageId: true,
-        pinnedMessage: {
+        message: {
           select: { id: true, content: true, sender: { select: { name: true } } },
         },
       },
@@ -98,8 +100,8 @@ export async function POST(req: Request) {
     const enriched = {
       ...message,
       clientId: clientId || null,
-      pinnedAuthor: message.pinnedMessage?.sender?.name ?? null,
-      pinnedPreview: message.pinnedMessage?.content?.slice(0, 160) ?? null,
+      pinnedAuthor: (message as any).message?.sender?.name ?? null,
+      pinnedPreview: (message as any).message?.content?.slice(0, 160) ?? null,
     }
 
     // 🚀 Performance Optimization: Cache message in Redis & Stream to Kafka
@@ -154,6 +156,7 @@ export async function POST(req: Request) {
     if (receiverId && receiverId !== currentUser.id) {
       const notification = await db.notification.create({
         data: {
+          id: crypto.randomUUID(),
           type: "DIRECT_MESSAGE",
           content: `New message from ${currentUser.name}: ${
             content ? content.substring(0, 50) + (content.length > 50 ? "..." : "") : "Sent a file"
@@ -173,7 +176,8 @@ export async function POST(req: Request) {
     }
 
     if (channelId) {
-      const channelMembers = await db.channelMember.findMany({
+      const channelMemberDb = (db as any).channelmember || (db as any).channelMember;
+      const channelMembers = await channelMemberDb.findMany({
         where: { channelId, userId: { not: currentUser.id } },
         include: { user: true },
       })
@@ -182,6 +186,7 @@ export async function POST(req: Request) {
       for (const member of channelMembers) {
         const notification = await db.notification.create({
           data: {
+            id: crypto.randomUUID(),
             type: "CHANNEL_MESSAGE",
             content: `New message in #${channel?.name || "channel"} from ${currentUser.name}: ${
               content ? content.substring(0, 50) + (content.length > 50 ? "..." : "") : "Sent a file"

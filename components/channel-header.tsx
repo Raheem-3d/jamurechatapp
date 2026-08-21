@@ -230,7 +230,7 @@ export default function ChannelHeader({ channel }: ChannelHeaderProps) {
               <h2 className="font-bold text-slate-900 dark:text-white text-base leading-tight">
                 {channel.name}
               </h2>
-              {channel.department && (
+              {Boolean(channel.department) && (
                 <Badge
                   variant="secondary"
                   className="bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-extrabold text-[10px] px-2 py-0.5"
@@ -238,7 +238,7 @@ export default function ChannelHeader({ channel }: ChannelHeaderProps) {
                   {channel.department.name}
                 </Badge>
               )}
-              {channel.isTaskThread && channel.task && (
+              {Boolean(channel.isTaskThread && channel.task) && (
                 <Badge
                   variant="secondary"
                   className="bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 font-extrabold text-[10px] px-2 py-0.5"

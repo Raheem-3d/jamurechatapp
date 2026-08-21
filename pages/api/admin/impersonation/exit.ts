@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { getToken } from 'next-auth/jwt'
-import prisma from '@/prisma/client'
+import { db } from '@/lib/db'
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -21,7 +21,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const userId = (token as any)?.id as string | undefined
     if (orgId) {
-      await prisma.activityLog.create({ data: { organizationId: orgId, userId: userId || null, action: 'IMPERSONATE_END', details: { actorEmail: email } } })
+      await db.activitylog.create({ data: { organizationId: orgId, userId: userId || null, action: 'IMPERSONATE_END', details: { actorEmail: email } } })
     }
   } catch {}
 

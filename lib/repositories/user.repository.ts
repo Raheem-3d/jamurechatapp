@@ -1,12 +1,9 @@
 import { db } from "@/lib/db";
-import { Prisma, User, Role } from "@prisma/client";
 import { logger } from "@/lib/logger";
 import { DatabaseError, NotFoundError, ConflictError } from "@/lib/errors/app-error";
 import bcrypt from "bcryptjs";
 
-/**
- * User Repository - Centralized data access for users
- */
+export type Role = "SUPER_ADMIN" | "ORG_ADMIN" | "MANAGER" | "EMPLOYEE" | "ORG_MEMBER" | "CLIENT";
 
 export interface UserFilters {
   organizationId?: string;
@@ -27,7 +24,6 @@ export class UserRepository {
     departmentId: true,
     createdAt: true,
     updatedAt: true,
-    // Exclude password by default
   };
 
   async findById(userId: string, includePassword = false) {
@@ -115,17 +111,15 @@ export class UserRepository {
     }
   }
 
-  async create(data: Prisma.UserCreateInput) {
+  async create(data: any) {
     try {
       logger.database("Creating user", { email: data.email });
 
-      // Check if user already exists
       const existing = await this.findByEmail(data.email);
       if (existing) {
         throw new ConflictError("User with this email already exists");
       }
 
-      // Hash password if provided
       if (data.password) {
         data.password = await bcrypt.hash(data.password, 10);
       }
@@ -144,11 +138,10 @@ export class UserRepository {
     }
   }
 
-  async update(userId: string, data: Prisma.UserUpdateInput) {
+  async update(userId: string, data: any) {
     try {
       logger.database("Updating user", { userId });
 
-      // Hash password if being updated
       if (data.password && typeof data.password === "string") {
         data.password = await bcrypt.hash(data.password, 10);
       }
@@ -206,8 +199,8 @@ export class UserRepository {
     }
   }
 
-  private buildWhereClause(filters: UserFilters): Prisma.UserWhereInput {
-    const where: Prisma.UserWhereInput = {};
+  private buildWhereClause(filters: UserFilters): any {
+    const where: any = {};
 
     if (filters.organizationId) {
       where.organizationId = filters.organizationId;
@@ -222,15 +215,11 @@ export class UserRepository {
     }
 
     if (filters.search) {
-      where.OR = [
-        { name: { contains: filters.search } },
-        { email: { contains: filters.search } },
-      ];
+      where.name = { contains: filters.search };
     }
 
     return where;
   }
 }
 
-// Singleton instance
 export const userRepository = new UserRepository();

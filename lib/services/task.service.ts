@@ -1,4 +1,4 @@
-import { taskRepository, TaskFilters, PaginationOptions } from "@/lib/repositories/task.repository";
+import { taskRepository, TaskFilters, PaginationOptions, TaskPriority, TaskStatus } from "@/lib/repositories/task.repository";
 import { userRepository } from "@/lib/repositories/user.repository";
 import { logger } from "@/lib/logger";
 import { 
@@ -6,7 +6,6 @@ import {
   NotFoundError, 
   ValidationError 
 } from "@/lib/errors/app-error";
-import { TaskPriority, TaskStatus } from "@prisma/client";
 import { db } from "@/lib/db";
 import { emitToUser } from "@/lib/socket-server";
 

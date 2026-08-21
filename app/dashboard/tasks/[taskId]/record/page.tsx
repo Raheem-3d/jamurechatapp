@@ -357,7 +357,7 @@ export default function TaskManagement() {
               setAiEnabled(payload.organization.aiEnabled);
             }
           })
-          .catch(() => {});
+          .catch(() => { });
 
         await Promise.all([
           fetchTasks(),
@@ -376,7 +376,30 @@ export default function TaskManagement() {
     fetchData();
   }, []);
 
-  // Socket listeners for real-time updates design or
+  // Listen for window events when Jamure AI generates tasks/stages
+  useEffect(() => {
+    const handleReload = () => {
+      console.log("🔔 Jamure AI event received - reloading records and stages dynamically");
+      fetchTasks();
+      fetchStages();
+      fetchActivity();
+      try {
+        router.refresh();
+      } catch {}
+    };
+
+    window.addEventListener("task:created", handleReload);
+    window.addEventListener("task:assigned", handleReload);
+    window.addEventListener("project:created", handleReload);
+    window.addEventListener("project:updated", handleReload);
+
+    return () => {
+      window.removeEventListener("task:created", handleReload);
+      window.removeEventListener("task:assigned", handleReload);
+      window.removeEventListener("project:created", handleReload);
+      window.removeEventListener("project:updated", handleReload);
+    };
+  }, []);
   useEffect(() => {
     if (!socket) return;
 
@@ -683,6 +706,9 @@ export default function TaskManagement() {
         setTasks((prev) =>
           prev.map((t) => (t.id === taskid ? { ...t, ...(updates as any) } : t)),
         );
+        setSelectedTask((prev: any) =>
+          prev && prev.id === taskid ? { ...prev, ...(updates as any) } : prev,
+        );
         return true;
       }
 
@@ -691,6 +717,9 @@ export default function TaskManagement() {
       // ⚡ Optimistic UI Update: Instant local state update (0ms delay)
       setTasks((prev) =>
         prev.map((t) => (t.id === taskid ? { ...t, ...updates } : t)),
+      );
+      setSelectedTask((prev: any) =>
+        prev && prev.id === taskid ? { ...prev, ...updates } : prev,
       );
 
       // Send update to server
@@ -711,6 +740,9 @@ export default function TaskManagement() {
       const newTaskState = updatedTask.task || updatedTask;
 
       setTasks((prev) => prev.map((t) => (t.id === taskid ? newTaskState : t)));
+      setSelectedTask((prev: any) =>
+        prev && prev.id === taskid ? { ...prev, ...newTaskState } : prev,
+      );
 
       if (!options?.silent) {
         toast.success("Task updated successfully");
@@ -985,8 +1017,15 @@ export default function TaskManagement() {
 
     let description = triggerDescriptions[trigger] || trigger;
 
-    conditions.forEach((condition) => {
-      if (!condition.value) return;
+    let condList: any[] = [];
+    if (typeof conditions === "string") {
+      try { condList = JSON.parse(conditions); } catch { condList = []; }
+    } else if (Array.isArray(conditions)) {
+      condList = conditions;
+    }
+
+    condList.forEach((condition) => {
+      if (!condition || !condition.value) return;
 
       switch (condition.field) {
         case "task_id":
@@ -1041,12 +1080,19 @@ export default function TaskManagement() {
   };
 
   const getActionsDescription = (
-    actions: any[],
+    actions: any,
     // Add stages parameter
     // Add tags parameter
   ) => {
-    return actions
-      .filter((a) => a.type && a.value)
+    let list: any[] = [];
+    if (typeof actions === "string") {
+      try { list = JSON.parse(actions); } catch { list = []; }
+    } else if (Array.isArray(actions)) {
+      list = actions;
+    }
+
+    return list
+      .filter((a) => a && a.type && a.value)
       .map((action) => {
         const actionDescriptions: Record<string, string> = {
           move_stage: "Move to stage",
@@ -2742,7 +2788,7 @@ export default function TaskManagement() {
                     className="h-8 bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white font-semibold rounded-xl text-xs px-3 shadow-md shadow-purple-500/20 flex items-center gap-1.5 transition-all"
                   >
                     <Sparkles className="h-3.5 w-3.5 text-purple-200 animate-pulse" />
-                    <span>AI Co-Pilot ✨</span>
+                    <span>Jamure AI</span>
                   </Button>
 
                   <TaskFlowAIAssistantModal
@@ -2751,7 +2797,12 @@ export default function TaskManagement() {
                     target="EXISTING_PROJECT"
                     parentTaskId={taskId}
                     onSuccess={() => {
-                      router.refresh();
+                      fetchTasks();
+                      fetchStages();
+                      fetchActivity();
+                      try {
+                        router.refresh();
+                      } catch {}
                     }}
                   />
                 </>

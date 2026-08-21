@@ -7,9 +7,8 @@
  * Usage: npx tsx scripts/migrate-admin-to-org-admin.ts
  */
 
-import { PrismaClient } from "@prisma/client"
-
-const prisma = new PrismaClient()
+import { db } from "../lib/db"
+const prisma = db
 
 async function main() {
   console.log("🔄 Starting migration: ADMIN -> ORG_ADMIN")

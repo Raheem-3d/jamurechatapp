@@ -4,20 +4,21 @@ import { getSessionUserWithPermissions } from "@/lib/org"
 import { checkOrgAdmin, requirePermission } from "@/lib/permissions"
 
 // PATCH /api/org-admin/users/[userId] - update user within own org
-export async function PATCH(req: Request, { params }: { params: { userId: string } }) {
+export async function PATCH(req: Request, { params }: { params: Promise<{ userId: string }> | { userId: string } }) {
   try {
+    const { userId } = await params
     const admin = await getSessionUserWithPermissions()
     checkOrgAdmin(admin.role)
     requirePermission(admin.role, 'ORG_USERS_MANAGE', admin.isSuperAdmin)
     if (!admin.organizationId) return NextResponse.json({ message: 'No org' }, { status: 400 })
 
-    const target = await db.user.findUnique({ where: { id: params.userId }, select: { id: true, organizationId: true } })
+    const target = await db.user.findUnique({ where: { id: userId }, select: { id: true, organizationId: true } })
     if (!target || target.organizationId !== admin.organizationId) {
       return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
     }
     const body = await req.json()
     const { name, role, permissions } = body
-    const updated = await db.user.update({ where: { id: params.userId }, data: { name: name || undefined, role: role || undefined, permissions: Array.isArray(permissions) ? permissions : undefined }, select: { id: true, name: true, email: true, role: true, permissions: true } })
+    const updated = await db.user.update({ where: { id: userId }, data: { name: name || undefined, role: role || undefined, permissions: Array.isArray(permissions) ? permissions : undefined }, select: { id: true, name: true, email: true, role: true, permissions: true } })
     return NextResponse.json(updated)
   } catch (error: any) {
     console.error('Org-admin update user error', error)
@@ -26,19 +27,20 @@ export async function PATCH(req: Request, { params }: { params: { userId: string
 }
 
 // DELETE /api/org-admin/users/[userId] - delete user within own org
-export async function DELETE(req: Request, { params }: { params: { userId: string } }) {
+export async function DELETE(req: Request, { params }: { params: Promise<{ userId: string }> | { userId: string } }) {
   try {
+    const { userId } = await params
     const admin = await getSessionUserWithPermissions()
     checkOrgAdmin(admin.role)
     requirePermission(admin.role, 'ORG_USERS_MANAGE', admin.isSuperAdmin)
     if (!admin.organizationId) return NextResponse.json({ message: 'No org' }, { status: 400 })
 
-    const target = await db.user.findUnique({ where: { id: params.userId }, select: { id: true, organizationId: true } })
+    const target = await db.user.findUnique({ where: { id: userId }, select: { id: true, organizationId: true } })
     if (!target || target.organizationId !== admin.organizationId) {
       return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
     }
 
-    await db.user.delete({ where: { id: params.userId } })
+    await db.user.delete({ where: { id: userId } })
     return NextResponse.json({ success: true })
   } catch (error: any) {
     console.error('Org-admin delete user error', error)
@@ -47,8 +49,9 @@ export async function DELETE(req: Request, { params }: { params: { userId: strin
 }
 
 // POST override to support forms with _method=PATCH or DELETE
-export async function POST(req: Request, { params }: { params: { userId: string } }) {
+export async function POST(req: Request, { params }: { params: Promise<{ userId: string }> | { userId: string } }) {
   try {
+    const { userId } = await params
     const admin = await getSessionUserWithPermissions()
     checkOrgAdmin(admin.role)
     if (!admin.organizationId) return NextResponse.json({ message: 'No org' }, { status: 400 })
@@ -56,16 +59,16 @@ export async function POST(req: Request, { params }: { params: { userId: string 
     const method = form?.get('_method') || 'PATCH'
     if (method === 'DELETE') {
       requirePermission(admin.role, 'ORG_USERS_MANAGE', admin.isSuperAdmin)
-      const target = await db.user.findUnique({ where: { id: params.userId }, select: { id: true, organizationId: true } })
+      const target = await db.user.findUnique({ where: { id: userId }, select: { id: true, organizationId: true } })
       if (!target || target.organizationId !== admin.organizationId) {
         return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
       }
-      await db.user.delete({ where: { id: params.userId } })
+      await db.user.delete({ where: { id: userId } })
       return NextResponse.json({ success: true })
     }
     // PATCH fallback
     requirePermission(admin.role, 'ORG_USERS_MANAGE', admin.isSuperAdmin)
-    const target = await db.user.findUnique({ where: { id: params.userId }, select: { id: true, organizationId: true } })
+    const target = await db.user.findUnique({ where: { id: userId }, select: { id: true, organizationId: true } })
     if (!target || target.organizationId !== admin.organizationId) {
       return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
     }
@@ -80,7 +83,7 @@ export async function POST(req: Request, { params }: { params: { userId: string 
     } catch (_) {
       permissions = undefined
     }
-    const updated = await db.user.update({ where: { id: params.userId }, data: { name: name as any, role: role as any, permissions: permissions !== undefined ? permissions : undefined }, select: { id: true, name: true, email: true, role: true, permissions: true } })
+    const updated = await db.user.update({ where: { id: userId }, data: { name: name as any, role: role as any, permissions: permissions !== undefined ? permissions : undefined }, select: { id: true, name: true, email: true, role: true, permissions: true } })
     return NextResponse.json(updated)
   } catch (error: any) {
     console.error('Org-admin POST override error', error)

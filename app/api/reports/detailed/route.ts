@@ -111,9 +111,9 @@ export async function GET(req: Request) {
         assignments: {
           include: { user: { select: { id: true, name: true, email: true } } },
         },
-        Stage: true,
-        comments: { select: { id: true } },
-        TaskActivity: { orderBy: { timestamp: "asc" } },
+        stage: true,
+        taskcomment: { select: { id: true } },
+        taskactivity: { orderBy: { timestamp: "asc" } },
       },
       orderBy: { createdAt: "desc" },
     });
@@ -139,14 +139,18 @@ export async function GET(req: Request) {
       const isDone = t.status === "DONE";
       const isOverdue = !isDone && t.deadline && new Date(t.deadline) < now;
 
+      const activities = t.taskactivity || [];
+      const stages = t.stage || [];
+      const comments = t.taskcomment || [];
+
       if (isDone) {
         completedTasksCount++;
         const doneActivity =
-          t.TaskActivity.find(
+          activities.find(
             (a: any) =>
               a.type.toLowerCase().includes("status") &&
               a.description.toLowerCase().includes("done"),
-          ) || t.TaskActivity[t.TaskActivity.length - 1];
+          ) || activities[activities.length - 1];
         const completionDate = doneActivity
           ? new Date(doneActivity.timestamp)
           : new Date(t.updatedAt);
@@ -210,17 +214,17 @@ export async function GET(req: Request) {
       }
 
       // Reassignments & Reopens
-      const reassignCount = t.TaskActivity.filter((a: any) =>
+      const reassignCount = activities.filter((a: any) =>
         a.type.toLowerCase().includes("assign"),
       ).length;
-      const reopenCount = t.TaskActivity.filter(
+      const reopenCount = activities.filter(
         (a: any) =>
           a.description.toLowerCase().includes("reopened") ||
           a.description.toLowerCase().includes("todo"),
       ).length;
 
       const currentStage =
-        t.Stage.length > 0 ? t.Stage[t.Stage.length - 1].name : null;
+        stages.length > 0 ? stages[stages.length - 1].name : null;
 
       return {
         id: t.id,
@@ -232,7 +236,7 @@ export async function GET(req: Request) {
           Array.from(
             new Set(
               t.assignments
-                .map((a: any) => a.user.name || a.user.email)
+                .map((a: any) => a.user?.name || a.user?.email)
                 .filter(Boolean)
             )
           ).join(", ") || null,
@@ -246,13 +250,11 @@ export async function GET(req: Request) {
         delayHours,
         reassignCount,
         reopenCount,
-        commentsCount: t.comments.length,
+        commentsCount: comments.length,
         attachmentsCount: 0,
-        stagesCount: t.Stage.length,
+        stagesCount: stages.length,
       };
     });
-
-
 
     // -------------------------------------------------------------
     // 2. RECORD PERFORMANCE & COMPLETED RECORDS METRICS
@@ -272,13 +274,13 @@ export async function GET(req: Request) {
     const rawRecords = await db.record.findMany({
       where: recordWhere,
       include: {
-        createdByUser: { select: { id: true, name: true, email: true } },
+        user: { select: { id: true, name: true, email: true } },
         stage: true,
         assignees: {
           include: { user: { select: { id: true, name: true, email: true } } },
         },
         tags: true,
-        activities: { orderBy: { timestamp: "asc" } },
+        taskactivity: { orderBy: { timestamp: "asc" } },
       },
       orderBy: { createdAt: "desc" },
     });
@@ -294,6 +296,7 @@ export async function GET(req: Request) {
     const detailedRecords = rawRecords.map((r: any) => {
       const statusStr = (r.status || "").toUpperCase();
       const stageStr = (r.stage?.name || "").toUpperCase();
+      const recordActivities = r.taskactivity || [];
 
       const isDone =
         Boolean(r.isComplete) ||
@@ -318,7 +321,7 @@ export async function GET(req: Request) {
       }
 
       // Calculate Rework Activity Count
-      const reworkCount = r.activities.filter((a: any) =>
+      const reworkCount = recordActivities.filter((a: any) =>
         /reopen|rework|back|reject|reassign|redo/i.test(
           `${a.type} ${a.description}`,
         ),
@@ -351,12 +354,12 @@ export async function GET(req: Request) {
         title: r.title,
         status: isDone ? "COMPLETED" : isOverdue ? "OVERDUE" : "IN_PROGRESS",
         stageName: r.stage ? r.stage.name : null,
-        creatorName: r.createdByUser?.name || null,
+        creatorName: r.createdByUser?.name || r.user?.name || null,
         assignees:
           Array.from(
             new Set(
               r.assignees
-                .map((a: any) => a.user.name || a.user.email)
+                .map((a: any) => a.user?.name || a.user?.email)
                 .filter(Boolean)
             )
           ).join(", ") || null,
@@ -365,8 +368,8 @@ export async function GET(req: Request) {
         completedAt: completedAtDate,
         deadlineStatus,
         isComplete: isDone,
-        tags: r.tags.map((tg: any) => tg.name),
-        activityCount: r.activities.length,
+        tags: (r.tags || []).map((tg: any) => tg.name),
+        activityCount: recordActivities.length,
         reworkCount,
         isReworked: reworkCount > 0,
       };
@@ -378,25 +381,27 @@ export async function GET(req: Request) {
     const users = await db.user.findMany({
       where: { id: { in: scopedUserIds } },
       include: {
-        assignedTasks: { include: { task: true } },
-        createdTasks: true,
-        createdRecords: true,
+        taskassignment: { include: { task: true } },
+        task: true,
+        record: true,
         department: true,
       },
     });
 
     const userWorkload = users.map((u: any) => {
-      const totalAssignedTasks = u.assignedTasks.length;
-      const completedTasks = u.assignedTasks.filter(
-        (a: any) => a.task.status === "DONE",
+      const assignedTasks = u.taskassignment || [];
+      const createdRecords = u.record || [];
+      const totalAssignedTasks = assignedTasks.length;
+      const completedTasks = assignedTasks.filter(
+        (a: any) => a.task?.status === "DONE",
       ).length;
-      const pendingTasks = u.assignedTasks.filter(
-        (a: any) => a.task.status !== "DONE",
+      const pendingTasks = assignedTasks.filter(
+        (a: any) => a.task?.status !== "DONE",
       ).length;
-      const overdueTasks = u.assignedTasks.filter(
+      const overdueTasks = assignedTasks.filter(
         (a: any) =>
-          a.task.status !== "DONE" &&
-          a.task.deadline &&
+          a.task?.status !== "DONE" &&
+          a.task?.deadline &&
           new Date(a.task.deadline) < now,
       ).length;
 
@@ -409,8 +414,8 @@ export async function GET(req: Request) {
         completedTasks,
         pendingTasks,
         overdueTasks,
-        totalCreatedRecords: u.createdRecords.length,
-        taskNames: u.assignedTasks.map((a: any) => a.task.title).slice(0, 5),
+        totalCreatedRecords: createdRecords.length,
+        taskNames: assignedTasks.map((a: any) => a.task?.title).filter(Boolean).slice(0, 5),
       };
     });
 
@@ -419,7 +424,7 @@ export async function GET(req: Request) {
     // -------------------------------------------------------------
     const stages = await db.stage.findMany({
       include: {
-        Record: { where: recordWhere },
+        record: { where: recordWhere },
         task: true,
       },
     });
@@ -428,12 +433,13 @@ export async function GET(req: Request) {
       scopedUserIds.length > 0 || startDateParam || endDateParam || filterStageId,
     );
     const visibleStages = hasActiveReportFilter
-      ? stages.filter((stage: any) => stage.Record.length > 0)
+      ? stages.filter((stage: any) => (stage.record || []).length > 0)
       : stages;
 
     const stageAnalytics = visibleStages.map((s: any) => {
-      const recordsCount = s.Record.length;
-      const completedRecordsInStage = s.Record.filter(
+      const stageRecords = s.record || [];
+      const recordsCount = stageRecords.length;
+      const completedRecordsInStage = stageRecords.filter(
         (r: any) =>
           r.isComplete ||
           ["COMPLETED", "DONE", "FINISHED", "CLOSED", "COMPLETE"].includes(
@@ -461,7 +467,8 @@ export async function GET(req: Request) {
     // -------------------------------------------------------------
     // 5. TIMELINE & AUDIT TRAIL
     // -------------------------------------------------------------
-    const timelineActivities = await db.taskActivity.findMany({
+    const taskActivityDb = (db as any).taskactivity || (db as any).taskActivity;
+    const timelineActivities = await taskActivityDb.findMany({
       where: {
         OR: [
           { userId: { in: scopedUserIds } },

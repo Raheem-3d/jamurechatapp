@@ -229,51 +229,66 @@ export default function AIAssistant() {
     analyst: isEmployee
       ? [
           {
-            title: "My Work",
+            title: "My Work & Tasks",
             queries: [
-              { text: "What are my current tasks?", icon: ListTodo, description: "Your active assignments" },
+              { text: "What are my current active tasks?", icon: ListTodo, description: "Your assigned task list" },
               { text: "What are my overdue tasks?", icon: Clock, description: "Check missed deadlines" },
-              { text: "What should I prioritize today?", icon: Target, description: "AI priority suggestions" },
+              { text: "What should I prioritize today?", icon: Target, description: "Personal AI priority suggestions" },
             ],
           },
         ]
       : [
           {
-            title: "Team Performance",
+            title: "My Projects & Performance",
             queries: [
-              { text: "Who is most overloaded on the team?", icon: Users, description: "Identify workload imbalances" },
-              { text: "What tasks are overdue?", icon: Clock, description: "Organization-wide late tasks" },
-              { text: "Show me a productivity summary", icon: TrendingUp, description: "Overall performance metrics" },
+              { text: "What is the status of my created/assigned projects?", icon: BarChart3, description: "Overview of your projects" },
+              { text: "Which of my project tasks are overdue?", icon: Clock, description: "Late tasks in your projects" },
+              { text: "Show priority breakdown for my projects", icon: TrendingUp, description: "Priority analysis of your work" },
             ],
           },
+        ],
+    writer: isEmployee
+      ? [
           {
-            title: "Sprint Intelligence",
+            title: "My Drafts & Updates",
             queries: [
-              { text: "What are the blockers for this sprint?", icon: AlertCircle, description: "Critical bottlenecks" },
-              { text: "Suggest priorities for next week", icon: Sparkles, description: "Data-driven planning" },
+              { text: "Draft a progress update for my current task", icon: FileText, description: "Personal status update for lead" },
+              { text: "Help me draft a clear project question", icon: MessageSquare, description: "Ask lead/team for clarification" },
+              { text: "Write a summary of my completed work", icon: Sparkles, description: "Summarize your achievements" },
+            ],
+          },
+        ]
+      : [
+          {
+            title: "Project Reports & Docs",
+            queries: [
+              { text: "Generate a status report for my project", icon: FileText, description: "Project progress overview" },
+              { text: "Draft a project update for stakeholders", icon: MessageSquare, description: "Update message for team/client" },
+              { text: "Write a kickoff description for my task", icon: Rocket, description: "Clear project scope description" },
             ],
           },
         ],
-    writer: [
-      {
-        title: "Documents",
-        queries: [
-          { text: "Generate a project status report", icon: FileText, description: "Summary of task progress" },
-          { text: "Write a weekly team update email", icon: MessageSquare, description: "Team communication" },
-          { text: "Draft a project kickoff announcement", icon: Rocket, description: "Project introduction message" },
+    planner: isEmployee
+      ? [
+          {
+            title: "My Daily Schedule",
+            queries: [
+              { text: "How should I structure my work schedule today?", icon: Brain, description: "Personal time-blocking advice" },
+              { text: "Break down my assigned task into smaller steps", icon: Target, description: "Subtask breakdown" },
+              { text: "Identify potential risks or delays for my tasks", icon: AlertCircle, description: "Personal risk analysis" },
+            ],
+          },
+        ]
+      : [
+          {
+            title: "Project Milestones & Planning",
+            queries: [
+              { text: "Help me plan milestones for my project", icon: Target, description: "Project milestone planning" },
+              { text: "Suggest priority sequence for my project tasks", icon: Brain, description: "Optimize task sequence" },
+              { text: "Identify timeline risks in my project", icon: AlertCircle, description: "Risk analysis for your projects" },
+            ],
+          },
         ],
-      },
-    ],
-    planner: [
-      {
-        title: "Planning",
-        queries: [
-          { text: "Help me plan a sprint for next week", icon: Target, description: "Sprint structure & goals" },
-          { text: "How should I balance team workload?", icon: Users, description: "Resource distribution advice" },
-          { text: "What risks should I watch for?", icon: AlertCircle, description: "Project risk identification" },
-        ],
-      },
-    ],
   };
 
   const categories = modeQueries[mode] || [];
@@ -300,19 +315,114 @@ export default function AIAssistant() {
     });
   };
 
+  const renderMarkdownTable = (lines: string[], keyPrefix: number) => {
+    if (lines.length < 2) return null;
+
+    const parseRow = (line: string) => {
+      const cells = line.split("|").map((c) => c.trim());
+      if (cells.length > 0 && cells[0] === "") cells.shift();
+      if (cells.length > 0 && cells[cells.length - 1] === "") cells.pop();
+      return cells;
+    };
+
+    const headerRow = parseRow(lines[0]);
+    // Skip separator lines like |---|---|
+    const contentLines = lines.slice(1).filter((l) => l.replace(/[\s\:\-\|]/g, "").length > 0);
+    const bodyRows = contentLines.map(parseRow);
+
+    return (
+      <div key={keyPrefix} className="my-4 overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-900/90">
+        <table className="w-full text-left text-xs border-collapse">
+          <thead className="bg-slate-100 dark:bg-slate-800/90 text-slate-800 dark:text-slate-200 font-bold border-b border-slate-200 dark:border-slate-800">
+            <tr>
+              {headerRow.map((cell, idx) => (
+                <th key={idx} className="px-3.5 py-2.5 font-bold uppercase tracking-wider text-[10px] text-slate-600 dark:text-slate-300">
+                  {parseInlineStyles(cell)}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
+            {bodyRows.map((row, rIdx) => (
+              <tr key={rIdx} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
+                {row.map((cell, cIdx) => (
+                  <td key={cIdx} className="px-3.5 py-2.5 text-slate-700 dark:text-slate-300 font-medium">
+                    {parseInlineStyles(cell)}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
+
   const formatTextParagraphs = (text: string) => {
-    return text.split("\n").map((line, idx) => {
-      if (line.trim().startsWith("- ") || line.trim().startsWith("* ")) {
-        return <li key={idx} className="ml-5 list-disc text-sm text-slate-700 dark:text-slate-300 leading-relaxed my-1">{parseInlineStyles(line.trim().substring(2))}</li>;
+    const lines = text.split("\n");
+    const elements: React.ReactNode[] = [];
+    let i = 0;
+
+    while (i < lines.length) {
+      const line = lines[i];
+
+      // Detect table block (starts with |)
+      if (line.trim().startsWith("|")) {
+        const tableLines: string[] = [];
+        while (i < lines.length && lines[i].trim().startsWith("|")) {
+          tableLines.push(lines[i].trim());
+          i++;
+        }
+        elements.push(renderMarkdownTable(tableLines, elements.length));
+        continue;
       }
-      const numMatch = line.trim().match(/^(\d+)\.\s(.*)/);
-      if (numMatch) return <li key={idx} className="ml-5 list-decimal text-sm text-slate-700 dark:text-slate-300 leading-relaxed my-1">{parseInlineStyles(numMatch[2])}</li>;
-      if (line.trim().startsWith("###")) return <h4 key={idx} className="text-sm font-semibold text-slate-900 dark:text-slate-100 mt-4 mb-1">{parseInlineStyles(line.trim().substring(3))}</h4>;
-      if (line.trim().startsWith("##")) return <h3 key={idx} className="text-base font-bold text-slate-950 dark:text-slate-50 mt-5 mb-2">{parseInlineStyles(line.trim().substring(2))}</h3>;
-      if (line.trim().startsWith("#")) return <h2 key={idx} className="text-lg font-bold text-slate-950 dark:text-slate-50 mt-6 mb-3">{parseInlineStyles(line.trim().substring(1))}</h2>;
-      if (!line.trim()) return <div key={idx} className="h-2" />;
-      return <p key={idx} className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed my-1">{parseInlineStyles(line)}</p>;
-    });
+
+      if (line.trim().startsWith("- ") || line.trim().startsWith("* ")) {
+        elements.push(
+          <li key={elements.length} className="ml-5 list-disc text-sm text-slate-700 dark:text-slate-300 leading-relaxed my-1">
+            {parseInlineStyles(line.trim().substring(2))}
+          </li>
+        );
+      } else {
+        const numMatch = line.trim().match(/^(\d+)\.\s(.*)/);
+        if (numMatch) {
+          elements.push(
+            <li key={elements.length} className="ml-5 list-decimal text-sm text-slate-700 dark:text-slate-300 leading-relaxed my-1">
+              {parseInlineStyles(numMatch[2])}
+            </li>
+          );
+        } else if (line.trim().startsWith("###")) {
+          elements.push(
+            <h4 key={elements.length} className="text-sm font-semibold text-slate-900 dark:text-slate-100 mt-4 mb-1">
+              {parseInlineStyles(line.trim().substring(3))}
+            </h4>
+          );
+        } else if (line.trim().startsWith("##")) {
+          elements.push(
+            <h3 key={elements.length} className="text-base font-bold text-slate-950 dark:text-slate-50 mt-5 mb-2">
+              {parseInlineStyles(line.trim().substring(2))}
+            </h3>
+          );
+        } else if (line.trim().startsWith("#")) {
+          elements.push(
+            <h2 key={elements.length} className="text-lg font-bold text-slate-950 dark:text-slate-50 mt-6 mb-3">
+              {parseInlineStyles(line.trim().substring(1))}
+            </h2>
+          );
+        } else if (!line.trim()) {
+          elements.push(<div key={elements.length} className="h-2" />);
+        } else {
+          elements.push(
+            <p key={elements.length} className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed my-1">
+              {parseInlineStyles(line)}
+            </p>
+          );
+        }
+      }
+      i++;
+    }
+
+    return elements;
   };
 
   const parseInlineStyles = (text: string) => {
@@ -353,9 +463,12 @@ export default function AIAssistant() {
               <Badge className="bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border-0 text-[9px] font-extrabold px-1.5">
                 ADVANCED
               </Badge>
+              <Badge variant="outline" className="text-[9px] font-semibold text-slate-500 border-slate-200 dark:border-slate-800">
+                {userRole.replace("_", " ")}
+              </Badge>
             </h1>
             <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">
-              {MODES[mode].description} · {userRole.replace("_", " ")}
+              {MODES[mode].description}
             </p>
           </div>
         </div>
@@ -414,26 +527,55 @@ export default function AIAssistant() {
       <div className="flex-1 flex overflow-hidden">
 
         {/* Left Sidebar */}
-        <div className="hidden lg:flex flex-col w-64 border-r border-slate-200 dark:border-slate-800 bg-slate-50/20 dark:bg-slate-950/20 overflow-y-auto">
+        <div className="hidden lg:flex flex-col w-72 lg:w-80 border-r border-slate-200 dark:border-slate-800 bg-slate-50/20 dark:bg-slate-950/20 overflow-y-auto">
           <div className="p-3.5 border-b border-slate-200/60 dark:border-slate-800/60">
             <Button
               variant="outline"
               onClick={handleClearHistory}
               disabled={messages.length === 0}
-              className="w-full justify-start text-xs h-8 gap-2 border-dashed border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-350 hover:bg-slate-50 dark:hover:bg-slate-800"
+              className="w-full justify-start text-xs h-8 gap-2 border-dashed border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-350 hover:bg-slate-50 dark:hover:bg-slate-800 font-semibold"
             >
-              <PlusCircle className="h-3.5 w-3.5" />
+              <PlusCircle className="h-3.5 w-3.5 text-indigo-500" />
               New Session
             </Button>
           </div>
 
           <div className="p-3.5 space-y-5">
+            {/* Recent Questions / History */}
+            {messages.filter((m) => m.role === "user").length > 0 && (
+              <div className="space-y-1.5">
+                <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block px-1">
+                  Recent History
+                </span>
+                <div className="space-y-1 max-h-48 overflow-y-auto pr-1 scrollbar-thin">
+                  {messages
+                    .filter((m) => m.role === "user")
+                    .slice(-6)
+                    .reverse()
+                    .map((msg, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => handleSubmit(msg.content)}
+                        disabled={loading}
+                        className="w-full text-left px-2.5 py-2 hover:bg-indigo-50/60 dark:hover:bg-indigo-950/40 transition-colors flex items-start gap-2 rounded-lg group text-xs text-slate-700 dark:text-slate-300 leading-snug break-words border border-transparent hover:border-indigo-100 dark:hover:border-indigo-900/50"
+                      >
+                        <MessageSquare className="h-3.5 w-3.5 text-indigo-500 flex-shrink-0 mt-0.5" />
+                        <span className="leading-normal break-words font-medium">
+                          {msg.content}
+                        </span>
+                      </button>
+                    ))}
+                </div>
+              </div>
+            )}
+
+            {/* Suggested Queries by Mode */}
             {categories.map((cat, idx) => (
               <div key={idx} className="space-y-1.5">
                 <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block px-1">
                   {cat.title}
                 </span>
-                <div className="space-y-0.5">
+                <div className="space-y-1">
                   {cat.queries.map((q, qIdx) => {
                     const QueryIcon = q.icon;
                     return (
@@ -441,15 +583,15 @@ export default function AIAssistant() {
                         key={qIdx}
                         onClick={() => handleSubmit(q.text)}
                         disabled={loading}
-                        className="w-full text-left px-2 py-2 hover:bg-slate-100/70 dark:hover:bg-slate-900/70 transition-colors flex items-center justify-between rounded-lg group disabled:opacity-50"
+                        className="w-full text-left px-2.5 py-2 hover:bg-slate-100/80 dark:hover:bg-slate-900/80 transition-colors flex items-start justify-between rounded-lg group disabled:opacity-50 border border-transparent hover:border-slate-200 dark:hover:border-slate-800"
                       >
-                        <div className="flex items-center gap-2 min-w-0">
-                          <QueryIcon className="h-3.5 w-3.5 text-slate-400 group-hover:text-indigo-500 dark:group-hover:text-indigo-400 flex-shrink-0" />
-                          <span className="text-xs text-slate-600 dark:text-slate-300 truncate group-hover:text-slate-900 dark:group-hover:text-white">
+                        <div className="flex items-start gap-2 min-w-0 pr-1">
+                          <QueryIcon className="h-3.5 w-3.5 text-slate-400 group-hover:text-indigo-500 dark:group-hover:text-indigo-400 flex-shrink-0 mt-0.5" />
+                          <span className="text-xs text-slate-700 dark:text-slate-300 leading-snug break-words font-medium group-hover:text-slate-900 dark:group-hover:text-white">
                             {q.text}
                           </span>
                         </div>
-                        <ChevronRight className="h-3 w-3 text-slate-300 dark:text-slate-700 opacity-0 group-hover:opacity-100 flex-shrink-0" />
+                        <ChevronRight className="h-3 w-3 text-slate-300 dark:text-slate-700 opacity-0 group-hover:opacity-100 flex-shrink-0 mt-0.5" />
                       </button>
                     );
                   })}
@@ -464,8 +606,8 @@ export default function AIAssistant() {
               <Info className="h-3.5 w-3.5 text-slate-400 flex-shrink-0 mt-0.5" />
               <p className="text-[9px] text-slate-400 dark:text-slate-500 leading-normal">
                 {isEmployee
-                  ? "Showing only your assigned tasks & personal data."
-                  : "Full organization access is active."}
+                  ? "Showing only your assigned & created tasks."
+                  : "Showing projects created by or assigned to you."}
               </p>
             </div>
           </div>

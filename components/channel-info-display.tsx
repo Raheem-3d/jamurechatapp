@@ -305,7 +305,7 @@ export function ChannelInfoDisplay({ channel }: ChannelInfoProps) {
                     </Badge>
                   )}
 
-                  {channel.isTaskThread && (
+                  {Boolean(channel.isTaskThread) && (
                     <Badge
                       variant="outline"
                       className="bg-purple-50 dark:bg-purple-950/50 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-800/60 rounded-lg px-2.5 py-0.5 font-semibold text-xs flex items-center gap-1"

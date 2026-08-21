@@ -4,14 +4,8 @@ import { emitToUser, getSocketIO } from "@/lib/socket-server";
 import { cacheGet, cacheSet, cacheDel } from "@/lib/redis";
 import { produceKafkaEvent } from "@/lib/kafka";
 import { runAutomationEngine } from "@/lib/automation-engine";
-import {
-  Task,
-  AutomationRule,
-  User,
-  Tag,
-  TaskStatus,
-  Stage,
-} from "@prisma/client";
+import { randomUUID } from "crypto";
+
 import { id } from "date-fns/locale";
 import { getServerSession } from "next-auth";
 import { NextRequest, NextResponse } from "next/server";
@@ -323,16 +317,25 @@ export async function GET(
       return NextResponse.json({ records: cachedRecords }, { status: 200 });
     }
 
-    const records = await db.record.findMany({
-      where: {
-        parentTaskId: taskId,
-      },
-      include: {
-        tags: true,
-        assignees: true,
-        createdByUser: true,
-      },
-    });
+    let records: any[] = [];
+    try {
+      records = await db.record.findMany({
+        where: { parentTaskId: taskId },
+        include: {
+          tags: true,
+          assignees: true,
+          user: true,
+        },
+      });
+    } catch (e) {
+      records = await db.record.findMany({
+        where: { parentTaskId: taskId },
+        include: {
+          tags: true,
+          assignees: true,
+        },
+      });
+    }
 
     // ⚡ Store in Redis cache with 5-minute TTL
     await cacheSet(cacheKey, records, 300);
@@ -1007,6 +1010,7 @@ async function createAutomaticTaskReminders(
         reminderPromises.push(
           db.reminder.create({
             data: {
+              id: randomUUID(),
               title: `Task Deadline Reminder: ${taskTitle}`,
               description: `This is an automatic reminder for your task "${taskTitle}" which is due ${interval.label}.`,
               remindAt: reminderTime,
@@ -1016,6 +1020,7 @@ async function createAutomaticTaskReminders(
               assigneeId: assigneeId,
               taskId: validTaskId,
               isAutomatic: true,
+              updatedAt: new Date(),
             },
           }),
         );

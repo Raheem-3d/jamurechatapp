@@ -230,7 +230,7 @@ export function TaskBoard({
                     >
                       {stageTasks.length} {stageTasks.length > 10 && (!isExpanded ? "(10 shown)" : "(All)")}
                     </Badge>
-                    {stage.isCompleted && (
+                    {Boolean(stage.isCompleted) && (
                       <Badge
                         variant="default"
                         className="bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 text-[10px] font-bold shrink-0"

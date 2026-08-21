@@ -27,16 +27,18 @@ function canBuzz(userId: string) {
 export async function getChannelMemberIds(
   channelId: string,
 ): Promise<string[]> {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) throw new Error("Unauthorized");
-
-  const channel = await db.channel.findUnique({
-    where: { id: channelId },
-    select: { members: { select: { userId: true } } },
-  });
-
-  if (!channel) return [];
-  return channel.members.map((m) => m.userId).filter(Boolean) as string[];
+  try {
+    const rows = await db.channelMember.findMany({
+      where: { channelId },
+      select: { userId: true },
+    });
+    return (rows || [])
+      .map((r: any) => r.userId)
+      .filter(Boolean) as string[];
+  } catch (e) {
+    console.error("getChannelMemberIds failed for", channelId, e);
+    return [];
+  }
 }
 
 export async function POST(req: Request) {
@@ -147,14 +149,15 @@ export async function POST(req: Request) {
       try {
         await db.message.create({
           data: {
+            id: crypto.randomUUID(),
             content: buzzInfo.systemContent,
             senderId: userId,
             receiverId,
-            isBuzz: true,
+            updatedAt: new Date(),
           } as any,
         });
-      } catch (_) {
-        // keep going if DB schema differs
+      } catch (err) {
+        console.error("buzz direct message db error:", err);
       }
 
       return NextResponse.json({ ok: true });
@@ -170,10 +173,11 @@ export async function POST(req: Request) {
     try {
       const buzzMsg = await db.message.create({
         data: {
+          id: crypto.randomUUID(),
           content: buzzInfo.systemContent,
           senderId: userId,
           channelId,
-          isBuzz: true,
+          updatedAt: new Date(),
         } as any,
         include: {
           sender: {

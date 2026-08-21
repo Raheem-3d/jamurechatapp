@@ -75,7 +75,8 @@ export async function GET(
   const taskId = resolvedParams.taskId;
 
   try {
-    const rules = await db.automationRule.findMany({
+    const automationRuleDb = (db as any).automationRule || (db as any).automationrule;
+    const rules = await automationRuleDb.findMany({
       where: {
         userId: user.id,
         OR: [{ projectId: taskId }, { applyToAll: true }],

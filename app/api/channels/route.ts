@@ -37,7 +37,7 @@ export async function GET(req: Request) {
 
     // Attach image field via raw SQL to bypass Prisma select validator
     try {
-      const channelImages: any[] = await db.$queryRawUnsafe(`SELECT id, image FROM \`Channel\``);
+      const channelImages: any[] = await db.$queryRawUnsafe(`SELECT id, image FROM \`channel\``);
       const imageMap = new Map(channelImages.map((row: any) => [row.id, row.image]));
       for (const ch of channels) {
         ch.image = imageMap.get(ch.id) || null;
@@ -110,18 +110,22 @@ export async function POST(req: Request) {
     // Create channel and members
     const channel = await db.channel.create({
       data: {
+        id: crypto.randomUUID(),
         name,
         description,
         isPublic,
         creatorId: user.id,
         departmentId: depId,
         organizationId: orgId,
+        updatedAt: new Date(),
         members: {
           create: [
-            { userId: user.id, isAdmin: true },
+            { id: crypto.randomUUID(), userId: user.id, isAdmin: true, updatedAt: new Date() },
             ...(members || []).map((memberId: string) => ({
+              id: crypto.randomUUID(),
               userId: memberId,
               isAdmin: false,
+              updatedAt: new Date(),
             })),
           ],
         },
@@ -137,7 +141,7 @@ export async function POST(req: Request) {
 
     if (image) {
       await db.$executeRawUnsafe(
-        "UPDATE `Channel` SET `image` = ? WHERE `id` = ?",
+        "UPDATE `channel` SET `image` = ? WHERE `id` = ?",
         image,
         channel.id
       ).catch((e) => console.error("Error setting image on channel create:", e));
@@ -155,6 +159,7 @@ export async function POST(req: Request) {
       // 🔔 Create notification
       const notification = await db.notification.create({
         data: {
+          id: crypto.randomUUID(),
           type: "CHANNEL_INVITE",
           channelId:channel.id,
           userId: member.userId,

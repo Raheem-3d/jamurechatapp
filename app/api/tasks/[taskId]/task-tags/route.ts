@@ -48,22 +48,28 @@ export async function POST(
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { taskId: string } },
+  { params }: { params: Promise<{ taskId: string }> | { taskId: string } },
 ) {
   try {
+    const { taskId } = await params;
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
     }
 
-    const { taskId } = params;
     if (!taskId) {
       return NextResponse.json({ error: "taskId is required." }, { status: 400 });
     }
 
-    const tags = await db.tag.find({
-      where: { taskId },
-    });
+    const tags = await db.tag.findMany({
+      where: {
+        record: {
+          some: {
+            parentTaskId: taskId,
+          },
+        },
+      },
+    }).catch(() => []);
 
     if (!tags || tags.length === 0) {
       return NextResponse.json({ message: "No Tags Available" }, { status: 404 });

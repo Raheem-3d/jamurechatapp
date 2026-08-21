@@ -20,8 +20,11 @@ import { usePermissions } from "@/lib/rbac-utils";
 import { cn } from "@/lib/utils";
 import { TaskFlowAIAssistantModal } from "@/components/TaskFlowAIAssistantModal";
 
+import { useRouter } from "next/navigation";
+
 export default function TasksPage() {
   const { data: session } = useSession();
+  const router = useRouter();
   const [assignedTasks, setAssignedTasks] = useState<any[]>([]);
   const [createdTasks, setCreatedTasks] = useState<any[]>([]);
   const [filteredAssignedTasks, setFilteredAssignedTasks] = useState<any[]>([]);
@@ -29,6 +32,7 @@ export default function TasksPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [activeFilters, setActiveFilters] = useState<any>({});
   const [assignedPage, setAssignedPage] = useState(1);
+  const [createdPage, setCreatedPage] = useState(1);
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
   const [aiEnabled, setAiEnabled] = useState(true);
 
@@ -91,18 +95,27 @@ export default function TasksPage() {
     checkAI();
     fetchTasks();
 
-    // Listen for task assignment events to refresh when user is assigned to a task
-    const onTaskAssigned = () => {
-      console.log("🔔 Task assigned - refreshing task list");
+    // Listen for task creation and assignment events to refresh automatically
+    const handleRefresh = () => {
+      console.log("🔔 Task/Project created or assigned - refreshing task list instantly");
       fetchTasks();
+      try {
+        router.refresh();
+      } catch {}
     };
 
-    window.addEventListener("task:assigned", onTaskAssigned as EventListener);
+    window.addEventListener("task:assigned", handleRefresh);
+    window.addEventListener("task:created", handleRefresh);
+    window.addEventListener("project:created", handleRefresh);
+    window.addEventListener("project:updated", handleRefresh);
 
     return () => {
-      window.removeEventListener("task:assigned", onTaskAssigned as EventListener);
+      window.removeEventListener("task:assigned", handleRefresh);
+      window.removeEventListener("task:created", handleRefresh);
+      window.removeEventListener("project:created", handleRefresh);
+      window.removeEventListener("project:updated", handleRefresh);
     };
-  }, [session, toast]);
+  }, [session, toast, router]);
 
   useEffect(() => {
     // Apply filters to tasks
@@ -195,7 +208,7 @@ export default function TasksPage() {
                   className="bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white font-medium shadow-md shadow-purple-500/20 gap-1.5"
                 >
                   <Sparkles className="h-4 w-4 text-purple-200 animate-pulse" />
-                  AI Co-Pilot ✨
+                  Jamure AI
                 </Button>
               )}
 
@@ -214,7 +227,12 @@ export default function TasksPage() {
         isOpen={isAiModalOpen}
         onClose={() => setIsAiModalOpen(false)}
         target="NEW_PROJECT"
-        onSuccess={() => fetchTasks()}
+        onSuccess={() => {
+          fetchTasks();
+          try {
+            router.refresh();
+          } catch {}
+        }}
       />
 
       {isLoading ? (

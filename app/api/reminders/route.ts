@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { db } from "@/lib/db"
 import { emitToUser } from "@/lib/socket-server"
+import { randomUUID } from "crypto"
 
 // GET - Fetch reminders for current user or all (if admin)
 export async function GET(request: NextRequest) {
@@ -30,10 +31,10 @@ export async function GET(request: NextRequest) {
   whereClause.OR = [{ assigneeId: user.id }, { creatorId: user.id }]
     }
 
-    const reminders = await db.reminder.findMany({
+    const rawReminders = await db.reminder.findMany({
       where: whereClause,
       include: {
-        creator: {
+        user_reminder_creatorIdTouser: {
           select: {
             id: true,
             name: true,
@@ -41,7 +42,7 @@ export async function GET(request: NextRequest) {
             image: true,
           },
         },
-        assignee: {
+        user_reminder_assigneeIdTouser: {
           select: {
             id: true,
             name: true,
@@ -54,6 +55,12 @@ export async function GET(request: NextRequest) {
         remindAt: "asc",
       },
     })
+
+    const reminders = rawReminders.map((r: any) => ({
+      ...r,
+      creator: r.creator || r.user_reminder_creatorIdTouser,
+      assignee: r.assignee || r.user_reminder_assigneeIdTouser,
+    }))
 
     return NextResponse.json(reminders)
   } catch (error) {
@@ -72,63 +79,89 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { title, description, remindAt, assigneeId, priority, type } = body
+    const { title, description, remindAt, assigneeId, assigneeIds, priority, type } = body
 
     if (!title || !remindAt) {
       return NextResponse.json({ error: "Title and remind time are required" }, { status: 400 })
     }
 
-    // Validate assignee
-  const targetAssigneeId = assigneeId || user.id
+    const rawAssigneeIds: string[] = Array.isArray(assigneeIds) && assigneeIds.length > 0
+      ? assigneeIds
+      : [assigneeId || user.id]
 
-    // Check if user can assign to this person
-    if (targetAssigneeId !== user.id && user.role !== "ORG_ADMIN") {
-      return NextResponse.json({ error: "Only organization admins can assign reminders to other users" }, { status: 403 })
+    const targetAssigneeIds = Array.from(new Set(rawAssigneeIds))
+
+    const isUserAdmin =
+      user.role === "ORG_ADMIN" ||
+      user.role === "SUPER_ADMIN" ||
+      user.role === "ADMIN" ||
+      user.role === "MANAGER"
+
+    const assigningToOthers = targetAssigneeIds.some((id) => id !== user.id)
+    if (assigningToOthers && !isUserAdmin) {
+      return NextResponse.json({ error: "Only organization admins and managers can assign reminders to other users" }, { status: 403 })
     }
 
-    // Verify assignee exists
-    const assignee = await db.user.findUnique({
-      where: { id: targetAssigneeId },
+    const validUsers = await db.user.findMany({
+      where: { id: { in: targetAssigneeIds } },
+      select: { id: true },
     })
 
-    if (!assignee) {
+    if (validUsers.length === 0) {
       return NextResponse.json({ error: "Assignee not found" }, { status: 404 })
     }
 
-    const reminder = await db.reminder.create({
-      data: {
-        title,
-        description,
-        remindAt: new Date(remindAt),
-        priority: priority || "MEDIUM",
-        type: type || "GENERAL",
-  creatorId: user.id,
-        assigneeId: targetAssigneeId,
-      },
-      include: {
-        creator: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            image: true,
+    const validAssigneeIds = validUsers.map((u) => u.id)
+
+    const createdReminders = await Promise.all(
+      validAssigneeIds.map(async (targetId) => {
+        const rawReminder = await db.reminder.create({
+          data: {
+            id: randomUUID(),
+            title,
+            description,
+            remindAt: new Date(remindAt),
+            priority: priority || "MEDIUM",
+            type: type || "GENERAL",
+            creatorId: user.id,
+            assigneeId: targetId,
+            updatedAt: new Date(),
           },
-        },
-        assignee: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            image: true,
+          include: {
+            user_reminder_creatorIdTouser: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                image: true,
+              },
+            },
+            user_reminder_assigneeIdTouser: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                image: true,
+              },
+            },
           },
-        },
-      },
-    })
+        })
 
-  const not=  emitToUser(targetAssigneeId,'jf',reminder)
+        const reminder = {
+          ...rawReminder,
+          creator: (rawReminder as any).creator || (rawReminder as any).user_reminder_creatorIdTouser,
+          assignee: (rawReminder as any).assignee || (rawReminder as any).user_reminder_assigneeIdTouser,
+        }
 
+        emitToUser(targetId, 'jf', reminder)
+        return reminder
+      })
+    )
 
-    return NextResponse.json(reminder, { status: 201 })
+    return NextResponse.json(
+      createdReminders.length === 1 ? createdReminders[0] : createdReminders,
+      { status: 201 }
+    )
   } catch (error) {
     console.error("Error creating reminder:", error)
     return NextResponse.json({ error: "Failed to create reminder" }, { status: 500 })

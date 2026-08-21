@@ -6,14 +6,15 @@ import { checkSuperAdmin } from "@/lib/permissions"
 // GET /api/superadmin/channels/[channelId] - Get channel details
 export async function GET(
   req: NextRequest,
-  { params }: { params: { channelId: string } }
+  { params }: { params: Promise<{ channelId: string }> | { channelId: string } }
 ) {
   try {
+    const { channelId } = await params
     const user = await getSessionUserWithPermissions()
     checkSuperAdmin(user.isSuperAdmin)
 
     const channel = await db.channel.findUnique({
-      where: { id: params.channelId },
+      where: { id: channelId },
       include: {
         organization: {
           select: { id: true, name: true }
@@ -57,9 +58,10 @@ export async function GET(
 // PATCH /api/superadmin/channels/[channelId] - Update channel
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { channelId: string } }
+  { params }: { params: Promise<{ channelId: string }> | { channelId: string } }
 ) {
   try {
+    const { channelId } = await params
     const user = await getSessionUserWithPermissions()
     checkSuperAdmin(user.isSuperAdmin)
 
@@ -67,7 +69,7 @@ export async function PATCH(
   const { name, description, isPrivate } = body
 
     const channel = await db.channel.update({
-      where: { id: params.channelId },
+      where: { id: channelId },
       data: {
         ...(name && { name }),
         ...(description !== undefined && { description }),
@@ -109,9 +111,10 @@ export async function PATCH(
 // DELETE /api/superadmin/channels/[channelId] - Delete channel
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { channelId: string } }
+  { params }: { params: Promise<{ channelId: string }> | { channelId: string } }
 ) {
   try {
+    const { channelId } = await params
     const user = await getSessionUserWithPermissions()
     checkSuperAdmin(user.isSuperAdmin)
 
@@ -119,19 +122,19 @@ export async function DELETE(
     await db.$transaction([
       // Delete notifications related to channel messages
       db.notification.deleteMany({
-        where: { channelId: params.channelId }
+        where: { channelId }
       }),
       // Delete channel members
       db.channelMember.deleteMany({
-        where: { channelId: params.channelId }
+        where: { channelId }
       }),
       // Delete channel messages
       db.message.deleteMany({
-        where: { channelId: params.channelId }
+        where: { channelId }
       }),
       // Delete the channel
       db.channel.delete({
-        where: { id: params.channelId }
+        where: { id: channelId }
       })
     ])
 

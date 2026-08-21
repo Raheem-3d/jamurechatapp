@@ -30,7 +30,7 @@ export default async function RemindersPage() {
   }
 
   // fetch reminders for the user
-  const reminders = await db.reminder.findMany({
+  const rawReminders = await db.reminder.findMany({
     where: {
       OR: [
         { assigneeId: session.user.id },
@@ -39,7 +39,7 @@ export default async function RemindersPage() {
       ],
     },
     include: {
-      creator: {
+      user_reminder_creatorIdTouser: {
         select: {
           id: true,
           name: true,
@@ -47,7 +47,7 @@ export default async function RemindersPage() {
           image: true,
         },
       },
-      assignee: {
+      user_reminder_assigneeIdTouser: {
         select: {
           id: true,
           name: true,
@@ -60,6 +60,12 @@ export default async function RemindersPage() {
       remindAt: "asc",
     },
   })
+
+  const reminders = rawReminders.map((r: any) => ({
+    ...r,
+    creator: r.creator || r.user_reminder_creatorIdTouser,
+    assignee: r.assignee || r.user_reminder_assigneeIdTouser,
+  }))
 
   // fetch all users for assignment dropdown
   const users = await db.user.findMany({

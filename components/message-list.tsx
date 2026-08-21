@@ -924,8 +924,17 @@ export default function MessageList({
       );
   }, []);
 
-  const getAttachments = (message: Message) =>
-    attachmentsMap[message.id] ?? message.attachments ?? [];
+  const getAttachments = (message: Message): any[] => {
+    let raw = attachmentsMap[message?.id] ?? message?.attachments ?? [];
+    if (typeof raw === "string") {
+      try {
+        raw = JSON.parse(raw);
+      } catch {
+        raw = [];
+      }
+    }
+    return Array.isArray(raw) ? raw : [];
+  };
 
   // Helper to get date label for messages (Today, Yesterday, or date)
   const getDateLabel = (date: Date): string => {
@@ -1799,7 +1808,8 @@ export default function MessageList({
                 typeof message.createdAt === "string"
                   ? new Date(message.createdAt)
                   : message.createdAt;
-              const senderImage = message.sender.image || "/placeholder.svg";
+              const senderName = message?.sender?.name || message?.sender?.email || "User";
+              const senderImage = message?.sender?.image || "/placeholder.svg";
               const isPinned = !!pinnedMessages[message.id];
 
               const prev = messages[idx - 1];
@@ -1861,7 +1871,7 @@ export default function MessageList({
                           <Avatar className="h-10 w-10 border border-white dark:border-[#2A3942]">
                             <AvatarImage src={senderImage} />
                             <AvatarFallback className="bg-[#00A884] text-white font-medium text-sm">
-                              {message.sender.name.charAt(0).toUpperCase()}
+                              {(senderName || "U").charAt(0).toUpperCase()}
                             </AvatarFallback>
                           </Avatar>
                           {isOnline && !isCurrentUser && (
@@ -1878,7 +1888,7 @@ export default function MessageList({
                         {isFirstInGroup && !isCurrentUser && (
                           <div className="flex items-center gap-2 px-2 mb-1">
                             <span className="text-[13px] font-medium text-[#00A884] truncate max-w-[200px]">
-                              {message.sender.name}
+                              {senderName}
                             </span>
                           </div>
                         )}

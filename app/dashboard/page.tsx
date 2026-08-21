@@ -46,9 +46,9 @@ import TaskAnalyticsSection from "@/components/task-analytics-section";
 import AIDailyBriefing from "@/components/ai-daily-briefing";
 
 export default async function DashboardPage() {
-  const session = await getServerSession(authOptions);
+  const session: any = await getServerSession(authOptions);
 
-  if (!session) {
+  if (!session?.user?.id) {
     redirect("/login");
   }
 
@@ -73,42 +73,13 @@ export default async function DashboardPage() {
   });
   const aiEnabled = orgAISettings?.organization?.aiEnabled !== false;
 
-  // Client: recent channels
-  const recentChannelsForClient = await db.channel.findMany({
+  // Channels: Fetch channels identical to sidebar query
+  const userChannels: any[] = await db.channel.findMany({
     where: {
-      members: {
-        some: {
-          userId: userId,
-        },
-      },
-    },
-    orderBy: {
-      updatedAt: "desc",
-    },
-    take: 5,
-    include: {
-      department: true,
-      _count: {
-        select: { messages: true },
-      },
-    },
-  });
-
-  // Assignee: get task IDs assigned to user
-  const assignedTaskIds = await db.taskAssignment.findMany({
-    where: { userId: userId },
-    select: { taskId: true },
-  });
-  const taskIds = assignedTaskIds.map((t) => t.taskId);
-
-  const recentChannelsForAssignee = await db.channel.findMany({
-    where: {
-      members: {
-        some: { userId },
-      },
-      NOT: [
-        { name: { contains: "internal" } },
-        { name: { startsWith: "task" } },
+      OR: [
+        { members: { some: { userId } } },
+        { isPublic: true },
+        { creatorId: userId },
       ],
     },
     orderBy: { updatedAt: "desc" },
@@ -118,20 +89,19 @@ export default async function DashboardPage() {
     },
   });
 
-  let recentChannels = [];
-
-  if (user?.role === "ORG_ADMIN") {
-    recentChannels = recentChannelsForAssignee;
-  } else if (user?.role === "CLIENT") {
-    recentChannels = recentChannelsForClient;
-  } else {
-    recentChannels = recentChannelsForAssignee;
-  }
+  // Filter channels identical to sidebar rules (exclude task threads and internal channels)
+  const recentChannels = userChannels.filter((channel: any) => {
+    if (!channel?.name) return false;
+    if (channel.isTaskThread) return false;
+    const name = String(channel.name).toLowerCase().trim();
+    if (name.startsWith("task") || name.startsWith("internal")) return false;
+    return true;
+  });
 
   // Attach channel image via raw SQL to bypass Prisma client schema stripping
   try {
     const channelImages: any[] = await db.$queryRawUnsafe(
-      `SELECT id, image FROM \`Channel\``,
+      `SELECT id, image FROM \`channel\``,
     );
     const imageMap = new Map(
       channelImages.map((row: any) => [row.id, row.image]),

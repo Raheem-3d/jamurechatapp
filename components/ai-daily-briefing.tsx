@@ -8,6 +8,8 @@ import {
   Loader2,
   ChevronDown,
   ChevronUp,
+  ChevronLeft,
+  ChevronRight,
   AlertTriangle,
   Clock,
   Flame,
@@ -39,11 +41,20 @@ interface BriefingStats {
   totalActive: number;
 }
 
+interface RecordRef {
+  id: string;
+  title: string;
+  stageName: string;
+  priority: string;
+}
+
 interface TaskRef {
   id: string;
   title: string;
   deadline: string | null;
   priority: string;
+  status?: string;
+  records?: RecordRef[];
 }
 
 interface BriefingResponse {
@@ -51,6 +62,7 @@ interface BriefingResponse {
   stats: BriefingStats;
   overdueTasks: TaskRef[];
   dueTodayTasks: TaskRef[];
+  allTasksWithRecords?: TaskRef[];
 }
 
 const urgencyConfig = {
@@ -117,8 +129,13 @@ export default function AIDailyBriefing() {
     fetchBriefing();
   }, []);
 
-  const urgency = data?.briefing?.urgencyLevel || "medium";
-  const config = urgencyConfig[urgency];
+  const [activeProjectPage, setActiveProjectPage] = useState(1);
+  const [overduePage, setOverduePage] = useState(1);
+  const [dueTodayPage, setDueTodayPage] = useState(1);
+
+  const rawUrgency = String(data?.briefing?.urgencyLevel || "medium").toLowerCase();
+  const urgency = (rawUrgency in urgencyConfig ? rawUrgency : "medium") as keyof typeof urgencyConfig;
+  const config = urgencyConfig[urgency] || urgencyConfig.medium;
 
   if (loading) {
     return (
@@ -170,7 +187,33 @@ export default function AIDailyBriefing() {
 
   if (!data) return null;
 
-  const { briefing, stats, overdueTasks, dueTodayTasks } = data;
+  const briefing = data.briefing || {
+    greeting: "Good day!",
+    summary: "Here is your daily overview.",
+    focusItem: "Focus on your open tasks for today.",
+    tip: "Prioritize tasks with upcoming deadlines.",
+    urgencyLevel: "medium",
+  };
+  const stats = data.stats || {
+    overdueCount: 0,
+    dueTodayCount: 0,
+    highPriorityCount: 0,
+    inProgressCount: 0,
+    totalActive: 0,
+  };
+  const overdueTasks = data.overdueTasks || [];
+  const dueTodayTasks = data.dueTodayTasks || [];
+  const allTasksWithRecords = data.allTasksWithRecords || [];
+
+  // Pagination Math
+  const totalOverduePages = Math.ceil(overdueTasks.length / 1);
+  const currentOverdueTask = overdueTasks[overduePage - 1];
+
+  const totalDueTodayPages = Math.ceil(dueTodayTasks.length / 1);
+  const currentDueTodayTask = dueTodayTasks[dueTodayPage - 1];
+
+  const totalProjectPages = Math.ceil(allTasksWithRecords.length / 1);
+  const currentProjectTask = allTasksWithRecords[activeProjectPage - 1];
 
   return (
     <div
@@ -335,47 +378,180 @@ export default function AIDailyBriefing() {
             </div>
           </div>
 
-          {/* Overdue Task Quick Links */}
-          {overdueTasks.length > 0 && (
+          {/* Overdue Task Quick Links with Pagination */}
+          {overdueTasks.length > 0 && currentOverdueTask && (
             <div className="space-y-1.5">
-              <p className="text-[10px] font-bold text-rose-500 dark:text-rose-400 uppercase tracking-wider flex items-center gap-1">
-                <AlertTriangle className="h-3 w-3" />
-                Overdue Tasks
-              </p>
-              {overdueTasks.map((task) => (
+              <div className="flex items-center justify-between">
+                <p className="text-[10px] font-bold text-rose-500 dark:text-rose-400 uppercase tracking-wider flex items-center gap-1">
+                  <AlertTriangle className="h-3 w-3" />
+                  Overdue Tasks ({overdueTasks.length})
+                </p>
+                {totalOverduePages > 1 && (
+                  <div className="flex items-center gap-1 text-[10px] text-slate-400 font-bold">
+                    <span>{overduePage}/{totalOverduePages}</span>
+                    <button
+                      onClick={() => setOverduePage((prev) => Math.max(prev - 1, 1))}
+                      disabled={overduePage === 1}
+                      className="p-0.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30"
+                    >
+                      <ChevronLeft className="h-3 w-3" />
+                    </button>
+                    <button
+                      onClick={() => setOverduePage((prev) => Math.min(prev + 1, totalOverduePages))}
+                      disabled={overduePage === totalOverduePages}
+                      className="p-0.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30"
+                    >
+                      <ChevronRight className="h-3 w-3" />
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <div className="p-2.5 rounded-xl bg-rose-50/50 dark:bg-rose-950/20 border border-rose-100/60 dark:border-rose-800/20 space-y-1.5">
                 <Link
-                  key={task.id}
-                  href={`/dashboard/tasks/${task.id}`}
-                  className="flex items-center justify-between rounded-lg px-3 py-2 bg-rose-50/50 dark:bg-rose-950/20 border border-rose-100/60 dark:border-rose-800/20 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors group"
+                  href={`/dashboard/tasks/${currentOverdueTask.id}/record`}
+                  className="flex items-center justify-between group"
                 >
-                  <span className="text-[11px] text-rose-700 dark:text-rose-300 font-medium truncate mr-2">
-                    {task.title}
+                  <span className="text-[11px] text-rose-700 dark:text-rose-300 font-bold truncate mr-2">
+                    {currentOverdueTask.title}
                   </span>
                   <ExternalLink className="h-3 w-3 text-rose-400 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
                 </Link>
-              ))}
+
+                {currentOverdueTask.records && currentOverdueTask.records.length > 0 && (
+                  <div className="pl-2.5 space-y-1 border-l-2 border-rose-200/80 dark:border-rose-800/40">
+                    {currentOverdueTask.records.slice(0, 3).map((rec) => (
+                      <div key={rec.id} className="flex items-center justify-between text-[10px]">
+                        <span className="text-slate-700 dark:text-slate-300 truncate font-medium">↳ {rec.title}</span>
+                        <Badge className="text-[8px] px-1.5 py-0 border-0 bg-rose-100 dark:bg-rose-900/60 text-rose-800 dark:text-rose-200 font-bold shrink-0 ml-1">
+                          {rec.stageName}
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
-          {/* Due Today Quick Links */}
-          {dueTodayTasks.length > 0 && (
+          {/* Due Today Quick Links with Pagination */}
+          {dueTodayTasks.length > 0 && currentDueTodayTask && (
             <div className="space-y-1.5">
-              <p className="text-[10px] font-bold text-amber-500 dark:text-amber-400 uppercase tracking-wider flex items-center gap-1">
-                <Clock className="h-3 w-3" />
-                Due Today
-              </p>
-              {dueTodayTasks.map((task) => (
+              <div className="flex items-center justify-between">
+                <p className="text-[10px] font-bold text-amber-500 dark:text-amber-400 uppercase tracking-wider flex items-center gap-1">
+                  <Clock className="h-3 w-3" />
+                  Due Today Tasks ({dueTodayTasks.length})
+                </p>
+                {totalDueTodayPages > 1 && (
+                  <div className="flex items-center gap-1 text-[10px] text-slate-400 font-bold">
+                    <span>{dueTodayPage}/{totalDueTodayPages}</span>
+                    <button
+                      onClick={() => setDueTodayPage((prev) => Math.max(prev - 1, 1))}
+                      disabled={dueTodayPage === 1}
+                      className="p-0.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30"
+                    >
+                      <ChevronLeft className="h-3 w-3" />
+                    </button>
+                    <button
+                      onClick={() => setDueTodayPage((prev) => Math.min(prev + 1, totalDueTodayPages))}
+                      disabled={dueTodayPage === totalDueTodayPages}
+                      className="p-0.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30"
+                    >
+                      <ChevronRight className="h-3 w-3" />
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <div className="p-2.5 rounded-xl bg-amber-50/50 dark:bg-amber-950/20 border border-amber-100/60 dark:border-amber-800/20 space-y-1.5">
                 <Link
-                  key={task.id}
-                  href={`/dashboard/tasks/${task.id}`}
-                  className="flex items-center justify-between rounded-lg px-3 py-2 bg-amber-50/50 dark:bg-amber-950/20 border border-amber-100/60 dark:border-amber-800/20 hover:bg-amber-50 dark:hover:bg-amber-950/40 transition-colors group"
+                  href={`/dashboard/tasks/${currentDueTodayTask.id}/record`}
+                  className="flex items-center justify-between group"
                 >
-                  <span className="text-[11px] text-amber-700 dark:text-amber-300 font-medium truncate mr-2">
-                    {task.title}
+                  <span className="text-[11px] text-amber-700 dark:text-amber-300 font-bold truncate mr-2">
+                    {currentDueTodayTask.title}
                   </span>
                   <ExternalLink className="h-3 w-3 text-amber-400 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
                 </Link>
-              ))}
+
+                {currentDueTodayTask.records && currentDueTodayTask.records.length > 0 && (
+                  <div className="pl-2.5 space-y-1 border-l-2 border-amber-200/80 dark:border-amber-800/40">
+                    {currentDueTodayTask.records.slice(0, 3).map((rec) => (
+                      <div key={rec.id} className="flex items-center justify-between text-[10px]">
+                        <span className="text-slate-700 dark:text-slate-300 truncate font-medium">↳ {rec.title}</span>
+                        <Badge className="text-[8px] px-1.5 py-0 border-0 bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-200 font-bold shrink-0 ml-1">
+                          {rec.stageName}
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Active Projects & Record Cards with Compact Pagination */}
+          {allTasksWithRecords.length > 0 && currentProjectTask && (
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <p className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider flex items-center gap-1">
+                  <Bot className="h-3 w-3" />
+                  Active Projects & Task Cards ({allTasksWithRecords.length})
+                </p>
+                {totalProjectPages > 1 && (
+                  <div className="flex items-center gap-1.5 text-[10px] text-slate-500 font-semibold">
+                    <span className="text-indigo-600 dark:text-indigo-400 font-bold">{activeProjectPage} / {totalProjectPages}</span>
+                    <button
+                      onClick={() => setActiveProjectPage((prev) => Math.max(prev - 1, 1))}
+                      disabled={activeProjectPage === 1}
+                      className="p-1 rounded bg-slate-100 dark:bg-slate-800 disabled:opacity-30 hover:bg-indigo-100 dark:hover:bg-indigo-950 transition-colors"
+                      title="Previous project"
+                    >
+                      <ChevronLeft className="h-3 w-3" />
+                    </button>
+                    <button
+                      onClick={() => setActiveProjectPage((prev) => Math.min(prev + 1, totalProjectPages))}
+                      disabled={activeProjectPage === totalProjectPages}
+                      className="p-1 rounded bg-slate-100 dark:bg-slate-800 disabled:opacity-30 hover:bg-indigo-100 dark:hover:bg-indigo-950 transition-colors"
+                      title="Next project"
+                    >
+                      <ChevronRight className="h-3 w-3" />
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <div className="p-2.5 rounded-xl bg-slate-50/90 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-800 space-y-1.5">
+                <Link
+                  href={`/dashboard/tasks/${currentProjectTask.id}/record`}
+                  className="flex items-center justify-between group"
+                >
+                  <span className="text-[11px] text-slate-900 dark:text-slate-100 font-bold truncate mr-2">
+                    {currentProjectTask.title}
+                  </span>
+                  <ExternalLink className="h-3 w-3 text-indigo-500 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+                </Link>
+
+                {currentProjectTask.records && currentProjectTask.records.length > 0 ? (
+                  <div className="pl-2.5 space-y-1 border-l-2 border-indigo-300 dark:border-indigo-800">
+                    {currentProjectTask.records.slice(0, 3).map((rec) => (
+                      <div key={rec.id} className="flex items-center justify-between text-[10px]">
+                        <span className="text-slate-700 dark:text-slate-300 truncate font-medium">↳ {rec.title}</span>
+                        <Badge className="text-[8px] px-1.5 py-0 border-0 bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-bold shrink-0 ml-1">
+                          {rec.stageName}
+                        </Badge>
+                      </div>
+                    ))}
+                    {currentProjectTask.records.length > 3 && (
+                      <p className="text-[9px] text-indigo-500 font-semibold pt-0.5">
+                        +{currentProjectTask.records.length - 3} more task cards
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-[10px] text-slate-400 dark:text-slate-500 pl-2.5 italic">No records created yet</p>
+                )}
+              </div>
             </div>
           )}
 

@@ -192,24 +192,25 @@ export async function GET(req: Request) {
 
     // 4. Tag Metrics
     const tags = await db.tag.findMany({
-      where: { records: { some: recordWhere } },
+      where: { record: { some: recordWhere } },
       include: {
-        records: { where: recordWhere, select: { id: true } },
+        record: { where: recordWhere, select: { id: true } },
       },
       orderBy: { name: "asc" },
     });
 
     const tagBreakdown = tags
-      .map((t) => ({ id: t.id, name: t.name, count: t.records.length }))
-      .sort((left, right) => right.count - left.count)
+      .map((t: any) => ({ id: t.id, name: t.name, count: (t.record || []).length }))
+      .sort((left: any, right: any) => right.count - left.count)
       .slice(0, 10);
 
     // 5. Automation Rule Metrics
+    const automationRuleDb = (db as any).automationrule || (db as any).automationRule;
     const [totalAutomations, enabledAutomations] = await Promise.all([
-      db.automationRule.count({
+      automationRuleDb.count({
         where: { userId: { in: scopedUserIds } },
       }),
-      db.automationRule.count({
+      automationRuleDb.count({
         where: { enabled: true, userId: { in: scopedUserIds } },
       }),
     ]);
@@ -232,9 +233,9 @@ export async function GET(req: Request) {
         },
         _count: {
           select: {
-            createdTasks: true,
-            createdRecords: true,
-            sentMessages: true,
+            task: true,
+            record: true,
+            message_message_senderIdTouser: true,
           },
         },
       },
@@ -352,15 +353,15 @@ export async function GET(req: Request) {
         })),
         stageBreakdown,
         tagBreakdown,
-        userProductivity: users.map((u) => ({
+        userProductivity: users.map((u: any) => ({
           id: u.id,
           name: u.name || "User",
           email: u.email,
           image: u.image,
           role: u.role,
-          tasksCreated: u._count.createdTasks,
-          recordsCreated: u._count.createdRecords,
-          messagesSent: u._count.sentMessages,
+          tasksCreated: u._count?.task || 0,
+          recordsCreated: u._count?.record || 0,
+          messagesSent: u._count?.message_message_senderIdTouser || 0,
         })),
         fileStorageBreakdown: {
           photos: photoCount,

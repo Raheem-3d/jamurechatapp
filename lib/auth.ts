@@ -3,6 +3,7 @@ import CredentialsProvider from "next-auth/providers/credentials"
 import { db } from "@/lib/db"
 import { compare } from "bcryptjs"
 import { isSuperAdmin } from "@/lib/org"
+import { cacheGet, cacheSet } from "@/lib/redis"
 
 export const authOptions: NextAuthOptions = {
   secret: process.env.NEXTAUTH_SECRET || "jamurechat-secret-key-default-2026",
@@ -75,63 +76,71 @@ export const authOptions: NextAuthOptions = {
       }
       return s
     },
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger }: { token: any; user?: any; trigger?: string }) {
       if (!token.email) return token;
+
+      // Fast path: if token is already fully populated and no update requested, return immediately
+      if (token.id && token.role && trigger !== "update" && !user) {
+        return token;
+      }
 
       // 1. Try fetching cached user session from Redis
       try {
-        const { cacheGet, cacheSet } = require("./redis");
         const cacheKey = `user:${token.email}:jwt`;
         const cachedToken = await cacheGet(cacheKey);
-        if (cachedToken && cachedToken.id) {
+        if (cachedToken && (cachedToken as any).id && trigger !== "update") {
           return { ...token, ...cachedToken };
         }
       } catch (e) {
         // non-fatal fallback
       }
 
-      const dbUser = await db.user.findFirst({
-        where: { email: token.email as string },
-        include: { organization: { include: { subscription: true } } },
-      })
-
-      if (!dbUser) {
-        if (user) {
-          token.id = user.id
-        }
-        return token
-      }
-
-      // Check if user is super admin
-      const userIsSuperAdmin = dbUser.isSuperAdmin || isSuperAdmin(dbUser.email)
-
-      // Organization-level subscription snapshot
-      const subscription = dbUser.organization?.subscription || null
-
-      const tokenPayload = {
-        ...token,
-        id: dbUser.id,
-        name: dbUser.name,
-        email: dbUser.email,
-        role: dbUser.role,
-        permissions: dbUser.permissions || [],
-        departmentId: dbUser.departmentId,
-        organizationId: dbUser.organizationId,
-        isSuperAdmin: userIsSuperAdmin,
-        subscriptionStatus: subscription?.status || "ACTIVE",
-        subscriptionEnd: subscription?.status === "TRIAL" ? subscription.trialEnd : subscription?.currentPeriodEnd || null,
-        organizationSuspended: (dbUser.organization as any)?.suspended === true,
-      }
-
-      // 2. Cache session token in Redis for 5 minutes (300 seconds)
       try {
-        const { cacheSet } = require("./redis");
-        cacheSet(`user:${token.email}:jwt`, tokenPayload, 300).catch(() => { });
-      } catch (e) {
-        // non-fatal fallback
-      }
+        const dbUser = await db.user.findFirst({
+          where: { email: token.email as string },
+          include: { organization: { include: { subscription: true } } },
+        })
 
-      return tokenPayload;
+        if (!dbUser) {
+          if (user) {
+            token.id = user.id
+          }
+          return token
+        }
+
+        // Check if user is super admin
+        const userIsSuperAdmin = dbUser.isSuperAdmin || isSuperAdmin(dbUser.email)
+
+        // Organization-level subscription snapshot
+        const subscription = dbUser.organization?.subscription || null
+
+        const tokenPayload = {
+          ...token,
+          id: dbUser.id,
+          name: dbUser.name,
+          email: dbUser.email,
+          role: dbUser.role,
+          permissions: dbUser.permissions || [],
+          departmentId: dbUser.departmentId,
+          organizationId: dbUser.organizationId,
+          isSuperAdmin: userIsSuperAdmin,
+          subscriptionStatus: subscription?.status || "ACTIVE",
+          subscriptionEnd: subscription?.status === "TRIAL" ? subscription.trialEnd : subscription?.currentPeriodEnd || null,
+          organizationSuspended: (dbUser.organization as any)?.suspended === true,
+        }
+
+        // 2. Cache session token in Redis for 5 minutes (300 seconds)
+        try {
+          cacheSet(`user:${token.email}:jwt`, tokenPayload, 300).catch(() => { });
+        } catch (e) {
+          // non-fatal fallback
+        }
+
+        return tokenPayload;
+      } catch (dbError) {
+        console.error("NextAuth JWT DB lookup fallback:", dbError);
+        return token;
+      }
     },
   },
   debug: false,

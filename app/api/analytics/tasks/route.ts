@@ -24,7 +24,7 @@ export async function GET(req: Request) {
       },
       include: {
         assignments: { select: { userId: true, createdAt: true } },
-        Stage: {
+        stage: {
           orderBy: { order: "asc" },
           select: { id: true, name: true, color: true },
         },
@@ -65,8 +65,14 @@ export async function GET(req: Request) {
         stagesSet.add(stageName);
       }
 
-      // Duration in clock hours
+      // Duration & Timing calculation
       let durationHours = 0;
+      const deadlineVal = task.deadlineEnd || task.deadline || task.deadlineStart;
+      const deadlineDate = deadlineVal ? new Date(deadlineVal) : null;
+      let completedEarly = false;
+      let completedLate = false;
+      let isOverdue = false;
+
       if (isDone) {
         durationHours = Math.max(
           0.5,
@@ -79,9 +85,27 @@ export async function GET(req: Request) {
         else if (durationHours <= 24 * 3) durationBrackets.oneToThreeDays++;
         else if (durationHours <= 24 * 7) durationBrackets.threeToSevenDays++;
         else durationBrackets.over7Days++;
+
+        // Determine if task was completed before deadline / early
+        if (deadlineDate) {
+          if (updatedDate.getTime() <= deadlineDate.getTime()) {
+            completedEarly = true;
+          } else {
+            completedLate = true;
+          }
+        } else {
+          // If completed in less than 24 hours without a formal deadline, mark as completed early/fast
+          if (durationHours <= 24) {
+            completedEarly = true;
+          }
+        }
       } else {
         durationHours =
           (new Date().getTime() - createdDate.getTime()) / (1000 * 60 * 60);
+
+        if (deadlineDate && new Date().getTime() > deadlineDate.getTime()) {
+          isOverdue = true;
+        }
       }
 
       const durationFormatted = isDone
@@ -97,6 +121,10 @@ export async function GET(req: Request) {
         stages: taskStages,
         assignedAt: task.createdAt,
         completedAt: isDone ? task.updatedAt : null,
+        deadline: deadlineVal ? deadlineVal : null,
+        completedEarly,
+        completedLate,
+        isOverdue,
         durationFormatted,
         durationHours: Math.round(durationHours * 10) / 10,
       };

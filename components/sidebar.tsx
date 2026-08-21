@@ -207,7 +207,6 @@ export default function Sidebar({
 
     // Listen for creation events to refresh without full page reload
     const onChannelCreated = () => {
-      // Re-fetch to stay consistent with server filters
       fetchChannels();
       fetchUnreadCounts();
     };
@@ -220,18 +219,64 @@ export default function Sidebar({
       fetchUnreadCounts();
     };
 
-    // Listen for assignment events (when user is assigned to channel/task)
     const onChannelAssigned = () => {
-      // console.log("📡 Channel assigned - refreshing sidebar");
       fetchChannels();
       fetchUnreadCounts();
     };
     const onTaskAssigned = () => {
-      // console.log("📡 Task assigned - refreshing sidebar");
       fetchRecentTasks();
     };
 
     const onMessageCreated = () => {
+      fetchRecentChats();
+      fetchUnreadCounts();
+    };
+
+    // Real-time handler when a new message arrives via Socket
+    const onMessageReceived = (event: CustomEvent) => {
+      const msg = event?.detail;
+      const currentUserId = (session as any)?.user?.id;
+
+      if (!msg) return;
+      // Skip if message was sent by current user
+      if (currentUserId && msg.senderId === currentUserId) return;
+
+      const currentPath = window.location.pathname;
+
+      // If user is currently in the active channel where message was sent, mark as read
+      if (msg.channelId && currentPath.includes(`/dashboard/channels/${msg.channelId}`)) {
+        fetch("/api/messages/mark-read", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ channelId: msg.channelId }),
+        }).catch(() => {});
+        return;
+      }
+
+      // If user is currently in the active DM chat with sender, mark as read
+      if (msg.receiverId === currentUserId && currentPath.includes(`/dashboard/messages/${msg.senderId}`)) {
+        fetch("/api/messages/mark-read", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ senderId: msg.senderId }),
+        }).catch(() => {});
+        return;
+      }
+
+      // Otherwise, update unread count in real-time instantly without refresh
+      setUnreadCounts((prev) => {
+        const next = {
+          dms: { ...prev.dms },
+          channels: { ...prev.channels },
+        };
+        if (msg.channelId) {
+          next.channels[msg.channelId] = (next.channels[msg.channelId] || 0) + 1;
+        } else if (msg.senderId) {
+          next.dms[msg.senderId] = (next.dms[msg.senderId] || 0) + 1;
+        }
+        return next;
+      });
+
       fetchRecentChats();
       fetchUnreadCounts();
     };
@@ -250,6 +295,10 @@ export default function Sidebar({
     window.addEventListener(
       "message:created",
       onMessageCreated as EventListener,
+    );
+    window.addEventListener(
+      "message:received",
+      onMessageReceived as EventListener,
     );
     window.addEventListener(
       "messages:read",
@@ -282,11 +331,66 @@ export default function Sidebar({
         onMessageCreated as EventListener,
       );
       window.removeEventListener(
+        "message:received",
+        onMessageReceived as EventListener,
+      );
+      window.removeEventListener(
         "messages:read",
         fetchUnreadCounts as EventListener,
       );
     };
-  }, []);
+  }, [(session as any)?.user?.id]);
+
+  // Auto-remove unread count when a DM or Channel is opened
+  useEffect(() => {
+    if (!pathname) return;
+
+    if (pathname.includes("/dashboard/messages/")) {
+      const dmUserId = pathname.split("/dashboard/messages/")[1]?.split("/")[0]?.trim();
+      if (dmUserId) {
+        // Immediately remove unread badge from sidebar state
+        setUnreadCounts((prev) => {
+          if (!prev.dms[dmUserId]) return prev;
+          const updatedDms = { ...prev.dms };
+          delete updatedDms[dmUserId];
+          return { ...prev, dms: updatedDms };
+        });
+
+        // Mark messages as read in DB
+        fetch("/api/messages/mark-read", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ senderId: dmUserId }),
+        })
+          .then(() => {
+            window.dispatchEvent(new CustomEvent("messages:read"));
+          })
+          .catch((err) => console.error("Error marking DM read:", err));
+      }
+    } else if (pathname.includes("/dashboard/channels/")) {
+      const channelId = pathname.split("/dashboard/channels/")[1]?.split("/")[0]?.trim();
+      if (channelId) {
+        // Immediately remove unread badge from sidebar state
+        setUnreadCounts((prev) => {
+          if (!prev.channels[channelId]) return prev;
+          const updatedChannels = { ...prev.channels };
+          delete updatedChannels[channelId];
+          return { ...prev, channels: updatedChannels };
+        });
+
+        // Mark channel messages as read in DB
+        fetch("/api/messages/mark-read", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ channelId }),
+        })
+          .then(() => {
+            window.dispatchEvent(new CustomEvent("messages:read"));
+          })
+          .catch((err) => console.error("Error marking channel read:", err));
+      }
+    }
+  }, [pathname]);
 
   // fetch organization details (name) for display in header
   useEffect(() => {
@@ -767,6 +871,9 @@ export default function Sidebar({
                                   src={channel.image}
                                   alt={channel.name}
                                   className="w-10 h-10 rounded-md object-cover mr-2.5 shrink-0 border border-indigo-200 dark:border-indigo-800 shadow-2xs"
+                                  onError={(e) => {
+                                    (e.target as HTMLElement).style.display = "none";
+                                  }}
                                 />
                               ) : (
                                 <Hash className="h-4 w-4 mr-2.5 text-indigo-500 group-hover:scale-110 transition-transform shrink-0" />

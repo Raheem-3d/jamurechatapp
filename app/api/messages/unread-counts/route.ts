@@ -29,8 +29,22 @@ export async function GET(request: NextRequest) {
     const dms: Record<string, number> = {};
     let totalDms = 0;
 
+    const parseSeen = (seenBy: any): string[] => {
+      if (!seenBy) return [];
+      if (Array.isArray(seenBy)) return seenBy;
+      if (typeof seenBy === "string") {
+        try {
+          const parsed = JSON.parse(seenBy);
+          if (Array.isArray(parsed)) return parsed;
+        } catch {
+          return seenBy.split(",").map((s) => s.trim()).filter(Boolean);
+        }
+      }
+      return [];
+    };
+
     for (const msg of dmMessages) {
-      const seenArr = Array.isArray(msg.seenBy) ? (msg.seenBy as string[]) : [];
+      const seenArr = parseSeen(msg.seenBy);
       if (!seenArr.includes(userId)) {
         dms[msg.senderId] = (dms[msg.senderId] || 0) + 1;
         totalDms += 1;
@@ -38,11 +52,12 @@ export async function GET(request: NextRequest) {
     }
 
     // 2. Unread Channel Messages
-    const userMemberships = await db.channelMember.findMany({
+    const channelMemberDb = (db as any).channelmember || (db as any).channelMember;
+    const userMemberships = await channelMemberDb.findMany({
       where: { userId },
       select: { channelId: true },
     });
-    const userChannelIds = userMemberships.map((m) => m.channelId);
+    const userChannelIds = userMemberships.map((m: any) => m.channelId);
 
     const publicChannels = await db.channel.findMany({
       where: {
@@ -71,7 +86,7 @@ export async function GET(request: NextRequest) {
 
     for (const msg of channelMessages) {
       if (!msg.channelId) continue;
-      const seenArr = Array.isArray(msg.seenBy) ? (msg.seenBy as string[]) : [];
+      const seenArr = parseSeen(msg.seenBy);
       if (!seenArr.includes(userId)) {
         channels[msg.channelId] = (channels[msg.channelId] || 0) + 1;
         totalChannels += 1;

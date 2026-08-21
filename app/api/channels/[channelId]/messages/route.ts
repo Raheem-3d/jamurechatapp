@@ -52,7 +52,7 @@ export async function GET(request: NextRequest, { params }: { params: any }) {
       include: {
         sender: { select: { id: true, name: true, email: true, image: true } },
         receiver: { select: { id: true, name: true, email: true, image: true } },
-        pinnedMessage: {
+        message: {
           select: {
             id: true,
             content: true,
@@ -68,9 +68,13 @@ export async function GET(request: NextRequest, { params }: { params: any }) {
 
     const enriched = messages.map((m: any) => ({
       ...m,
-      reactions: Array.isArray(m.reactions) ? m.reactions : [],
-      pinnedAuthor: m.pinnedMessage?.sender?.name ?? null,
-      pinnedPreview: m.pinnedMessage?.content?.slice(0, 160) ?? null,
+      reactions: Array.isArray(m.reactions)
+        ? m.reactions
+        : typeof m.reactions === "string"
+        ? (() => { try { return JSON.parse(m.reactions); } catch { return []; } })()
+        : [],
+      pinnedAuthor: m.message?.sender?.name ?? null,
+      pinnedPreview: m.message?.content?.slice(0, 160) ?? null,
     }))
 
     return NextResponse.json(enriched)

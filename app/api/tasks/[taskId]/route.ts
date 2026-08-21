@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth"
 import { db } from "@/lib/db"
 import { emitToUser } from "@/lib/socket-server"
 import { sendEmail } from "@/lib/email"
+import { randomUUID } from "crypto"
 
 export async function GET(req: Request, { params }: { params: Promise<{ taskId: string }> | { taskId: string } }) {
   try {
@@ -16,7 +17,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ taskId: 
 
     const orgId = user.organizationId
 
-    const task = await db.task.findUnique({
+    const rawTask = await db.task.findUnique({
       where: {
         id: taskId,
       },
@@ -27,7 +28,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ taskId: 
             user: true,
           },
         },
-        comments: {
+        taskcomment: {
           include: {
             user: true,
           },
@@ -39,8 +40,13 @@ export async function GET(req: Request, { params }: { params: Promise<{ taskId: 
       },
     })
 
-    if (!task || (orgId && (task as any).organizationId && (task as any).organizationId !== orgId)) {
+    if (!rawTask || (orgId && (rawTask as any).organizationId && (rawTask as any).organizationId !== orgId)) {
       return NextResponse.json({ message: "Task not found" }, { status: 404 })
+    }
+
+    const task = {
+      ...rawTask,
+      comments: (rawTask as any).comments || (rawTask as any).taskcomment || [],
     }
 
     // Check if user is authorized to view this task
@@ -108,6 +114,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ taskId
       const updatedBy = user.name || user.email || "Someone"
       const notification = await db.notification.create({
         data: {
+          id: randomUUID(),
           type: "TASK_ASSIGNED",
           content: `Task "${updatedTask.title}" status updated to "${updatedTask.status}" by ${updatedBy}`,
           userId: assignment.userId,
@@ -317,7 +324,8 @@ export async function PUT(req: Request, { params }: { params: Promise<{ taskId: 
 
       const notification = await db.notification.create({
         data: {
-         type: "TASK_ASSIGNED",
+          id: randomUUID(),
+          type: "TASK_ASSIGNED",
           content: notificationContent,
           userId: assignment.userId,
           read: false,
@@ -361,7 +369,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ taskI
       include: {
         assignments: true,
         channel: true,
-        comments: true,
+        taskcomment: true,
       },
     })
 
@@ -409,6 +417,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ taskI
     for (const assignment of task.assignments) {
       const notification = await db.notification.create({
         data: {
+          id: randomUUID(),
           type: "TASK_ASSIGNED",
           content: `Task "${task.title}" was deleted by ${deletedBy}`,
           userId: assignment.userId,

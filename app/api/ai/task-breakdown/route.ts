@@ -26,13 +26,16 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { taskId, title, description } = body;
 
-    let taskTitle: string;
-    let taskDescription: string;
+    let taskTitle: string = title || '';
+    let taskDescription: string = description || '';
 
-    if (taskId) {
-      const task = await db.task.findUnique({
+    if (!taskTitle && taskId) {
+      const record = await db.record.findUnique({
         where: { id: taskId },
       });
+      const task = record || (await db.task.findUnique({
+        where: { id: taskId },
+      }));
 
       if (!task) {
         return NextResponse.json({ error: 'Task not found' }, { status: 404 });
@@ -40,10 +43,7 @@ export async function POST(req: NextRequest) {
 
       taskTitle = task.title;
       taskDescription = task.description || '';
-    } else if (title) {
-      taskTitle = title;
-      taskDescription = description || '';
-    } else {
+    } else if (!taskTitle) {
       return NextResponse.json(
         { error: 'Provide taskId or title' },
         { status: 400 }

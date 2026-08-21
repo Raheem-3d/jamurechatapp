@@ -51,7 +51,7 @@ export default async function TaskDetailPage({
     redirect("/login");
   }
 
-  const task = await db.task.findUnique({
+  const rawTask = await db.task.findUnique({
     where: {
       id: taskId,
     },
@@ -62,7 +62,7 @@ export default async function TaskDetailPage({
           user: true,
         },
       },
-      comments: {
+      taskcomment: {
         include: {
           user: true,
         },
@@ -74,9 +74,14 @@ export default async function TaskDetailPage({
     },
   });
 
-  if (!task) {
+  if (!rawTask) {
     notFound();
   }
+
+  const task = {
+    ...rawTask,
+    comments: (rawTask as any).comments || (rawTask as any).taskcomment || [],
+  };
 
   const userId = (session.user as any)?.id;
 
@@ -149,7 +154,7 @@ export default async function TaskDetailPage({
     ...task.assignments.map((assignment: any) => ({
       id: `assignment-${assignment.id}`,
       title: "Team Member Assigned",
-      description: `${assignment.user.name} was assigned on ${formatDate(assignment.createdAt)}`,
+      description: `${assignment.user?.name || "Team Member"} was assigned on ${formatDate(assignment.createdAt)}`,
       date: new Date(assignment.createdAt),
       iconType: "assignment",
       user: assignment.user,

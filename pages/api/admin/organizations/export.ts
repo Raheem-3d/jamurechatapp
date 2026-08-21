@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import { getToken } from 'next-auth/jwt'
-import prisma from '@/prisma/client'
+import { db } from '@/lib/db'
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET })
@@ -11,7 +11,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return
   }
 
-  const orgs = await prisma.organization.findMany({
+  const orgs = await db.organization.findMany({
     include: { subscription: true },
     orderBy: { createdAt: 'desc' }
   })
@@ -21,11 +21,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     o.id,
     o.name,
     o.primaryEmail,
-    o.createdAt.toISOString(),
+    o.createdAt ? new Date(o.createdAt).toISOString() : '',
     o.suspended ? 'true' : 'false',
     o.subscription?.status || '',
-    o.subscription?.trialStart?.toISOString?.() || '',
-    o.subscription?.trialEnd?.toISOString?.() || ''
+    o.subscription?.trialStart ? new Date(o.subscription.trialStart).toISOString() : '',
+    o.subscription?.trialEnd ? new Date(o.subscription.trialEnd).toISOString() : ''
   ])
 
   const csv = [

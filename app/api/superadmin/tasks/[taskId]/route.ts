@@ -8,23 +8,21 @@ import { checkSuperAdmin } from "@/lib/permissions"
 // GET /api/superadmin/tasks/[taskId] - Get task details
 export async function GET(
   req: NextRequest,
-  { params }: { params: { taskId: string } }
+  { params }: { params: Promise<{ taskId: string }> | { taskId: string } }
 ) {
   try {
+    const { taskId } = await params
     const user = await getSessionUserWithPermissions()
     checkSuperAdmin(user.isSuperAdmin)
 
-    const task = await db.task.findUnique({
-      where: { id: params.taskId },
+    const rawTask = await db.task.findUnique({
+      where: { id: taskId },
       include: {
         organization: {
           select: { id: true, name: true }
         },
         creator: {
           select: { id: true, name: true, email: true, image: true }
-        },
-        project: {
-          select: { id: true, title: true }
         },
         assignments: {
           include: {
@@ -33,7 +31,7 @@ export async function GET(
             }
           }
         },
-        comments: {
+        taskcomment: {
           include: {
             user: {
               select: { id: true, name: true, image: true }
@@ -43,15 +41,20 @@ export async function GET(
         },
         _count: {
           select: {
-            comments: true,
+            taskcomment: true,
             assignments: true
           }
         }
       }
     })
 
-    if (!task) {
+    if (!rawTask) {
       return NextResponse.json({ error: "Task not found" }, { status: 404 })
+    }
+
+    const task = {
+      ...rawTask,
+      comments: (rawTask as any).comments || (rawTask as any).taskcomment || [],
     }
 
     return NextResponse.json(task)
@@ -67,24 +70,24 @@ export async function GET(
 // PATCH /api/superadmin/tasks/[taskId] - Update task
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { taskId: string } }
+  { params }: { params: Promise<{ taskId: string }> | { taskId: string } }
 ) {
   try {
+    const { taskId } = await params
     const user = await getSessionUserWithPermissions()
     checkSuperAdmin(user.isSuperAdmin)
 
     const body = await req.json()
-    const { title, description, status, priority, deadline, projectId } = body
+    const { title, description, status, priority, deadline } = body
 
-    const task = await db.task.update({
-      where: { id: params.taskId },
+    const rawTask = await db.task.update({
+      where: { id: taskId },
       data: {
         ...(title && { title }),
         ...(description !== undefined && { description }),
         ...(status && { status }),
         ...(priority && { priority }),
         ...(deadline !== undefined && { deadline: deadline ? new Date(deadline) : null }),
-        ...(projectId !== undefined && { projectId }),
       },
       include: {
         organization: {
@@ -92,9 +95,6 @@ export async function PATCH(
         },
         creator: {
           select: { id: true, name: true, email: true, image: true }
-        },
-        project: {
-          select: { id: true, title: true }
         },
         assignments: {
           include: {
@@ -105,6 +105,11 @@ export async function PATCH(
         }
       }
     })
+
+    const task = {
+      ...rawTask,
+      comments: (rawTask as any).comments || (rawTask as any).taskcomment || [],
+    }
 
     return NextResponse.json(task)
   } catch (error) {
@@ -119,9 +124,10 @@ export async function PATCH(
 // DELETE /api/superadmin/tasks/[taskId] - Delete task
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { taskId: string } }
+  { params }: { params: Promise<{ taskId: string }> | { taskId: string } }
 ) {
   try {
+    const { taskId } = await params
     const user = await getSessionUserWithPermissions()
     checkSuperAdmin(user.isSuperAdmin)
 
@@ -129,15 +135,15 @@ export async function DELETE(
     await db.$transaction([
       // Delete task assignments
       db.taskAssignment.deleteMany({
-        where: { taskId: params.taskId }
+        where: { taskId }
       }),
       // Delete task comments
       db.taskComment.deleteMany({
-        where: { taskId: params.taskId }
+        where: { taskId }
       }),
       // Delete the task
       db.task.delete({
-        where: { id: params.taskId }
+        where: { id: taskId }
       })
     ])
 

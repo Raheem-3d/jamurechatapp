@@ -2,8 +2,6 @@ import { db } from "@/lib/db";
 import { emitToUser } from "@/lib/socket-server";
 import { cacheGet, cacheSet, cacheDel, pushCacheList } from "@/lib/redis";
 import { produceKafkaEvent } from "@/lib/kafka";
-import { AutomationRule, Task } from "@prisma/client";
-
 // ==================== Type Definitions ====================
 export type TriggerType =
   | "status_change"
@@ -34,6 +32,23 @@ export type Operator =
   | "before"
   | "after";
 
+export interface AutomationRule {
+  id: string;
+  name: string;
+  trigger: string;
+  conditions: any;
+  actions: any;
+  enabled: boolean;
+  applyToAll?: boolean;
+  stopOnFirst?: boolean;
+  projectId?: string | null;
+  taskId?: string | null;
+  userId?: string | null;
+  lastTriggered?: Date | string | null;
+  createdAt?: Date | string;
+  updatedAt?: Date | string;
+}
+
 export interface RuleCondition {
   field: string;
   operator: Operator | string;
@@ -46,7 +61,7 @@ export interface RuleAction {
   metadata?: Record<string, any>;
 }
 
-export interface TaskWithRelations extends Partial<Task> {
+export interface TaskWithRelations {
   id?: string;
   title?: string;
   description?: string | null;
@@ -439,7 +454,6 @@ export async function runAutomationEngine(context: AutomationContext): Promise<v
         OR: [
           { applyToAll: true },
           { projectId: { in: [currentId, parentId].filter(Boolean) as string[] } },
-          { taskId: { in: [currentId, parentId].filter(Boolean) as string[] } },
         ],
       },
     });
@@ -787,6 +801,7 @@ async function executeRuleActions(
 
                 await tx.notification.create({
                   data: {
+                    id: crypto.randomUUID(),
                     type: "REMINDER",
                     content: notifMsg,
                     userId: String(notifUserId),
