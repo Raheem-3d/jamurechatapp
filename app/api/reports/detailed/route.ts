@@ -135,7 +135,7 @@ export async function GET(req: Request) {
     let fastestTaskTitle: string | null = null;
     let slowestTaskTitle: string | null = null;
 
-    const detailedTasks = rawTasks.map((t: any) => {
+    const allTasksMapped = rawTasks.map((t: any) => {
       const isDone = t.status === "DONE";
       const isOverdue = !isDone && t.deadline && new Date(t.deadline) < now;
 
@@ -226,11 +226,18 @@ export async function GET(req: Request) {
       const currentStage =
         stages.length > 0 ? stages[stages.length - 1].name : null;
 
+      const isQuickTask = Boolean(
+        (t.description && (t.description.includes("<!-- type:quick-task -->") || t.description.includes("<!-- quick-task -->") || t.description.includes("[QUICK_TASK]"))) ||
+        (t.customFields && (typeof t.customFields === "object" ? (t.customFields.isQuickTask || t.customFields.isQuickSubtask) : String(t.customFields).includes("isQuickTask") || String(t.customFields).includes("isQuickSubtask"))) ||
+        (t.title && (t.title.toLowerCase().startsWith("quick task") || t.title.toLowerCase().startsWith("quick subtask")))
+      );
+
       return {
         id: t.id,
         title: t.title,
         status: t.status,
         priority: t.priority,
+        isQuickTask,
         creatorName: t.creator?.name || null,
         assignedUsers:
           Array.from(
@@ -255,6 +262,9 @@ export async function GET(req: Request) {
         stagesCount: stages.length,
       };
     });
+
+    const detailedQuickTasks = allTasksMapped.filter((t: any) => t.isQuickTask);
+    const detailedTasks = allTasksMapped.filter((t: any) => !t.isQuickTask);
 
     // -------------------------------------------------------------
     // 2. RECORD PERFORMANCE & COMPLETED RECORDS METRICS
@@ -601,10 +611,14 @@ export async function GET(req: Request) {
     return NextResponse.json(
       {
         summary: {
-          totalTasks: rawTasks.length,
-          completedTasks: completedTasksCount,
-          pendingTasks: pendingTasksCount,
-          overdueTasks: overdueTasksCount,
+          totalTasks: detailedTasks.length,
+          completedTasks: detailedTasks.filter((t: any) => t.status === "DONE").length,
+          pendingTasks: detailedTasks.filter((t: any) => t.status !== "DONE").length,
+          overdueTasks: detailedTasks.filter((t: any) => t.status !== "DONE" && t.deadline && new Date(t.deadline) < new Date()).length,
+          totalQuickTasks: detailedQuickTasks.length,
+          completedQuickTasks: detailedQuickTasks.filter((t: any) => t.status === "DONE").length,
+          pendingQuickTasks: detailedQuickTasks.filter((t: any) => t.status !== "DONE").length,
+          overdueQuickTasks: detailedQuickTasks.filter((t: any) => t.status !== "DONE" && t.deadline && new Date(t.deadline) < new Date()).length,
           completedToday,
           completedThisWeek,
           completedThisMonth,
@@ -624,6 +638,7 @@ export async function GET(req: Request) {
           totalLoggedHours: (totalDurationSeconds / 3600).toFixed(1),
         },
         detailedTasks,
+        detailedQuickTasks,
         detailedRecords,
         userWorkload,
         stageAnalytics,

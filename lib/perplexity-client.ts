@@ -396,23 +396,26 @@ export class PerplexityClient {
         },
   ) {
     if (typeof config === "object" && config !== null) {
-      this.provider = (config.provider || "openrouter").toLowerCase();
+      const p = String(config.provider || "openrouter").toLowerCase().trim();
+      this.provider = p;
       this.apiKey = config.apiKey ? config.apiKey.trim() : "";
-      const defaultUrl =
-        this.provider === "ollama"
-          ? "http://localhost:11434"
-          : this.provider === "perplexity"
-            ? "https://api.perplexity.ai"
-            : "https://openrouter.ai/api/v1";
+
+      let defaultUrl = "https://openrouter.ai/api/v1";
+      if (p === "ollama") defaultUrl = "http://localhost:11434";
+      else if (p === "perplexity") defaultUrl = "https://api.perplexity.ai";
+      else if (p === "openai") defaultUrl = "https://api.openai.com/v1";
+
       this.baseUrl = (config.baseUrl || defaultUrl).trim().replace(/\/$/, "");
-      this.model =
-        config.model ||
-        (this.provider === "ollama"
-          ? "llama3"
-          : "mistralai/mistral-7b-instruct");
+
+      let defaultModel = "mistralai/mistral-7b-instruct";
+      if (p === "ollama") defaultModel = "qwen2.5:0.5b";
+      else if (p === "perplexity") defaultModel = "sonar";
+      else if (p === "openai") defaultModel = "gpt-3.5-turbo";
+
+      this.model = config.model ? config.model.trim() : defaultModel;
     } else {
       const apiKeyStr = typeof config === "string" ? config : undefined;
-      const provider = (process.env.AI_PROVIDER || "perplexity").toLowerCase();
+      const provider = String(process.env.AI_PROVIDER || "perplexity").toLowerCase().trim();
       this.provider = provider;
 
       if (provider === "ollama") {
@@ -430,15 +433,15 @@ export class PerplexityClient {
           this.apiKey = "";
         } else {
           this.apiKey = key;
-          this.baseUrl = "https://api.perplexity.ai";
-          this.model = "sonar";
+          this.baseUrl = (process.env.AI_BASE_URL || "https://api.perplexity.ai").trim().replace(/\/$/, "");
+          this.model = (process.env.AI_MODEL || "sonar").trim();
         }
       }
     }
   }
 
   /**
-   * Generate AI response using Perplexity, OpenRouter, or local Ollama
+   * Generate AI response using Perplexity, OpenRouter, OpenAI, Custom, or local Ollama
    */
   async chat(
     messages: Array<{ role: string; content: string }>,
@@ -446,13 +449,30 @@ export class PerplexityClient {
   ): Promise<any> {
     try {
       const isOllama = this.provider === "ollama";
-      const targetModel =
-        modelOverride ||
-        (isOllama
-          ? process.env.OLLAMA_MODEL || this.model
-          : this.model || "sonar");
+      const targetModel = modelOverride || this.model || (isOllama ? "qwen2.5:0.5b" : "sonar");
 
+      // Robust URL resolver
       let url: string;
+      const cleanBase = this.baseUrl.trim().replace(/\/$/, "");
+
+      if (cleanBase.endsWith("/chat/completions") || cleanBase.endsWith("/api/chat")) {
+        url = cleanBase;
+      } else if (isOllama) {
+        if (cleanBase.endsWith("/v1")) {
+          url = `${cleanBase}/chat/completions`;
+        } else if (cleanBase.endsWith("/api")) {
+          url = `${cleanBase}/chat`;
+        } else {
+          url = `${cleanBase}/v1/chat/completions`;
+        }
+      } else {
+        if (cleanBase.endsWith("/v1")) {
+          url = `${cleanBase}/chat/completions`;
+        } else {
+          url = `${cleanBase}/chat/completions`;
+        }
+      }
+
       const headersObj: Record<string, string> = {
         "Content-Type": "application/json",
       };
@@ -462,17 +482,8 @@ export class PerplexityClient {
         headersObj["X-Title"] = "JamureChat";
       }
 
-      if (isOllama) {
-        if (this.baseUrl.includes("/v1") || this.baseUrl.includes("/api/")) {
-          url = this.baseUrl;
-        } else {
-          url = `${this.baseUrl}/v1/chat/completions`;
-        }
-      } else {
-        url = `${this.baseUrl}/chat/completions`;
-        if (this.apiKey) {
-          headersObj["Authorization"] = `Bearer ${this.apiKey}`;
-        }
+      if (this.apiKey) {
+        headersObj["Authorization"] = `Bearer ${this.apiKey}`;
       }
 
       const body = {
@@ -492,21 +503,14 @@ export class PerplexityClient {
       }
 
       const response = isOllama
-        ? await customNodeFetch(url, headersObj, JSON.stringify(body), 600000)
+        ? await customNodeFetch(url, headersObj, JSON.stringify(body), 120000)
         : await fetch(url, {
             method: "POST",
             headers: headersObj,
             body: JSON.stringify(body),
           });
 
-      if (process.env.AI_DEBUG === "true") {
-        console.log(
-          `[AIClient] response.bodyUsed (before read):`,
-          response.bodyUsed,
-        );
-      }
-
-      // Read the body exactly once. If bodyUsed is true, attempt to recover via clone()
+      // Read the body exactly once
       let rawBody: string | null = null;
 
       if (response.bodyUsed) {
@@ -514,27 +518,19 @@ export class PerplexityClient {
           try {
             const cloned = (response as any).clone();
             rawBody = await cloned.text();
-            console.warn(
-              "[AIClient] response.bodyUsed was true — read body from clone() fallback.",
-            );
           } catch (cloneErr) {
-            console.error("[AIClient] clone() attempted but failed:", cloneErr);
-            throw new Error(
-              "Response body was already consumed and clone() failed to recover it.",
-            );
+            throw new Error("Response body was already consumed and clone() failed.");
           }
         } else {
-          throw new Error(
-            "Response body was already consumed and clone() is not available in this runtime.",
-          );
+          throw new Error("Response body was already consumed.");
         }
       } else {
-        rawBody = await response.text(); // read once
+        rawBody = await response.text();
       }
 
       rawBody = rawBody ?? "";
 
-      // Try parse JSON; if not JSON, keep rawBody for errors/success fallback
+      // Try parse JSON
       let data: any = null;
       try {
         data = rawBody ? JSON.parse(rawBody) : null;
@@ -562,10 +558,11 @@ export class PerplexityClient {
         );
       }
 
-      // Normal success — prefer structured content if present
+      // Extract content from choices or message
       const content =
         data?.choices?.[0]?.message?.content ??
         data?.message?.content ??
+        data?.response ??
         data ??
         rawBody;
       return content;
@@ -845,10 +842,24 @@ export async function getAIClientForOrg(
       } catch (err) {
         org = null;
       }
+
+      // Raw SQL query fallback in case ORM schema doesn't map dynamic columns
+      if (!org || (!org.aiProvider && !org.aiApiKey && !org.aiBaseUrl && !org.aiModel)) {
+        try {
+          const rows: any[] = await db.$queryRawUnsafe(
+            "SELECT `aiEnabled`, `aiProvider`, `aiApiKey`, `aiBaseUrl`, `aiModel` FROM `organization` WHERE `id` = ?",
+            organizationId
+          );
+          if (rows && rows[0]) {
+            org = { ...(org || {}), ...rows[0] };
+          }
+        } catch (rawErr) {}
+      }
+
       if (
         org &&
         (org.aiApiKey ||
-          org.aiProvider === "OLLAMA" ||
+          org.aiProvider ||
           org.aiBaseUrl ||
           org.aiModel)
       ) {

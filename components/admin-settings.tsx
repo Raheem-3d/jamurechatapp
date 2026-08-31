@@ -145,6 +145,12 @@ export default function AdminSettings() {
     latencyMs?: number
   } | null>(null)
 
+  // User Deletion States
+  const [userToDelete, setUserToDelete] = useState<User | null>(null)
+  const [isDeletingUser, setIsDeletingUser] = useState(false)
+  const [isBulkDeleteDialogOpen, setIsBulkDeleteDialogOpen] = useState(false)
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false)
+
   const router = useRouter()
   const { toast } = useToast()
 
@@ -430,6 +436,66 @@ export default function AdminSettings() {
     }
   }
 
+  const handleConfirmDeleteUser = async () => {
+    if (!userToDelete) return
+    setIsDeletingUser(true)
+    try {
+      const res = await fetch(`/api/users/${userToDelete.id}`, {
+        method: "DELETE",
+      })
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.message || "Failed to delete user")
+      }
+      setUsers((prev) => prev.filter((u) => u.id !== userToDelete.id))
+      setSelectedUsers((prev) => prev.filter((id) => id !== userToDelete.id))
+      toast({
+        title: "User Deleted",
+        description: `${userToDelete.name} has been deleted and completely removed from all tasks, channels, and records.`,
+      })
+      setUserToDelete(null)
+      router.refresh()
+    } catch (err: any) {
+      toast({
+        title: "Delete Failed",
+        description: err.message || "Failed to delete user",
+        variant: "destructive",
+      })
+    } finally {
+      setIsDeletingUser(false)
+    }
+  }
+
+  const handleConfirmBulkDelete = async () => {
+    if (selectedUsers.length === 0) return
+    setIsBulkDeleting(true)
+    try {
+      const deletePromises = selectedUsers.map((id) =>
+        fetch(`/api/users/${id}`, { method: "DELETE" })
+      )
+      const responses = await Promise.all(deletePromises)
+      const successfulIds = selectedUsers.filter((_, idx) => responses[idx].ok)
+
+      setUsers((prev) => prev.filter((u) => !successfulIds.includes(u.id)))
+      setSelectedUsers([])
+      setIsBulkDeleteDialogOpen(false)
+
+      toast({
+        title: "Users Deleted",
+        description: `${successfulIds.length} user(s) have been deleted and completely removed from all tasks, channels, and records.`,
+      })
+      router.refresh()
+    } catch (err: any) {
+      toast({
+        title: "Error",
+        description: err.message || "Failed to delete selected users",
+        variant: "destructive",
+      })
+    } finally {
+      setIsBulkDeleting(false)
+    }
+  }
+
   const handleEditDepartment = (department: Department) => {
     setEditingDepartment(department)
     setEditedDepartmentName(department.name)
@@ -599,26 +665,44 @@ export default function AdminSettings() {
                       <p className="text-sm text-gray-500">No users found</p>
                     ) : (
                       filteredUsers.map((user) => (
-                        <div key={user.id} className="flex items-center space-x-2">
-                          <input
-                            type="checkbox"
-                            id={`user-${user.id}`}
-                            checked={selectedUsers.includes(user.id)}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setSelectedUsers([...selectedUsers, user.id])
-                              } else {
-                                setSelectedUsers(selectedUsers.filter((id) => id !== user.id))
-                              }
-                            }}
-                            className="w-4 h-4 rounded"
-                          />
-                          <label htmlFor={`user-${user.id}`} className="text-sm cursor-pointer flex-1">
-                            {user.name} ({user.email})
-                          </label>
-                          <span className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">
-                            {user.role}
-                          </span>
+                        <div
+                          key={user.id}
+                          className="flex items-center justify-between p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors border border-transparent hover:border-slate-200 dark:hover:border-slate-700"
+                        >
+                          <div className="flex items-center space-x-2.5 flex-1 min-w-0 mr-2">
+                            <input
+                              type="checkbox"
+                              id={`user-${user.id}`}
+                              checked={selectedUsers.includes(user.id)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedUsers([...selectedUsers, user.id])
+                                } else {
+                                  setSelectedUsers(selectedUsers.filter((id) => id !== user.id))
+                                }
+                              }}
+                              className="w-4 h-4 rounded cursor-pointer"
+                            />
+                            <label htmlFor={`user-${user.id}`} className="text-sm cursor-pointer flex-1 truncate font-medium text-slate-800 dark:text-slate-200">
+                              {user.name} <span className="text-xs text-slate-400 font-normal">({user.email})</span>
+                            </label>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="text-xs text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md font-semibold">
+                              {user.role}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setUserToDelete(user)
+                              }}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-md transition-colors"
+                              title="Delete User"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
                         </div>
                       ))
                     )
@@ -840,7 +924,7 @@ export default function AdminSettings() {
                 </>
               )}
             </CardContent>
-            <CardFooter>
+            <CardFooter className="flex items-center justify-between gap-2">
               <Button
                 type="submit"
                 disabled={isLoading || selectedUsers.length === 0 || (!selectedRole && !selectedDepartment && !selectedManager)}
@@ -854,6 +938,19 @@ export default function AdminSettings() {
                   `Update ${selectedUsers.length} User${selectedUsers.length !== 1 ? "s" : ""}`
                 )}
               </Button>
+
+              {selectedUsers.length > 0 && (
+                <Button
+                  type="button"
+                  variant="destructive"
+                  onClick={() => setIsBulkDeleteDialogOpen(true)}
+                  disabled={isLoading || isBulkDeleting}
+                  className="font-bold flex items-center gap-1.5"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Delete ({selectedUsers.length})
+                </Button>
+              )}
             </CardFooter>
           </form>
         </Card>
@@ -1155,6 +1252,69 @@ export default function AdminSettings() {
               ) : (
                 "Save Changes"
               )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* Single User Delete Confirmation Dialog */}
+      <Dialog open={!!userToDelete} onOpenChange={(open) => !open && setUserToDelete(null)}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="text-rose-600 dark:text-rose-400 flex items-center gap-2">
+              <Trash2 className="h-5 w-5" />
+              Delete User
+            </DialogTitle>
+            <DialogDescription className="space-y-2 pt-2 text-slate-600 dark:text-slate-300">
+              Are you sure you want to delete <span className="font-bold text-slate-900 dark:text-white">{userToDelete?.name}</span> ({userToDelete?.email})?
+              <div className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded-xl text-xs text-rose-800 dark:text-rose-300 font-medium mt-3">
+                ⚠️ This action is permanent. The user will be completely removed from all assigned tasks, projects, channel memberships, and records across the application.
+              </div>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0 mt-4">
+            <Button variant="outline" onClick={() => setUserToDelete(null)} disabled={isDeletingUser}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleConfirmDeleteUser}
+              disabled={isDeletingUser}
+              className="gap-1.5"
+            >
+              {isDeletingUser ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              Delete Permanently
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Delete Users Confirmation Dialog */}
+      <Dialog open={isBulkDeleteDialogOpen} onOpenChange={setIsBulkDeleteDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="text-rose-600 dark:text-rose-400 flex items-center gap-2">
+              <Trash2 className="h-5 w-5" />
+              Delete Selected Users
+            </DialogTitle>
+            <DialogDescription className="space-y-2 pt-2 text-slate-600 dark:text-slate-300">
+              Are you sure you want to delete <span className="font-bold text-slate-900 dark:text-white">{selectedUsers.length}</span> selected users?
+              <div className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded-xl text-xs text-rose-800 dark:text-rose-300 font-medium mt-3">
+                ⚠️ All selected users will be permanently removed from all tasks, channels, and records across the organization.
+              </div>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0 mt-4">
+            <Button variant="outline" onClick={() => setIsBulkDeleteDialogOpen(false)} disabled={isBulkDeleting}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleConfirmBulkDelete}
+              disabled={isBulkDeleting}
+              className="gap-1.5"
+            >
+              {isBulkDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              Delete {selectedUsers.length} Users
             </Button>
           </DialogFooter>
         </DialogContent>

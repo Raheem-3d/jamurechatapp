@@ -177,21 +177,37 @@ export async function PUT(req: Request, { params }: { params: Promise<{ taskId: 
     const body = await req.json()
     const { title, description, status, priority, deadline, deadlineRange, deadlineStart, deadlineEnd, assignees } = body
 
-    // Compute updated deadline dates for calendar & task tracking
+    // Compute updated deadline dates for calendar & task tracking preserving exact calendar date
+    const parseInputDate = (val: any): Date | null => {
+      if (!val) return null;
+      if (val instanceof Date) return isNaN(val.getTime()) ? null : val;
+      if (typeof val === "string") {
+        const match = val.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (match) {
+          const y = parseInt(match[1], 10);
+          const m = parseInt(match[2], 10) - 1;
+          const d = parseInt(match[3], 10);
+          return new Date(Date.UTC(y, m, d, 0, 0, 0));
+        }
+      }
+      const d = new Date(val);
+      return isNaN(d.getTime()) ? null : d;
+    };
+
     let finalDeadline: Date | null = null
     let finalDeadlineStart: Date | null = null
     let finalDeadlineEnd: Date | null = null
 
     if (deadlineRange?.from) {
-      finalDeadlineStart = new Date(deadlineRange.from)
-      finalDeadlineEnd = new Date(deadlineRange.to ?? deadlineRange.from)
+      finalDeadlineStart = parseInputDate(deadlineRange.from)
+      finalDeadlineEnd = parseInputDate(deadlineRange.to ?? deadlineRange.from)
       finalDeadline = finalDeadlineEnd
     } else if (deadlineStart || deadlineEnd) {
-      finalDeadlineStart = deadlineStart ? new Date(deadlineStart) : (deadlineEnd ? new Date(deadlineEnd) : null)
-      finalDeadlineEnd = deadlineEnd ? new Date(deadlineEnd) : (deadlineStart ? new Date(deadlineStart) : null)
+      finalDeadlineStart = deadlineStart ? parseInputDate(deadlineStart) : (deadlineEnd ? parseInputDate(deadlineEnd) : null)
+      finalDeadlineEnd = deadlineEnd ? parseInputDate(deadlineEnd) : (deadlineStart ? parseInputDate(deadlineStart) : null)
       finalDeadline = finalDeadlineEnd || finalDeadlineStart
     } else if (deadline) {
-      const d = new Date(deadline)
+      const d = parseInputDate(deadline)
       finalDeadlineStart = d
       finalDeadlineEnd = d
       finalDeadline = d

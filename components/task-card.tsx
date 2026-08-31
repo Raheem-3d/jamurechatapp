@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { formatDate } from "@/lib/utils";
+import { formatDate, formatDeadlineRange } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -168,7 +168,7 @@ export default function TaskCard({
 
           {/* Right Portion: Deadline, Time Spent, Assignees, Actions */}
           <div className="flex items-center gap-2.5 shrink-0 flex-wrap justify-between md:justify-end">
-            {task.deadline && (
+            {(task.deadline || (task as any).deadlineStart) && (
               <div
                 className={cn(
                   "text-[10px] font-semibold px-2 py-0.5 rounded-md flex items-center gap-1",
@@ -180,7 +180,7 @@ export default function TaskCard({
                 )}
               >
                 <Clock className="h-3 w-3" />
-                <span>{formatDate(task.deadline)}</span>
+                <span>{formatDeadlineRange(task.deadline, (task as any).deadlineStart, (task as any).deadlineEnd)}</span>
               </div>
             )}
 
@@ -205,46 +205,43 @@ export default function TaskCard({
 
             {/* Actions */}
             {!client && showActions && (
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1.5 shrink-0">
                 <Button
                   variant="outline"
                   size="sm"
                   asChild
-                  className="h-6.5 text-[11px] font-bold rounded-lg border-slate-200 dark:border-slate-700 px-2"
+                  className="h-6.5 text-[11px] font-bold rounded-lg border-slate-200 dark:border-slate-700 px-2 shadow-2xs hover:bg-slate-50 dark:hover:bg-slate-800"
                 >
                   <Link href={`/dashboard/tasks/${task.id}`}>
                     Details
                   </Link>
                 </Button>
 
-                {task.channel && (
-                  <>
-                    {admin && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        asChild
-                        className="h-6.5 w-6.5 p-0 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
-                        title="Records"
-                      >
-                        <Link href={`/dashboard/tasks/${task.id}/record`}>
-                          <FileText className="h-3.5 w-3.5" />
-                        </Link>
-                      </Button>
-                    )}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      asChild
-                      className="h-6.5 w-6.5 p-0 rounded-lg text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40"
-                      title="Discussion Channel"
-                    >
-                      <Link href={`/dashboard/channels/${task.channel.id}`}>
-                        <MessageSquare className="h-3.5 w-3.5" />
-                      </Link>
-                    </Button>
-                  </>
-                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  asChild
+                  className="h-6.5 text-[11px] font-bold rounded-lg border-slate-200 dark:border-slate-700 px-2 shadow-2xs hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 flex items-center gap-1"
+                  title="Task Flow & Records"
+                >
+                  <Link href={`/dashboard/tasks/${task.id}/record`}>
+                    <FileText className="h-3 w-3 text-indigo-500" />
+                    Record
+                  </Link>
+                </Button>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  asChild
+                  className="h-6.5 text-[11px] font-bold rounded-lg border-indigo-200 dark:border-indigo-800/80 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 px-2 shadow-2xs flex items-center gap-1"
+                  title="Discussion Channel"
+                >
+                  <Link href={task.channel?.id ? `/dashboard/channels/${task.channel.id}` : `/dashboard/tasks/${task.id}`}>
+                    <MessageSquare className="h-3 w-3" />
+                    Channel
+                  </Link>
+                </Button>
               </div>
             )}
           </div>
@@ -259,7 +256,7 @@ export default function TaskCard({
       <div className="p-2.5 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-xl shadow-2xs space-y-1.5 group hover:border-indigo-300 dark:hover:border-indigo-700 transition-all">
         <div className="flex items-center justify-between gap-2">
           {getPriorityBadge(task.priority)}
-          {task.deadline && (
+          {(task.deadline || (task as any).deadlineStart) && (
             <span
               className={cn(
                 "text-[10px] font-semibold flex items-center gap-1",
@@ -267,7 +264,7 @@ export default function TaskCard({
               )}
             >
               <Clock className="h-3 w-3" />
-              {formatDate(task.deadline)}
+              {formatDeadlineRange(task.deadline, (task as any).deadlineStart, (task as any).deadlineEnd)}
             </span>
           )}
         </div>
@@ -348,7 +345,7 @@ export default function TaskCard({
         <div className="mt-3 pt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-2">
           {/* Left: Deadline / Assignees */}
           <div className="flex items-center gap-2 text-[10px] text-slate-500 dark:text-slate-400 min-w-0">
-            {task.deadline ? (
+            {(task.deadline || (task as any).deadlineStart) ? (
               <div
                 className={cn(
                   "flex items-center gap-1 font-semibold truncate",
@@ -356,7 +353,7 @@ export default function TaskCard({
                 )}
               >
                 <Clock className="h-3 w-3 shrink-0" />
-                <span className="truncate">{formatDate(task.deadline)}</span>
+                <span className="truncate">{formatDeadlineRange(task.deadline, (task as any).deadlineStart, (task as any).deadlineEnd)}</span>
               </div>
             ) : (
               <div className="flex -space-x-1.5 overflow-hidden shrink-0">
@@ -381,9 +378,7 @@ export default function TaskCard({
 
           {/* Right: Actions */}
           {!client && showActions && (
-            <div className="flex items-center gap-1 shrink-0">
-
-
+            <div className="flex items-center gap-1.5 shrink-0">
               <Button
                 variant="outline"
                 size="sm"
@@ -395,40 +390,35 @@ export default function TaskCard({
                 </Link>
               </Button>
 
-              {task.channel && (
-                <>
-                  {admin && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      asChild
-                      className="h-6.5 w-6.5 p-0 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
-                      title="Records"
-                    >
-                      <Link href={`/dashboard/tasks/${task.id}/record`}>
-                        <FileText className="h-3 w-3" />
-                      </Link>
-                    </Button>
-                  )}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    asChild
-                    className="h-6.5 w-6.5 p-0 rounded-lg text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40"
-                    title="Discussion Channel"
-                  >
-                    <Link href={`/dashboard/channels/${task.channel.id}`}>
-                      <MessageSquare className="h-3 w-3" />
-                    </Link>
-                  </Button>
-                </>
-              )}
+              <Button
+                variant="outline"
+                size="sm"
+                asChild
+                className="h-6.5 text-[10px] font-bold rounded-lg border-slate-200 dark:border-slate-700 px-2 shadow-2xs hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 flex items-center gap-1"
+                title="Task Flow & Records"
+              >
+                <Link href={`/dashboard/tasks/${task.id}/record`}>
+                  <FileText className="h-3 w-3 text-indigo-500" />
+                  Record
+                </Link>
+              </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
+                asChild
+                className="h-6.5 text-[10px] font-bold rounded-lg border-indigo-200 dark:border-indigo-800/80 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 px-2 shadow-2xs flex items-center gap-1"
+                title="Discussion Channel"
+              >
+                <Link href={task.channel?.id ? `/dashboard/channels/${task.channel.id}` : `/dashboard/tasks/${task.id}`}>
+                  <MessageSquare className="h-3 w-3" />
+                  Channel
+                </Link>
+              </Button>
             </div>
           )}
         </div>
       </div>
-
-
     </motion.div>
   );
 }

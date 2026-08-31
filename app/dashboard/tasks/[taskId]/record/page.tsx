@@ -52,11 +52,10 @@ import {
 } from "lucide-react";
 import { useSocket } from "@/lib/socket-client";
 import { toast } from "sonner";
-import { useParams } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { ActivityLog } from "@/components/ActivityLog";
-import { useRouter } from "next/navigation";
 import { Switch } from "@radix-ui/react-switch";
 import { TaskDetail } from "@/components/TaskDetail";
 import { formatDate } from "date-fns";
@@ -267,7 +266,19 @@ export default function TaskManagement() {
   const params = useParams();
   const taskId = params.taskId as string;
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const recordIdParam = searchParams.get("recordId") || searchParams.get("subtaskId") || searchParams.get("selectedRecord");
   const { users: teamUsers, loading: teamUsersLoading } = useTeamUsers();
+
+  // Auto-open record detail modal if recordId param is in URL
+  useEffect(() => {
+    if (recordIdParam && tasks && tasks.length > 0) {
+      const match = tasks.find((t) => t.id === recordIdParam);
+      if (match) {
+        setSelectedTask(match);
+      }
+    }
+  }, [recordIdParam, tasks]);
 
   // State for filters
   const [searchQuery, setSearchQuery] = useState("");

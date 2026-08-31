@@ -5,12 +5,96 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export function formatDate(date: Date | string) {
-  return new Date(date).toLocaleDateString("en-US", {
+export function parseLocalDate(date: Date | string | null | undefined): Date | null {
+  if (!date) return null;
+  if (date instanceof Date) return isNaN(date.getTime()) ? null : date;
+
+  const str = String(date).trim();
+  if (!str) return null;
+
+  // Match YYYY-MM-DD (e.g. "2026-08-25", "2026-08-25 00:00:00", "2026-08-25T00:00:00.000Z")
+  const match = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (match) {
+    const year = parseInt(match[1], 10);
+    const month = parseInt(match[2], 10) - 1;
+    const day = parseInt(match[3], 10);
+
+    // If explicit time is provided and is not midnight/zero-like
+    const timeMatch = str.match(/[T\s](\d{2}):(\d{2})(?::(\d{2}))?/);
+    if (timeMatch && !str.includes(" 00:00:00") && !str.includes("T00:00:00")) {
+      // If it ends with Z, parse via standard Date to account for UTC timezone
+      if (str.endsWith("Z") || str.includes("+")) {
+        const d = new Date(str);
+        return isNaN(d.getTime()) ? new Date(year, month, day) : d;
+      }
+      const hours = parseInt(timeMatch[1], 10);
+      const minutes = parseInt(timeMatch[2], 10);
+      const seconds = timeMatch[3] ? parseInt(timeMatch[3], 10) : 0;
+      return new Date(year, month, day, hours, minutes, seconds);
+    }
+
+    return new Date(year, month, day);
+  }
+
+  const d = new Date(str);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+export function formatDate(date: Date | string | null | undefined) {
+  if (!date) return "";
+  const d = parseLocalDate(date);
+  if (!d) return "";
+  return d.toLocaleDateString("en-US", {
     day: "numeric",
     month: "short",
     year: "numeric",
   });
+}
+
+/**
+ * Formats a single deadline or deadline range (e.g. "Aug 6 — Aug 7, 2026" or "Aug 6, 2026")
+ */
+export function formatDeadlineRange(
+  deadline?: Date | string | null,
+  deadlineStart?: Date | string | null,
+  deadlineEnd?: Date | string | null
+): string {
+  const start = parseLocalDate(deadlineStart);
+  const end = parseLocalDate(deadlineEnd);
+
+  if (start && end) {
+    // If start and end are on the exact same calendar day
+    if (
+      start.getFullYear() === end.getFullYear() &&
+      start.getMonth() === end.getMonth() &&
+      start.getDate() === end.getDate()
+    ) {
+      return formatDate(start);
+    }
+
+    // If same year
+    if (start.getFullYear() === end.getFullYear()) {
+      const startStr = start.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      const endStr = end.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+      return `${startStr} — ${endStr}`;
+    }
+
+    return `${formatDate(start)} — ${formatDate(end)}`;
+  }
+
+  if (start && !end) {
+    return formatDate(start);
+  }
+
+  if (end && !start) {
+    return formatDate(end);
+  }
+
+  if (deadline) {
+    return formatDate(deadline);
+  }
+
+  return "";
 }
 
 export function formatTime(date: Date | string) {

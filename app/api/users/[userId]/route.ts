@@ -128,3 +128,55 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ userId
   }
 }
 
+export async function DELETE(req: Request, { params }: { params: Promise<{ userId: string }> | { userId: string } }) {
+  try {
+    const { userId } = await params
+    const session = await getServerSession(authOptions)
+
+    if (!session) {
+      return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
+    }
+
+    const currentUserId = (session as any).user?.id || ""
+    const currentUser = await db.user.findUnique({
+      where: { id: currentUserId },
+      select: { id: true, role: true, organizationId: true },
+    })
+
+    const isAllowedAdmin =
+      currentUser?.role === "ORG_ADMIN" ||
+      currentUser?.role === "SUPER_ADMIN" ||
+      currentUser?.role === "ADMIN"
+
+    if (!isAllowedAdmin) {
+      return NextResponse.json({ message: "Only organization admins can delete users" }, { status: 403 })
+    }
+
+    if (currentUserId === userId) {
+      return NextResponse.json({ message: "You cannot delete your own account" }, { status: 400 })
+    }
+
+    const target = await db.user.findUnique({
+      where: { id: userId },
+      select: { id: true, role: true, organizationId: true },
+    })
+
+    if (!target) {
+      return NextResponse.json({ message: "User not found" }, { status: 404 })
+    }
+
+    // Scoped check for ORG_ADMIN
+    if (currentUser.role !== "SUPER_ADMIN" && currentUser.organizationId && target.organizationId !== currentUser.organizationId) {
+      return NextResponse.json({ message: "User not found in your organization" }, { status: 404 })
+    }
+
+    const { deleteUserWithCascade } = await import("@/lib/user-cleanup")
+    await deleteUserWithCascade(userId, currentUserId)
+
+    return NextResponse.json({ success: true, message: "User and all associated data deleted successfully" })
+  } catch (error: any) {
+    console.error("Error deleting user:", error)
+    return NextResponse.json({ message: error.message || "Failed to delete user" }, { status: 500 })
+  }
+}
+

@@ -136,3 +136,7 @@ pnpm test
 - Orders are created via `/api/payments/razorpay/order` and confirmed via webhook.
 - Admins can list subscriptions at `/api/admin/subscriptions`.
 
+
+
+
+ Standalone Quick Tasks-------- new section

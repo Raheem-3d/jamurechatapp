@@ -33,7 +33,7 @@ import {
   Plus,
   Check,
 } from "lucide-react"
-import { cn } from "@/lib/utils"
+import { cn, parseLocalDate } from "@/lib/utils"
 import { useToast } from "@/components/ui/use-toast"
 import { useSocket } from "@/lib/socket-client"
 import { RoleBasedAccess } from "@/lib/role-based-access"
@@ -117,7 +117,7 @@ export default function EditTaskPage() {
         setDescription(taskData.description || "")
         setPriority(taskData.priority || "MEDIUM")
         setStatus(taskData.status || "TODO")
-        setDeadline(taskData.deadline ? new Date(taskData.deadline) : undefined)
+        setDeadline(taskData.deadline ? (parseLocalDate(taskData.deadline) || undefined) : undefined)
         
         // Extract assigned user IDs and user objects
         if (taskData.assignments && Array.isArray(taskData.assignments)) {
@@ -237,7 +237,7 @@ export default function EditTaskPage() {
           description,
           priority,
           status,
-          deadline,
+          deadline: deadline ? format(deadline, "yyyy-MM-dd") : null,
           assignees,
         }),
       })
