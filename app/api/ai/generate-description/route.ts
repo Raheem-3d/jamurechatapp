@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { PerplexityClient } from "@/lib/perplexity-client"
+import { getAIClientForOrg } from "@/lib/perplexity-client"
 import { db } from "@/lib/db"
 
 export async function POST(req: NextRequest) {
@@ -13,25 +13,13 @@ export async function POST(req: NextRequest) {
 
     const userOrg = await db.user.findUnique({
       where: { id: session.user.id },
-      select: { organization: { select: { aiEnabled: true } } }
+      select: { organizationId: true, organization: { select: { aiEnabled: true } } }
     })
     if (userOrg?.organization?.aiEnabled === false) {
       return NextResponse.json({ error: "AI features are disabled" }, { status: 403 })
     }
 
-    // Check if AI service is configured (either Perplexity API Key or Ollama)
-    const isPerplexityConfigured = !!process.env.PERPLEXITY_API_KEY;
-    const isOllamaConfigured = process.env.AI_PROVIDER === 'ollama' || !!process.env.OLLAMA_BASE_URL;
-
-    if (!isPerplexityConfigured && !isOllamaConfigured) {
-      console.error("AI service environment variables not configured")
-      return NextResponse.json(
-        { error: "AI service not configured. Please configure PERPLEXITY_API_KEY or OLLAMA_BASE_URL in your environment variables." },
-        { status: 500 }
-      )
-    }
-
-    const perplexityClient = new PerplexityClient()
+    const perplexityClient = await getAIClientForOrg(userOrg?.organizationId || session.user.organizationId)
 
     const { title, type } = await req.json()
 

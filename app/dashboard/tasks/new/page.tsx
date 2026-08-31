@@ -91,17 +91,126 @@ export default function NewTaskPage() {
     }
   }, [session, router, perms])
 
+  const [mode, setMode] = useState<"project" | "subtask">("project")
+  const [selectedParentTaskId, setSelectedParentTaskId] = useState("none")
+  const [parentProjects, setParentProjects] = useState<any[]>([])
+  const [isLoadingProjects, setIsLoadingProjects] = useState(false)
+
+  // Fetch parent projects if mode is subtask
+  useEffect(() => {
+    if (mode === "subtask" && parentProjects.length === 0) {
+      const fetchProjects = async () => {
+        setIsLoadingProjects(true)
+        try {
+          const res = await fetch("/api/tasks")
+          if (res.ok) {
+            const data = await res.json()
+            const activeProjects = (Array.isArray(data) ? data : []).filter((p: any) => p.status !== "DONE")
+            setParentProjects(activeProjects)
+          }
+        } catch (err) {
+          console.error("Failed to fetch projects:", err)
+        } finally {
+          setIsLoadingProjects(false)
+        }
+      }
+      fetchProjects()
+    }
+  }, [mode, parentProjects.length])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
     if (!title.trim()) {
-      toast.error("Project title is required")
+      toast.error(mode === "subtask" ? "Task title is required" : "Project title is required")
       return
     }
 
     setIsLoading(true)
 
     try {
+      if (mode === "subtask") {
+        // Quick Subtask creation
+        const finalDeadline = useRange && deadlineRange.from
+          ? format(deadlineRange.to || deadlineRange.from, "yyyy-MM-dd")
+          : deadline
+            ? format(deadline, "yyyy-MM-dd")
+            : null
+
+        const finalStartDate = useRange && deadlineRange.from ? format(deadlineRange.from, "yyyy-MM-dd") : null
+        const finalEndDate = useRange && deadlineRange.to ? format(deadlineRange.to, "yyyy-MM-dd") : null
+
+        const targetTaskId = selectedParentTaskId && selectedParentTaskId !== "none" ? selectedParentTaskId : null
+
+        if (targetTaskId) {
+          const res = await fetch(`/api/tasks/${targetTaskId}/subtasks`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              title: title.trim(),
+              description: description.trim(),
+              priority,
+              deadline: finalDeadline,
+              startDate: finalStartDate,
+              endDate: finalEndDate,
+              assigneeIds: assignees,
+            }),
+          })
+
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}))
+            throw new Error(errData.error || "Failed to create quick task")
+          }
+
+          const data = await res.json()
+          toast.success("Quick Subtask Created", {
+            description: `Added "${title}" under the existing project.`,
+          })
+
+          try {
+            window.dispatchEvent(new CustomEvent('subtask:created', { detail: data.subtask }))
+          } catch { }
+
+          router.push(`/dashboard/tasks/${targetTaskId}`)
+          return
+        } else {
+          // Standalone quick task
+          const response = await fetch("/api/tasks", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              title,
+              description,
+              priority,
+              deadline: finalDeadline,
+              deadlineRange: useRange && deadlineRange.from ? {
+                from: finalStartDate,
+                to: finalEndDate ?? finalStartDate,
+              } : null,
+              assignees,
+              isQuickTask: true,
+            }),
+          })
+
+          if (!response.ok) {
+            throw new Error("Failed to create task")
+          }
+
+          const task = await response.json()
+          toast.success("Quick Task Created", {
+            description: `Created standalone quick task "${title}".`,
+          })
+
+          try {
+            window.dispatchEvent(new CustomEvent('task:created', { detail: task }))
+          } catch { }
+
+          router.push(`/dashboard/tasks/${task.id}`)
+          return
+        }
+      }
+
+      // Main Project creation
       const response = await fetch("/api/tasks", {
         method: "POST",
         headers: {
@@ -111,8 +220,11 @@ export default function NewTaskPage() {
           title,
           description,
           priority,
-          deadline,
-          deadlineRange: useRange && deadlineRange.from ? { from: deadlineRange.from, to: deadlineRange.to ?? deadlineRange.from } : null,
+          deadline: deadline ? format(deadline, "yyyy-MM-dd") : null,
+          deadlineRange: useRange && deadlineRange.from ? {
+            from: format(deadlineRange.from, "yyyy-MM-dd"),
+            to: format(deadlineRange.to ?? deadlineRange.from, "yyyy-MM-dd")
+          } : null,
           assignees,
           clientEmails,
         }),
@@ -123,7 +235,7 @@ export default function NewTaskPage() {
       }
 
       const task = await response.json()
-      
+
       toast.success("Project Created", {
         description: "Your new project has been created successfully.",
       })
@@ -132,17 +244,18 @@ export default function NewTaskPage() {
       try {
         window.dispatchEvent(new CustomEvent('task:created', { detail: task }))
         window.dispatchEvent(new CustomEvent('project:created', { detail: task }))
-      } catch {}
+      } catch { }
 
       if (canAccess) {
-        router.push(`/dashboard/tasks/${task.id}/record`)
-        router.refresh()
+        router.push(`/dashboard/tasks/${task.id}`)
+      } else {
+        router.push("/dashboard/tasks")
       }
-      router.push(`/dashboard/tasks/${task.id}`)
-      router.refresh()
-    } catch (error) {
-      console.error("Error creating project:", error)
-      toast.error("Failed to create project")
+    } catch (error: any) {
+      console.error("Error creating task/project:", error)
+      toast.error("Error", {
+        description: error.message || "Failed to create task",
+      })
     } finally {
       setIsLoading(false)
     }
@@ -195,8 +308,8 @@ export default function NewTaskPage() {
   const filteredPeople = useMemo(() => {
     const q = debouncedSearch.toLowerCase()
     if (!q) return users ?? []
-    return (users ?? []).filter((u) => 
-      u.name.toLowerCase().includes(q) || 
+    return (users ?? []).filter((u) =>
+      u.name.toLowerCase().includes(q) ||
       u.email.toLowerCase().includes(q)
     )
   }, [users, debouncedSearch])
@@ -220,7 +333,7 @@ export default function NewTaskPage() {
   return (
     <div className="w-full space-y-4">
       {/* Top Header Strip */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5 border border-slate-200/80 dark:border-slate-800 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5 border border-slate-200/80 dark:border-slate-800 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3.5 min-w-0 flex-1">
           <Button
             variant="outline"
@@ -233,13 +346,45 @@ export default function NewTaskPage() {
           </Button>
 
           <div className="min-w-0">
-            <h1 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">
-              Create New Project
+            <h1 className="text-xl font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+              {mode === "project" ? "Create New Project" : "Add Quick Subtask"}
             </h1>
             <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
-              Set up a new project and assign team members
+              {mode === "project"
+                ? "Set up a full project with assignees and task flows"
+                : "Create an urgent or intermediate task linked to an existing running project"}
             </p>
           </div>
+        </div>
+
+        {/* Mode Switcher */}
+        <div className="flex items-center p-1 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700/80 shrink-0">
+          <button
+            type="button"
+            onClick={() => setMode("project")}
+            className={cn(
+              "px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5",
+              mode === "project"
+                ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs"
+                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+            )}
+          >
+            <Briefcase className="h-3.5 w-3.5" />
+            New Project
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode("subtask")}
+            className={cn(
+              "px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5",
+              mode === "subtask"
+                ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs"
+                : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+            )}
+          >
+            <Zap className="h-3.5 w-3.5 text-amber-500" />
+            Quick Subtask
+          </button>
         </div>
       </div>
 
@@ -247,28 +392,63 @@ export default function NewTaskPage() {
       <form onSubmit={handleSubmit}>
         <div className="w-full grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
 
-          {/* LEFT COLUMN (7 cols): Project Details */}
+          {/* LEFT COLUMN (7 cols): Project / Subtask Details */}
           <div className="lg:col-span-7 space-y-5 min-w-0">
-            {/* Project Info Card */}
+            {/* Info Card */}
             <Card className="w-full rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs overflow-hidden">
               <CardHeader className="pb-3 pt-4 px-4 sm:px-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40">
                 <CardTitle className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
                   <div className="p-1.5 bg-indigo-50 dark:bg-indigo-950/60 rounded-lg text-indigo-600 dark:text-indigo-400">
                     <FileText className="h-4 w-4" />
                   </div>
-                  Project Information
+                  {mode === "project" ? "Project Information" : "Subtask Information"}
                 </CardTitle>
               </CardHeader>
 
               <CardContent className="p-4 sm:p-5 space-y-4">
-                {/* Project Title */}
+                {/* If Subtask Mode: Parent Project Selection */}
+                {mode === "subtask" && (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                      <Briefcase className="h-3.5 w-3.5 text-indigo-500" />
+                      Parent Project <span className="text-slate-400 font-normal text-[11px]">(Optional)</span>
+                    </Label>
+                    <Select
+                      value={selectedParentTaskId}
+                      onValueChange={setSelectedParentTaskId}
+                      disabled={isLoadingProjects}
+                    >
+                      <SelectTrigger className="h-10 text-xs font-semibold rounded-xl bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
+                        <SelectValue
+                          placeholder={
+                            isLoadingProjects
+                              ? "Loading running projects..."
+                              : "None (Standalone Quick Task)"
+                          }
+                        />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-xl max-h-56">
+                        <SelectItem value="none" className="text-xs font-semibold text-slate-500">
+                          🚫 None (Standalone Quick Task)
+                        </SelectItem>
+                        {parentProjects.map((p) => (
+                          <SelectItem key={p.id} value={p.id} className="text-xs font-medium">
+                            {p.title}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {/* Title */}
                 <div className="space-y-1.5">
                   <Label htmlFor="title" className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                    Project Title <span className="text-rose-500">*</span>
+                    {mode === "project" ? "Project Title" : "Task Title"} <span className="text-rose-500">*</span>
                   </Label>
                   <Input
                     id="title"
-                    placeholder="Enter project title..."
+                    placeholder={mode === "project" ? "Enter project title..." : "e.g., Fix urgent mobile checkout bug, review contract draft..."}
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
                     required
@@ -347,19 +527,19 @@ export default function NewTaskPage() {
                           {!useRange
                             ? (deadline ? format(deadline, "PPP") : "Select deadline")
                             : (deadlineRange.from && deadlineRange.to
-                                ? `${format(deadlineRange.from, "MMM d")} — ${format(deadlineRange.to, "MMM d")}`
-                                : (deadlineRange.from
-                                    ? `${format(deadlineRange.from, "MMM d")} — …`
-                                    : "Select deadline range"))}
+                              ? `${format(deadlineRange.from, "MMM d")} — ${format(deadlineRange.to, "MMM d")}`
+                              : (deadlineRange.from
+                                ? `${format(deadlineRange.from, "MMM d")} — …`
+                                : "Select deadline range"))}
                         </Button>
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-0 rounded-xl border-slate-200 dark:border-slate-800 shadow-xl" align="start">
                         {!useRange ? (
-                          <Calendar 
-                            mode="single" 
-                            selected={deadline} 
-                            onSelect={setDeadline} 
-                            initialFocus 
+                          <Calendar
+                            mode="single"
+                            selected={deadline}
+                            onSelect={setDeadline}
+                            initialFocus
                             className="rounded-xl"
                           />
                         ) : (
@@ -379,91 +559,93 @@ export default function NewTaskPage() {
               </CardContent>
             </Card>
 
-            {/* Client Access Card */}
-            <Card className="w-full rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs overflow-hidden">
-              <CardHeader className="pb-3 pt-4 px-4 sm:px-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40">
-                <CardTitle className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <div className="p-1.5 bg-emerald-50 dark:bg-emerald-950/60 rounded-lg text-emerald-600 dark:text-emerald-400">
-                    <Shield className="h-4 w-4" />
+            {/* Client Access Card - Only in Full Project Mode */}
+            {mode === "project" && (
+              <Card className="w-full rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs overflow-hidden">
+                <CardHeader className="pb-3 pt-4 px-4 sm:px-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40">
+                  <CardTitle className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <div className="p-1.5 bg-emerald-50 dark:bg-emerald-950/60 rounded-lg text-emerald-600 dark:text-emerald-400">
+                      <Shield className="h-4 w-4" />
+                    </div>
+                    Client Access
+                    {clientEmails.length > 0 && (
+                      <Badge variant="secondary" className="bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 font-extrabold text-[10px] px-1.5 py-0">
+                        {clientEmails.length}
+                      </Badge>
+                    )}
+                  </CardTitle>
+                </CardHeader>
+
+                <CardContent className="p-4 sm:p-5 space-y-3">
+                  {/* Add Client Input */}
+                  <div className="flex gap-2 flex-col sm:flex-row">
+                    <Input
+                      type="email"
+                      placeholder="Enter client email"
+                      value={newClientEmail}
+                      onChange={(e) => setNewClientEmail(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addClientEmail() } }}
+                      className="flex-1 h-9 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-xl text-xs"
+                    />
+                    <Select value={newClientAccess} onValueChange={setNewClientAccess}>
+                      <SelectTrigger className="w-full sm:w-[120px] h-9 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-xl text-xs font-semibold">
+                        <SelectValue placeholder="Access" />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-xl">
+                        <SelectItem value="VIEW" className="text-xs font-semibold">View Only</SelectItem>
+                        <SelectItem value="COMMENT" className="text-xs font-semibold">Can Comment</SelectItem>
+                        <SelectItem value="EDIT" className="text-xs font-semibold">Can Edit</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      type="button"
+                      onClick={addClientEmail}
+                      size="sm"
+                      className="h-9 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs px-3"
+                    >
+                      <Plus className="h-3.5 w-3.5 mr-1" />
+                      Add
+                    </Button>
                   </div>
-                  Client Access
+
+                  {/* Client List */}
                   {clientEmails.length > 0 && (
-                    <Badge variant="secondary" className="bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 font-extrabold text-[10px] px-1.5 py-0">
-                      {clientEmails.length}
-                    </Badge>
-                  )}
-                </CardTitle>
-              </CardHeader>
-
-              <CardContent className="p-4 sm:p-5 space-y-3">
-                {/* Add Client Input */}
-                <div className="flex gap-2 flex-col sm:flex-row">
-                  <Input
-                    type="email"
-                    placeholder="Enter client email"
-                    value={newClientEmail}
-                    onChange={(e) => setNewClientEmail(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addClientEmail() } }}
-                    className="flex-1 h-9 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-xl text-xs"
-                  />
-                  <Select value={newClientAccess} onValueChange={setNewClientAccess}>
-                    <SelectTrigger className="w-full sm:w-[120px] h-9 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-xl text-xs font-semibold">
-                      <SelectValue placeholder="Access" />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-xl">
-                      <SelectItem value="VIEW" className="text-xs font-semibold">View Only</SelectItem>
-                      <SelectItem value="COMMENT" className="text-xs font-semibold">Can Comment</SelectItem>
-                      <SelectItem value="EDIT" className="text-xs font-semibold">Can Edit</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Button 
-                    type="button" 
-                    onClick={addClientEmail}
-                    size="sm"
-                    className="h-9 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs px-3"
-                  >
-                    <Plus className="h-3.5 w-3.5 mr-1" />
-                    Add
-                  </Button>
-                </div>
-
-                {/* Client List */}
-                {clientEmails.length > 0 && (
-                  <div className="space-y-2 max-h-[160px] overflow-y-auto pr-1">
-                    {clientEmails.map((client) => (
-                      <div key={client.email} className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50/60 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800">
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="h-7 w-7 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-100 dark:border-emerald-900/40">
-                            <Mail className="h-3.5 w-3.5" />
+                    <div className="space-y-2 max-h-[160px] overflow-y-auto pr-1">
+                      {clientEmails.map((client) => (
+                        <div key={client.email} className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50/60 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="h-7 w-7 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-100 dark:border-emerald-900/40">
+                              <Mail className="h-3.5 w-3.5" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-xs font-bold text-slate-900 dark:text-white truncate">{client.email}</p>
+                              <Badge className={cn("text-[10px] font-bold px-1.5 py-0 mt-0.5", getAccessBadgeColor(client.access))}>
+                                {client.access}
+                              </Badge>
+                            </div>
                           </div>
-                          <div className="min-w-0">
-                            <p className="text-xs font-bold text-slate-900 dark:text-white truncate">{client.email}</p>
-                            <Badge className={cn("text-[10px] font-bold px-1.5 py-0 mt-0.5", getAccessBadgeColor(client.access))}>
-                              {client.access}
-                            </Badge>
-                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeClientEmail(client.email)}
+                            className="h-6 w-6 p-0 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </Button>
                         </div>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => removeClientEmail(client.email)}
-                          className="h-6 w-6 p-0 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg"
-                        >
-                          <X className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                      ))}
+                    </div>
+                  )}
 
-                {clientEmails.length === 0 && (
-                  <p className="text-xs text-slate-400 dark:text-slate-500 text-center py-2 font-medium italic">
-                    No clients added yet. Invite clients to give them project access.
-                  </p>
-                )}
-              </CardContent>
-            </Card>
+                  {clientEmails.length === 0 && (
+                    <p className="text-xs text-slate-400 dark:text-slate-500 text-center py-2 font-medium italic">
+                      No clients added yet. Invite clients to give them project access.
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            )}
           </div>
 
           {/* RIGHT COLUMN (5 cols): Team Members + Submit */}
@@ -538,37 +720,34 @@ export default function NewTaskPage() {
                         </p>
                       </div>
                     ) : (
-                      filteredPeople.map((user) => {
-                        const isSelected = assignees.includes(user.id)
+                      filteredPeople.map((person) => {
+                        const isSelected = assignees.includes(person.id)
                         return (
                           <button
                             type="button"
-                            key={user.id}
-                            onClick={() => toggleAssignee(user.id)}
+                            key={person.id}
+                            onClick={() => toggleAssignee(person.id)}
                             className={cn(
-                              "w-full flex items-center gap-2.5 p-2.5 rounded-xl border transition-all text-left",
+                              "w-full flex items-center justify-between p-2.5 rounded-xl border text-left transition-all",
                               isSelected
-                                ? "bg-indigo-50/60 dark:bg-indigo-950/40 border-indigo-200 dark:border-indigo-800 ring-1 ring-indigo-500/20"
-                                : "bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/60"
+                                ? "bg-indigo-50 dark:bg-indigo-950/50 border-indigo-200 dark:border-indigo-800 shadow-2xs"
+                                : "bg-white dark:bg-slate-900 border-slate-150 dark:border-slate-800/80 hover:bg-slate-50 dark:hover:bg-slate-800/50"
                             )}
                           >
-                            <Avatar className="h-8 w-8 shrink-0">
-                              <AvatarFallback className={cn(
-                                "font-bold text-xs",
-                                isSelected
-                                  ? "bg-indigo-600 text-white"
-                                  : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300"
-                              )}>
-                                {user.name?.charAt(0) || "U"}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
-                                {user.name}
-                              </p>
-                              <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
-                                {user.email}
-                              </p>
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <Avatar className="h-7 w-7 ring-1 ring-slate-200 dark:ring-slate-700 shrink-0">
+                                <AvatarFallback className="bg-indigo-600 text-white font-bold text-[10px]">
+                                  {person.name?.charAt(0) || "U"}
+                                </AvatarFallback>
+                              </Avatar>
+                              <div className="min-w-0">
+                                <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                                  {person.name}
+                                </p>
+                                <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate">
+                                  {person.email}
+                                </p>
+                              </div>
                             </div>
                             {isSelected && (
                               <CheckCircle2 className="h-4 w-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
@@ -586,7 +765,7 @@ export default function NewTaskPage() {
             <Card className="w-full rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs overflow-hidden">
               <CardContent className="p-4 sm:p-5 space-y-3">
                 {/* Summary */}
-                <div className="grid grid-cols-3 gap-2 text-center">
+                <div className={cn("grid gap-2 text-center", mode === "project" ? "grid-cols-3" : "grid-cols-2")}>
                   <div className="p-2.5 rounded-xl bg-slate-50/60 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800">
                     <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">Priority</p>
                     <p className="text-xs font-extrabold text-slate-900 dark:text-white mt-0.5">{priority}</p>
@@ -595,10 +774,12 @@ export default function NewTaskPage() {
                     <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">Members</p>
                     <p className="text-xs font-extrabold text-slate-900 dark:text-white mt-0.5">{assignees.length}</p>
                   </div>
-                  <div className="p-2.5 rounded-xl bg-slate-50/60 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800">
-                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">Clients</p>
-                    <p className="text-xs font-extrabold text-slate-900 dark:text-white mt-0.5">{clientEmails.length}</p>
-                  </div>
+                  {mode === "project" && (
+                    <div className="p-2.5 rounded-xl bg-slate-50/60 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800">
+                      <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase">Clients</p>
+                      <p className="text-xs font-extrabold text-slate-900 dark:text-white mt-0.5">{clientEmails.length}</p>
+                    </div>
+                  )}
                 </div>
 
                 {/* Buttons */}
@@ -611,15 +792,20 @@ export default function NewTaskPage() {
                   >
                     Cancel
                   </Button>
-                  <Button 
-                    type="submit" 
-                    disabled={isLoading || isfetchingUsers || !title.trim()}
+                  <Button
+                    type="submit"
+                    disabled={isLoading || isfetchingUsers || !title.trim() || (mode === "subtask" && !selectedParentTaskId)}
                     className="flex-1 h-10 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-xs disabled:opacity-50"
                   >
                     {isLoading ? (
                       <>
                         <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
-                        Creating...
+                        {mode === "subtask" ? "Creating Task..." : "Creating Project..."}
+                      </>
+                    ) : mode === "subtask" ? (
+                      <>
+                        <Zap className="h-4 w-4 mr-1.5 text-amber-300" />
+                        Create Quick Subtask
                       </>
                     ) : (
                       <>

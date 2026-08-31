@@ -19,6 +19,8 @@ import { useToast } from "@/components/ui/use-toast";
 import { usePermissions } from "@/lib/rbac-utils";
 import { cn } from "@/lib/utils";
 import { TaskFlowAIAssistantModal } from "@/components/TaskFlowAIAssistantModal";
+import { QuickSubtaskModal } from "@/components/quick-subtask-modal";
+import { Zap } from "lucide-react";
 
 import { useRouter } from "next/navigation";
 
@@ -34,6 +36,7 @@ export default function TasksPage() {
   const [assignedPage, setAssignedPage] = useState(1);
   const [createdPage, setCreatedPage] = useState(1);
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
+  const [isQuickSubtaskModalOpen, setIsQuickSubtaskModalOpen] = useState(false);
   const [aiEnabled, setAiEnabled] = useState(true);
 
   const itemsPerPage = 4;
@@ -101,7 +104,7 @@ export default function TasksPage() {
       fetchTasks();
       try {
         router.refresh();
-      } catch {}
+      } catch { }
     };
 
     window.addEventListener("task:assigned", handleRefresh);
@@ -212,6 +215,15 @@ export default function TasksPage() {
                 </Button>
               )}
 
+              <Button
+                variant="outline"
+                onClick={() => setIsQuickSubtaskModalOpen(true)}
+                className="rounded-xl border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 font-bold gap-1.5"
+              >
+                <Zap className="h-4 w-4" />
+                Quick Subtask
+              </Button>
+
               <Button asChild>
                 <Link href="/dashboard/tasks/new">
                   <PlusCircle className="h-4 w-4 mr-2" />
@@ -231,7 +243,18 @@ export default function TasksPage() {
           fetchTasks();
           try {
             router.refresh();
-          } catch {}
+          } catch { }
+        }}
+      />
+
+      <QuickSubtaskModal
+        isOpen={isQuickSubtaskModalOpen}
+        onClose={() => setIsQuickSubtaskModalOpen(false)}
+        onSuccess={() => {
+          fetchTasks();
+          try {
+            router.refresh();
+          } catch { }
         }}
       />
 

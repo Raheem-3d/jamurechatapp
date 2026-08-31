@@ -80,6 +80,7 @@ export default function ReportsDashboard() {
 
   // Pagination states
   const [tasksPage, setTasksPage] = useState(1);
+  const [quickTasksPage, setQuickTasksPage] = useState(1);
   const [recordsPage, setRecordsPage] = useState(1);
   const [workloadPage, setWorkloadPage] = useState(1);
   const ITEMS_PER_PAGE = 10;
@@ -174,6 +175,7 @@ export default function ReportsDashboard() {
 
   useEffect(() => {
     setTasksPage(1);
+    setQuickTasksPage(1);
     setRecordsPage(1);
     setWorkloadPage(1);
   }, [dateRange, startDate, endDate, selectedDeptId, selectedUserId, searchQuery]);
@@ -189,6 +191,12 @@ export default function ReportsDashboard() {
           "Task ID,Task Title,Status,Priority,Assigned User,Created By,Created Date,Deadline,Deadline Status,Delay (Hours)\n";
         detailedData.detailedTasks.forEach((t: any) => {
           csvContent += `"${t.id}","${t.title.replace(/"/g, '""')}","${t.status}","${t.priority}","${t.assignedUsers}","${t.creatorName}","${t.createdAt}","${t.deadline || "None"}","${t.deadlineStatus}","${t.delayHours}"\n`;
+        });
+      } else if (activeTab === "quick-tasks") {
+        csvContent +=
+          "Quick Task ID,Quick Task Title,Status,Priority,Assigned Users,Created By,Created Date,Deadline,Deadline Compliance,Delay (Hours)\n";
+        (detailedData?.detailedQuickTasks || []).forEach((qt: any) => {
+          csvContent += `"${qt.id}","${qt.title.replace(/"/g, '""')}","${qt.status}","${qt.priority}","${qt.assignedUsers || "Unassigned"}","${qt.creatorName || "System"}","${qt.createdAt}","${qt.deadline || "None"}","${qt.deadlineStatus || "In Progress"}","${qt.delayHours || 0}"\n`;
         });
       } else if (activeTab === "records") {
         csvContent +=
@@ -569,6 +577,13 @@ export default function ReportsDashboard() {
     "status",
     "priority",
   ]);
+  const filteredQuickTasks = filterBySearch(detailedData?.detailedQuickTasks, [
+    "title",
+    "assignedUsers",
+    "creatorName",
+    "status",
+    "priority",
+  ]);
   const filteredRecords = filterBySearch(detailedData?.detailedRecords, [
     "title",
     "assignees",
@@ -585,6 +600,12 @@ export default function ReportsDashboard() {
   const paginatedTasks = filteredTasks.slice(
     (tasksPage - 1) * ITEMS_PER_PAGE,
     tasksPage * ITEMS_PER_PAGE
+  );
+
+  const totalQuickTasksPages = Math.ceil(filteredQuickTasks.length / ITEMS_PER_PAGE) || 1;
+  const paginatedQuickTasks = filteredQuickTasks.slice(
+    (quickTasksPage - 1) * ITEMS_PER_PAGE,
+    quickTasksPage * ITEMS_PER_PAGE
   );
 
   const totalRecordsPages = Math.ceil(filteredRecords.length / ITEMS_PER_PAGE) || 1;
@@ -671,16 +692,16 @@ export default function ReportsDashboard() {
       : 0;
     const onTimeRate = totalT
       ? Math.round(
-          ((summary.completedTasks - summary.overdueTasks) / totalT) * 100,
-        )
+        ((summary.completedTasks - summary.overdueTasks) / totalT) * 100,
+      )
       : 0;
     const stageVelocity = detailedData?.stageAnalytics?.length
       ? Math.round(
-          detailedData.stageAnalytics.reduce(
-            (acc: number, s: any) => acc + s.conversionRate,
-            0,
-          ) / detailedData.stageAnalytics.length,
-        )
+        detailedData.stageAnalytics.reduce(
+          (acc: number, s: any) => acc + s.conversionRate,
+          0,
+        ) / detailedData.stageAnalytics.length,
+      )
       : 0;
     const recordQuality =
       summary.totalRecords > 0
@@ -688,9 +709,9 @@ export default function ReportsDashboard() {
         : 0;
     const workloadScore = totalT
       ? Math.max(
-          0,
-          Math.round(((totalT - summary.overdueTasks) / totalT) * 100),
-        )
+        0,
+        Math.round(((totalT - summary.overdueTasks) / totalT) * 100),
+      )
       : 0;
 
     return [
@@ -730,8 +751,8 @@ export default function ReportsDashboard() {
       : 0;
     const onTimeDelivery = totalT
       ? Math.round(
-          ((summary.completedTasks - summary.overdueTasks) / totalT) * 100,
-        )
+        ((summary.completedTasks - summary.overdueTasks) / totalT) * 100,
+      )
       : 0;
     const recordRatio =
       summary.totalRecords > 0
@@ -765,7 +786,7 @@ export default function ReportsDashboard() {
 
   const overallHealthScore = Math.round(
     radialChartData.reduce((acc, curr) => acc + curr.value, 0) /
-      radialChartData.length,
+    radialChartData.length,
   );
 
   const [showGuide, setShowGuide] = useState(false);
@@ -900,9 +921,7 @@ export default function ReportsDashboard() {
           <div>
             <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white flex items-center gap-2 whitespace-nowrap">
               Reporting & Analytics
-              <Badge className="bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-extrabold text-[10px] px-2 py-0.5">
-                Enterprise
-              </Badge>
+
             </h1>
 
           </div>
@@ -987,11 +1006,10 @@ export default function ReportsDashboard() {
                     setEndDate("");
                   }
                 }}
-                className={`px-2.5 py-1.5 rounded-xl font-bold transition-all ${
-                  dateRange === btn.id
+                className={`px-2.5 py-1.5 rounded-xl font-bold transition-all ${dateRange === btn.id
                     ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-2xs"
                     : "text-slate-600 dark:text-slate-400 hover:text-slate-900"
-                }`}
+                  }`}
               >
                 {btn.label}
               </button>
@@ -1035,17 +1053,17 @@ export default function ReportsDashboard() {
             startDate ||
             endDate ||
             searchQuery) && (
-            <Button
-              size="sm"
-              onClick={handleClearFilters}
-              variant="ghost"
-              className="h-9 rounded-2xl text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/60 gap-1.5 font-bold text-xs border border-rose-200/60 dark:border-rose-900/60"
-              title="Reset all filters"
-            >
-              <RotateCcw className="h-3.5 w-3.5" />
-              Clear Filters
-            </Button>
-          )}
+              <Button
+                size="sm"
+                onClick={handleClearFilters}
+                variant="ghost"
+                className="h-9 rounded-2xl text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/60 gap-1.5 font-bold text-xs border border-rose-200/60 dark:border-rose-900/60"
+                title="Reset all filters"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                Clear Filters
+              </Button>
+            )}
 
           <Button
             size="sm"
@@ -1066,9 +1084,9 @@ export default function ReportsDashboard() {
               <Eye className="h-4 w-4 text-indigo-600" />
               Reporting Dashboard Guide: {
                 guideSection === "overview" ? "Overview & Widgets" :
-                guideSection === "tasks" ? "Task Performance" :
-                guideSection === "records" ? "Record Performance" :
-                guideSection === "workload" ? "Team Workload" : "Storage & Files"
+                  guideSection === "tasks" ? "Task Performance" :
+                    guideSection === "records" ? "Record Performance" :
+                      guideSection === "workload" ? "Team Workload" : "Storage & Files"
               }
             </h3>
             <button
@@ -1145,11 +1163,10 @@ export default function ReportsDashboard() {
                   e.stopPropagation();
                   handleToggleGuide("overview");
                 }}
-                className={`ml-1.5 p-0.5 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors ${
-                  showGuide && guideSection === "overview"
+                className={`ml-1.5 p-0.5 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors ${showGuide && guideSection === "overview"
                     ? "text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40"
                     : "text-slate-400 hover:text-slate-600"
-                }`}
+                  }`}
                 title="View Guide"
               >
                 <Eye className="h-3.5 w-3.5" />
@@ -1159,21 +1176,29 @@ export default function ReportsDashboard() {
               value="tasks"
               className="rounded-lg text-xs font-bold gap-1.5 px-3 py-1.5 flex items-center"
             >
-              <ListTodo className="h-4 w-4 text-indigo-500" /> Task Performance
+              <ListTodo className="h-4 w-4 text-indigo-500" /> Project Performance
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   handleToggleGuide("tasks");
                 }}
-                className={`ml-1.5 p-0.5 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors ${
-                  showGuide && guideSection === "tasks"
+                className={`ml-1.5 p-0.5 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors ${showGuide && guideSection === "tasks"
                     ? "text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40"
                     : "text-slate-400 hover:text-slate-600"
-                }`}
+                  }`}
                 title="View Guide"
               >
                 <Eye className="h-3.5 w-3.5" />
               </button>
+            </TabsTrigger>
+            <TabsTrigger
+              value="quick-tasks"
+              className="rounded-lg text-xs font-bold gap-1.5 px-3 py-1.5 flex items-center"
+            >
+              <Zap className="h-4 w-4 text-amber-500" /> Quick Tasks
+              <Badge variant="secondary" className="text-[10px] font-extrabold px-1.5 py-0 bg-amber-50 dark:bg-amber-950 text-amber-600 dark:text-amber-400">
+                {detailedData?.detailedQuickTasks?.length || 0}
+              </Badge>
             </TabsTrigger>
             <TabsTrigger
               value="records"
@@ -1186,11 +1211,10 @@ export default function ReportsDashboard() {
                   e.stopPropagation();
                   handleToggleGuide("records");
                 }}
-                className={`ml-1.5 p-0.5 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors ${
-                  showGuide && guideSection === "records"
+                className={`ml-1.5 p-0.5 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors ${showGuide && guideSection === "records"
                     ? "text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40"
                     : "text-slate-400 hover:text-slate-600"
-                }`}
+                  }`}
                 title="View Guide"
               >
                 <Eye className="h-3.5 w-3.5" />
@@ -1206,11 +1230,10 @@ export default function ReportsDashboard() {
                   e.stopPropagation();
                   handleToggleGuide("workload");
                 }}
-                className={`ml-1.5 p-0.5 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors ${
-                  showGuide && guideSection === "workload"
+                className={`ml-1.5 p-0.5 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors ${showGuide && guideSection === "workload"
                     ? "text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40"
                     : "text-slate-400 hover:text-slate-600"
-                }`}
+                  }`}
                 title="View Guide"
               >
                 <Eye className="h-3.5 w-3.5" />
@@ -1226,11 +1249,10 @@ export default function ReportsDashboard() {
                   e.stopPropagation();
                   handleToggleGuide("storage");
                 }}
-                className={`ml-1.5 p-0.5 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors ${
-                  showGuide && guideSection === "storage"
+                className={`ml-1.5 p-0.5 rounded-md hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors ${showGuide && guideSection === "storage"
                     ? "text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40"
                     : "text-slate-400 hover:text-slate-600"
-                }`}
+                  }`}
                 title="View Guide"
               >
                 <Eye className="h-3.5 w-3.5" />
@@ -1454,13 +1476,12 @@ export default function ReportsDashboard() {
                         </td>
                         <td className="p-3.5">
                           <Badge
-                            className={`font-bold text-[10px] ${
-                              t.status === "DONE"
+                            className={`font-bold text-[10px] ${t.status === "DONE"
                                 ? "bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400"
                                 : t.status === "IN_PROGRESS"
                                   ? "bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-400"
                                   : "bg-slate-100 dark:bg-slate-800 text-slate-600"
-                            }`}
+                              }`}
                           >
                             {t.status}
                           </Badge>
@@ -1483,14 +1504,13 @@ export default function ReportsDashboard() {
                         </td>
                         <td className="p-3.5">
                           <span
-                            className={`inline-flex min-w-max items-center whitespace-nowrap rounded-xl px-2.5 py-1 text-[10px] font-extrabold leading-tight ${
-                              t.deadlineStatus.includes("Before")
+                            className={`inline-flex min-w-max items-center whitespace-nowrap rounded-xl px-2.5 py-1 text-[10px] font-extrabold leading-tight ${t.deadlineStatus.includes("Before")
                                 ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-200"
                                 : t.deadlineStatus.includes("After") ||
-                                    t.deadlineStatus.includes("Overdue")
+                                  t.deadlineStatus.includes("Overdue")
                                   ? "bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-400 border border-rose-200"
                                   : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
-                            }`}
+                              }`}
                           >
                             {t.deadlineStatus}
                             {t.delayHours > 0 && ` (${t.delayHours}h late)`}
@@ -1513,6 +1533,226 @@ export default function ReportsDashboard() {
               totalPages={totalTasksPages}
               totalItems={filteredTasks.length}
               onPageChange={setTasksPage}
+            />
+          </Card>
+        </TabsContent>
+
+        {/* -------------------------------------------------------------------------------- */}
+        {/* TAB 2.5: STANDALONE QUICK TASKS REPORT */}
+        {/* -------------------------------------------------------------------------------- */}
+        <TabsContent value="quick-tasks" className="space-y-4 m-0">
+          {/* Executive Quick Task Metric Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <Card className="rounded-3xl border-amber-200/80 dark:border-amber-900/60 bg-white dark:bg-slate-900 shadow-xs p-4 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold text-slate-500">
+                  Total Quick Tasks
+                </p>
+                <h3 className="text-2xl font-extrabold text-slate-900 dark:text-white mt-0.5">
+                  {summary.totalQuickTasks ?? (detailedData?.detailedQuickTasks?.length || 0)}
+                </h3>
+                <p className="text-[10px] text-amber-600 font-bold mt-0.5">
+                  Standalone Work Items
+                </p>
+              </div>
+              <div className="p-3 rounded-2xl bg-amber-50 dark:bg-amber-950 text-amber-600">
+                <Zap className="h-6 w-6" />
+              </div>
+            </Card>
+
+            <Card className="rounded-3xl border-emerald-200/80 dark:border-emerald-900/60 bg-white dark:bg-slate-900 shadow-xs p-4 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold text-slate-500">
+                  Completed Quick Tasks
+                </p>
+                <h3 className="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-0.5">
+                  {summary.completedQuickTasks ?? (detailedData?.detailedQuickTasks?.filter((t: any) => t.status === "DONE").length || 0)}
+                </h3>
+                <p className="text-[10px] text-emerald-600 font-bold mt-0.5">
+                  {filteredQuickTasks.length > 0
+                    ? Math.round(
+                      ((summary.completedQuickTasks ?? (detailedData?.detailedQuickTasks?.filter((t: any) => t.status === "DONE").length || 0)) /
+                        filteredQuickTasks.length) *
+                      100,
+                    )
+                    : 0}
+                  % Completion Rate
+                </p>
+              </div>
+              <div className="p-3 rounded-2xl bg-emerald-50 dark:bg-emerald-950 text-emerald-600">
+                <CheckCircle2 className="h-6 w-6" />
+              </div>
+            </Card>
+
+            <Card className="rounded-3xl border-indigo-200/80 dark:border-indigo-900/60 bg-white dark:bg-slate-900 shadow-xs p-4 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold text-slate-500">
+                  Pending / Active
+                </p>
+                <h3 className="text-2xl font-extrabold text-indigo-600 dark:text-indigo-400 mt-0.5">
+                  {summary.pendingQuickTasks ?? (detailedData?.detailedQuickTasks?.filter((t: any) => t.status !== "DONE").length || 0)}
+                </h3>
+                <p className="text-[10px] text-indigo-600 font-bold mt-0.5">
+                  In Progress & Todo
+                </p>
+              </div>
+              <div className="p-3 rounded-2xl bg-indigo-50 dark:bg-indigo-950 text-indigo-600">
+                <Clock className="h-6 w-6" />
+              </div>
+            </Card>
+
+            <Card className="rounded-3xl border-rose-200/80 dark:border-rose-900/60 bg-white dark:bg-slate-900 shadow-xs p-4 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold text-slate-500">
+                  Overdue Quick Tasks
+                </p>
+                <h3 className="text-2xl font-extrabold text-rose-600 dark:text-rose-400 mt-0.5">
+                  {summary.overdueQuickTasks ?? (detailedData?.detailedQuickTasks?.filter((t: any) => t.deadlineStatus?.includes("Overdue") || t.delayHours > 0).length || 0)}
+                </h3>
+                <p className="text-[10px] text-rose-600 font-bold mt-0.5">
+                  Missed Deadlines
+                </p>
+              </div>
+              <div className="p-3 rounded-2xl bg-rose-50 dark:bg-rose-950 text-rose-600">
+                <AlertTriangle className="h-6 w-6" />
+              </div>
+            </Card>
+          </div>
+
+          {/* Quick Tasks Detailed Audit Table */}
+          <Card className="rounded-3xl border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs overflow-hidden">
+            <CardHeader className="p-5 border-b border-slate-100 dark:border-slate-800 flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-base font-extrabold flex items-center gap-2">
+                  <Zap className="h-5 w-5 text-amber-500" /> Standalone Quick Tasks Audit Report
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  Detailed performance audit of all standalone quick tasks with assignees, deadlines, and direct links.
+                </CardDescription>
+              </div>
+              <Badge className="bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300 font-extrabold text-xs">
+                {filteredQuickTasks.length} Quick Tasks
+              </Badge>
+            </CardHeader>
+
+            <CardContent className="p-0 overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 dark:bg-slate-800/60 text-slate-600 dark:text-slate-400 font-extrabold uppercase text-[10px] border-b border-slate-200/80 dark:border-slate-800">
+                  <tr>
+                    <th className="p-3.5">Quick Task Title</th>
+                    <th className="p-3.5">Created By</th>
+                    <th className="p-3.5">Assigned To</th>
+                    <th className="p-3.5">Status</th>
+                    <th className="p-3.5">Priority</th>
+                    <th className="p-3.5">Created Date</th>
+                    <th className="p-3.5">Deadline Date</th>
+                    <th className="p-3.5">Deadline Compliance</th>
+                    <th className="p-3.5 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {paginatedQuickTasks.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={9}
+                        className="text-center py-12 text-slate-400"
+                      >
+                        No standalone quick tasks found for the selected filter.
+                      </td>
+                    </tr>
+                  ) : (
+                    paginatedQuickTasks.map((qt: any) => (
+                      <tr
+                        key={qt.id}
+                        className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors"
+                      >
+                        <td className="p-3.5 font-extrabold text-slate-900 dark:text-white">
+                          <div className="flex items-center gap-2">
+                            <span className="h-2 w-2 rounded-full bg-amber-500" />
+                            <span>{qt.title}</span>
+                          </div>
+                        </td>
+                        <td className="p-3.5 font-semibold text-slate-600 dark:text-slate-400">
+                          {qt.creatorName || "System"}
+                        </td>
+                        <td className="p-3.5 font-bold text-slate-700 dark:text-slate-300">
+                          {qt.assignedUsers || "Unassigned"}
+                        </td>
+                        <td className="p-3.5">
+                          <Badge
+                            className={`font-bold text-[10px] ${qt.status === "DONE"
+                                ? "bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400"
+                                : qt.status === "IN_PROGRESS"
+                                  ? "bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-400"
+                                  : "bg-slate-100 dark:bg-slate-800 text-slate-600"
+                              }`}
+                          >
+                            {qt.status}
+                          </Badge>
+                        </td>
+                        <td className="p-3.5 font-bold">
+                          <span
+                            className={
+                              qt.priority === "URGENT"
+                                ? "text-rose-600"
+                                : qt.priority === "HIGH"
+                                  ? "text-amber-600"
+                                  : "text-slate-600"
+                            }
+                          >
+                            {qt.priority}
+                          </span>
+                        </td>
+                        <td className="p-3.5 text-slate-500 font-medium whitespace-nowrap">
+                          {qt.createdAt ? format(new Date(qt.createdAt), "MMM dd, yyyy") : "-"}
+                        </td>
+                        <td className="p-3.5 text-slate-700 dark:text-slate-300 font-bold whitespace-nowrap">
+                          {qt.deadline ? (
+                            <span className="flex items-center gap-1">
+                              <Clock className="h-3 w-3 text-slate-400" />
+                              {format(new Date(qt.deadline), "MMM dd, yyyy")}
+                            </span>
+                          ) : (
+                            <span className="text-slate-400 font-normal italic">No deadline</span>
+                          )}
+                        </td>
+                        <td className="p-3.5">
+                          <span
+                            className={`inline-flex min-w-max items-center whitespace-nowrap rounded-xl px-2.5 py-1 text-[10px] font-extrabold leading-tight ${qt.deadlineStatus?.includes("Before")
+                                ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-400 border border-emerald-200"
+                                : qt.deadlineStatus?.includes("After") ||
+                                  qt.deadlineStatus?.includes("Overdue")
+                                  ? "bg-rose-50 text-rose-700 dark:bg-rose-950/60 dark:text-rose-400 border border-rose-200"
+                                  : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
+                              }`}
+                          >
+                            {qt.deadlineStatus || "In Progress"}
+                            {qt.delayHours > 0 && ` (${qt.delayHours}h late)`}
+                          </span>
+                        </td>
+                        <td className="p-3.5 text-right">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            asChild
+                            className="h-7 text-xs font-bold rounded-xl border-slate-200 dark:border-slate-700 hover:bg-indigo-50 hover:text-indigo-600 dark:hover:bg-indigo-950 px-2.5"
+                          >
+                            <a href={`/dashboard/tasks/${qt.id}`}>
+                              View Details
+                            </a>
+                          </Button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </CardContent>
+            <PaginationControl
+              currentPage={quickTasksPage}
+              totalPages={totalQuickTasksPages}
+              totalItems={filteredQuickTasks.length}
+              onPageChange={setQuickTasksPage}
             />
           </Card>
         </TabsContent>
@@ -1551,8 +1791,8 @@ export default function ReportsDashboard() {
                 <p className="text-[10px] text-emerald-600 font-bold mt-0.5">
                   {summary.totalRecords > 0
                     ? Math.round(
-                        (summary.completedRecords / summary.totalRecords) * 100,
-                      )
+                      (summary.completedRecords / summary.totalRecords) * 100,
+                    )
                     : 0}
                   % Success Rate
                 </p>
@@ -1656,13 +1896,12 @@ export default function ReportsDashboard() {
                         </td>
                         <td className="p-3.5">
                           <Badge
-                            className={`font-bold text-[10px] ${
-                              r.status === "COMPLETED"
+                            className={`font-bold text-[10px] ${r.status === "COMPLETED"
                                 ? "bg-emerald-100 text-emerald-700"
                                 : r.status === "OVERDUE"
                                   ? "bg-rose-100 text-rose-700"
                                   : "bg-indigo-100 text-indigo-700"
-                            }`}
+                              }`}
                           >
                             {r.status}
                           </Badge>
@@ -2187,11 +2426,10 @@ const PaginationControl = ({
                   variant={currentPage === page ? "default" : "outline"}
                   size="sm"
                   onClick={() => onPageChange(page)}
-                  className={`h-8 w-8 p-0 rounded-xl text-xs font-bold ${
-                    currentPage === page
+                  className={`h-8 w-8 p-0 rounded-xl text-xs font-bold ${currentPage === page
                       ? "bg-indigo-600 hover:bg-indigo-700 text-white border-0 shadow-sm"
                       : "border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300"
-                  }`}
+                    }`}
                 >
                   {page}
                 </Button>

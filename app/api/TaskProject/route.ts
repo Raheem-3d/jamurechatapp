@@ -157,19 +157,35 @@ export async function POST(req: Request) {
     // Read request body for task creation
     const { title, description, priority, deadline, deadlineRange, assignees, clientEmails } = await req.json();
 
-    // Normalize deadline inputs (single date or range)
+    // Normalize deadline inputs (single date or range) preserving exact calendar date
+    const parseInputDate = (val: any): Date | null => {
+      if (!val) return null;
+      if (val instanceof Date) return isNaN(val.getTime()) ? null : val;
+      if (typeof val === "string") {
+        const match = val.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (match) {
+          const y = parseInt(match[1], 10);
+          const m = parseInt(match[2], 10) - 1;
+          const d = parseInt(match[3], 10);
+          return new Date(Date.UTC(y, m, d, 0, 0, 0));
+        }
+      }
+      const d = new Date(val);
+      return isNaN(d.getTime()) ? null : d;
+    };
+
     let finalDeadline: Date | null = null;
     let deadlineStart: Date | null = null;
     let deadlineEnd: Date | null = null;
 
     if (deadlineRange?.from) {
-      const from = new Date(deadlineRange.from);
-      const to = new Date(deadlineRange.to ?? deadlineRange.from);
+      const from = parseInputDate(deadlineRange.from);
+      const to = parseInputDate(deadlineRange.to ?? deadlineRange.from);
       deadlineStart = from;
       deadlineEnd = to;
       finalDeadline = to; // keep existing sorting/logic using deadline as the end of range
     } else if (deadline) {
-      const d = new Date(deadline);
+      const d = parseInputDate(deadline);
       deadlineStart = d;
       deadlineEnd = d;
       finalDeadline = d;

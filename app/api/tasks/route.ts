@@ -166,21 +166,43 @@ export async function POST(req: Request) {
     }
 
     // Read request body for task creation
-    const { title, description, priority, deadline, deadlineRange, assignees, clientEmails } = await req.json();
+    const body = await req.json();
+    const { title, description, priority, deadline, deadlineRange, assignees, clientEmails, isQuickTask } = body;
+    
+    // Tag quick task safely without relying on non-existent MySQL column
+    const finalDescription = isQuickTask
+      ? (description ? `${description}\n<!-- type:quick-task -->` : `<!-- type:quick-task -->`)
+      : (description || null);
 
-    // Normalize deadline inputs (single date or range)
+    // Normalize deadline inputs (single date or range) preserving exact calendar date
+    const parseInputDate = (val: any): Date | null => {
+      if (!val) return null;
+      if (val instanceof Date) return isNaN(val.getTime()) ? null : val;
+      if (typeof val === "string") {
+        const match = val.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (match) {
+          const y = parseInt(match[1], 10);
+          const m = parseInt(match[2], 10) - 1;
+          const d = parseInt(match[3], 10);
+          return new Date(Date.UTC(y, m, d, 0, 0, 0));
+        }
+      }
+      const d = new Date(val);
+      return isNaN(d.getTime()) ? null : d;
+    };
+
     let finalDeadline: Date | null = null;
     let deadlineStart: Date | null = null;
     let deadlineEnd: Date | null = null;
 
     if (deadlineRange?.from) {
-      const from = new Date(deadlineRange.from);
-      const to = new Date(deadlineRange.to ?? deadlineRange.from);
+      const from = parseInputDate(deadlineRange.from);
+      const to = parseInputDate(deadlineRange.to ?? deadlineRange.from);
       deadlineStart = from;
       deadlineEnd = to;
       finalDeadline = to; // keep existing sorting/logic using deadline as the end of range
     } else if (deadline) {
-      const d = new Date(deadline);
+      const d = parseInputDate(deadline);
       deadlineStart = d;
       deadlineEnd = d;
       finalDeadline = d;
@@ -203,13 +225,9 @@ export async function POST(req: Request) {
       }
     }
     
-    
-
     // ✅ ENFORCE PERMISSION: TASK_CREATE required (or PROJECT_MANAGE as fallback)
     const canCreateTask = hasPermission(userWithPerms.role, "TASK_CREATE", isSuperAdmin, userPerms)
     const canManageProject = hasPermission(userWithPerms.role, "PROJECT_MANAGE", isSuperAdmin, userPerms)
-    
-
     
     if (!canCreateTask && !canManageProject) {
       return NextResponse.json(
@@ -226,7 +244,7 @@ export async function POST(req: Request) {
         data: {
           id: crypto.randomUUID(),
           title,
-          description,
+          description: finalDescription,
           priority,
           deadline: finalDeadline,
           // These fields require a schema migration; if missing, we fallback below
@@ -257,7 +275,7 @@ export async function POST(req: Request) {
           data: {
             id: crypto.randomUUID(),
             title,
-            description,
+            description: finalDescription,
             priority,
             deadline: finalDeadline,
             creatorId: user.id,

@@ -40,8 +40,9 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ userI
       return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
     }
 
-    await db.user.delete({ where: { id: userId } })
-    return NextResponse.json({ success: true })
+    const { deleteUserWithCascade } = await import("@/lib/user-cleanup")
+    await deleteUserWithCascade(userId, admin.id)
+    return NextResponse.json({ success: true, message: "User deleted successfully" })
   } catch (error: any) {
     console.error('Org-admin delete user error', error)
     return NextResponse.json({ message: error.message || 'Failed' }, { status: error.status || 500 })
@@ -63,8 +64,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ userId:
       if (!target || target.organizationId !== admin.organizationId) {
         return NextResponse.json({ message: 'Forbidden' }, { status: 403 })
       }
-      await db.user.delete({ where: { id: userId } })
-      return NextResponse.json({ success: true })
+      const { deleteUserWithCascade } = await import("@/lib/user-cleanup")
+      await deleteUserWithCascade(userId, admin.id)
+      return NextResponse.json({ success: true, message: "User deleted successfully" })
     }
     // PATCH fallback
     requirePermission(admin.role, 'ORG_USERS_MANAGE', admin.isSuperAdmin)

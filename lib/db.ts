@@ -54,6 +54,20 @@ if (process.env.NODE_ENV !== "production") {
   globalForDb.mysqlPool = pool;
 }
 
+// Ensure task table has deadlineStart and deadlineEnd columns
+let columnsChecked = false;
+async function ensureDeadlineColumns() {
+  if (columnsChecked) return;
+  columnsChecked = true;
+  try {
+    await pool.query("ALTER TABLE `task` ADD COLUMN `deadlineStart` DATETIME NULL");
+  } catch (e: any) {}
+  try {
+    await pool.query("ALTER TABLE `task` ADD COLUMN `deadlineEnd` DATETIME NULL");
+  } catch (e: any) {}
+}
+ensureDeadlineColumns().catch(() => {});
+
 // Helper to format values for MySQL query parameters
 function formatParamValue(val: any): any {
   if (val === undefined) return null;

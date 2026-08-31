@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import TaskCard from "@/components/task-card";
 import ProjectPage from "@/components/ProjectPage";
+import { DashboardProjectsSection } from "@/components/DashboardProjectsSection";
 import { cn } from "@/lib/utils";
 import SubscriptionBanner from "@/components/subscription-banner";
 import DashboardCharts, {
@@ -43,7 +44,6 @@ import DashboardCharts, {
 import { RecentChannelsWidget } from "@/components/recent-channels-widget";
 import { RecentContactsWidget } from "@/components/recent-contacts-widget";
 import TaskAnalyticsSection from "@/components/task-analytics-section";
-import AIDailyBriefing from "@/components/ai-daily-briefing";
 
 export default async function DashboardPage() {
   const session: any = await getServerSession(authOptions);
@@ -141,7 +141,30 @@ export default async function DashboardPage() {
     },
   });
 
-  // fetch recent direct messages
+  // Attach matching channels by taskReferenceId if task.channel is missing
+  try {
+    const taskIds = recentTasks.map((t: any) => t.id);
+    if (taskIds.length > 0) {
+      const taskChannels = await db.channel.findMany({
+        where: {
+          taskReferenceId: { in: taskIds },
+        },
+        select: {
+          id: true,
+          name: true,
+          taskReferenceId: true,
+        },
+      });
+      const channelMap = new Map(taskChannels.map((c: any) => [c.taskReferenceId, c]));
+      recentTasks.forEach((t: any) => {
+        if (!t.channel && channelMap.has(t.id)) {
+          t.channel = channelMap.get(t.id);
+        }
+      });
+    }
+  } catch (e) {
+    console.error("Error attaching channels to recentTasks:", e);
+  }
   const recentDirectMessages = await db.message.findMany({
     where: {
       OR: [
@@ -383,91 +406,11 @@ export default async function DashboardPage() {
             </div>
 
             {/* Projects Section */}
-            <div className="space-y-6">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <div>
-                  <h2 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
-                    <Briefcase className="h-7 w-7 text-blue-600" />
-                    My Projects
-                  </h2>
-                  <p className="text-gray-600 dark:text-gray-400 mt-2 text-lg">
-                    Overview of your recent projects and progress
-                  </p>
-                </div>
-                <Button
-                  asChild
-                  className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl px-6 py-3"
-                >
-                  <Link
-                    href="/dashboard/tasks"
-                    className="flex items-center gap-2 font-semibold"
-                  >
-                    View All Projects
-                    <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
-                  </Link>
-                </Button>
-              </div>
-
-              {/* Projects Grid */}
-              <Card className="rounded-2xl border-0 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm shadow-xl overflow-hidden">
-                <CardHeader className="pb-6 border-b border-gray-100 dark:border-gray-700 bg-gradient-to-r from-gray-50 to-blue-50/50 dark:from-gray-800 dark:to-gray-700/50">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle className="text-gray-900 dark:text-white text-xl flex items-center gap-2">
-                        Recent Projects
-                        <Badge
-                          variant="secondary"
-                          className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-0"
-                        >
-                          {recentTasks.length} total
-                        </Badge>
-                      </CardTitle>
-                      <CardDescription className="text-gray-600 dark:text-gray-400">
-                        Projects you're currently involved with
-                      </CardDescription>
-                    </div>
-                  </div>
-                </CardHeader>
-
-                <CardContent className="p-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                    {recentTasks.length > 0 ? (
-                      recentTasks.map((task) => (
-                        <Link
-                          key={task.id}
-                          href={`/dashboard/tasks/${task.id}/record`}
-                          className="block transition-all duration-300 hover:scale-[1.02] hover:shadow-2xl"
-                        >
-                          <TaskCard task={task} client={true} />
-                        </Link>
-                      ))
-                    ) : (
-                      <div className="col-span-full text-center py-16 space-y-6">
-                        <div className="w-24 h-24 mx-auto bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-900/20 dark:to-purple-900/20 rounded-3xl flex items-center justify-center shadow-lg">
-                          <Briefcase className="h-10 w-10 text-blue-600 dark:text-blue-400" />
-                        </div>
-                        <div>
-                          <p className="text-gray-500 dark:text-gray-400 text-xl font-semibold">
-                            No projects found
-                          </p>
-                          <p className="text-gray-400 dark:text-gray-500 text-base mt-2">
-                            Get started by creating your first project
-                          </p>
-                        </div>
-                        <Button
-                          asChild
-                          className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl px-8"
-                        >
-                          <Link href="/dashboard/tasks/new">
-                            Create Project
-                          </Link>
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+            <DashboardProjectsSection
+              tasks={recentTasks}
+              userId={session.user.id}
+              canCreateProjects={isAdmin}
+            />
           </div>
         </>
       ) : (
@@ -549,9 +492,6 @@ export default async function DashboardPage() {
 
               {/* Right Column (4 cols): Quick Stats + Communication Side Panel */}
               <div className="lg:col-span-4 space-y-5 min-w-0">
-                {/* AI Daily Briefing Widget */}
-                {aiEnabled && <AIDailyBriefing />}
-
                 {/* Stats Cards (2x2 Grid) */}
                 <div className="grid grid-cols-2 gap-3">
                   <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs p-3.5">

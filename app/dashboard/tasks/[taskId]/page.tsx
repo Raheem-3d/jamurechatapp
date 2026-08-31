@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { formatDate, getPriorityColor, getStatusColor } from "@/lib/utils";
+import { formatDate, formatDeadlineRange, getPriorityColor, getStatusColor } from "@/lib/utils";
 import TaskStatusUpdate from "@/components/task-status-update";
 import TaskComments from "@/components/task-comments";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -238,7 +238,7 @@ export default async function TaskDetailPage({
                   <span>{task.priority} Priority</span>
                 </Badge>
 
-                {task.deadline && (
+                {(task.deadline || (task as any).deadlineStart) && (
                   <Badge
                     variant="outline"
                     className={cn(
@@ -252,7 +252,7 @@ export default async function TaskDetailPage({
                   >
                     <CalendarClock className="h-3.5 w-3.5" />
                     {isOverdue ? "Overdue: " : "Due: "}
-                    {formatDate(task.deadline)}
+                    {formatDeadlineRange(task.deadline, (task as any).deadlineStart, (task as any).deadlineEnd)}
                   </Badge>
                 )}
 
@@ -354,7 +354,7 @@ export default async function TaskDetailPage({
                   </p>
                   <p className="text-xs font-bold text-slate-800 dark:text-slate-200 mt-1 flex items-center gap-1.5 truncate">
                     <CalendarClock className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
-                    {task.deadline ? formatDate(task.deadline) : "No deadline"}
+                    {(task.deadline || (task as any).deadlineStart) ? formatDeadlineRange(task.deadline, (task as any).deadlineStart, (task as any).deadlineEnd) : "No deadline"}
                   </p>
                 </div>
               </div>

@@ -6,7 +6,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { getPerplexityClient } from '@/lib/perplexity-client';
+import { getPerplexityClient, getAIClientForOrg } from '@/lib/perplexity-client';
 
 export async function POST(req: NextRequest) {
   try {
@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
 
     const userOrg = await db.user.findUnique({
       where: { id: session.user.id },
-      select: { organization: { select: { aiEnabled: true } } }
+      select: { organizationId: true, organization: { select: { aiEnabled: true } } }
     });
     if (userOrg?.organization?.aiEnabled === false) {
       return NextResponse.json({ error: 'AI features are disabled' }, { status: 403 });
@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
     const lastMessageContent = `${lastMessage.sender.name}: ${lastMessage.content}`;
 
     // Get AI suggestions
-    const perplexity = getPerplexityClient();
+    const perplexity = await getAIClientForOrg(userOrg?.organizationId || session.user.organizationId);
     const suggestions = await perplexity.generateReplySuggestions(
       conversationHistory,
       lastMessageContent

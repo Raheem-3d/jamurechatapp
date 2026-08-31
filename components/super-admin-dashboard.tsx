@@ -25,6 +25,7 @@ import Link from "next/link"
 import { UserMultiSelect } from "@/components/user-multi-select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
+import { formatDate, formatDeadlineRange } from "@/lib/utils"
 
 export function SuperAdminDashboard() {
   const { user, isSuperAdmin } = useAuth()
@@ -1098,13 +1099,7 @@ export function SuperAdminDashboard() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-sm">
-                      {((project as any).deadlineStart && (project as any).deadlineEnd)
-                        ? (((project as any).deadlineStart !== (project as any).deadlineEnd)
-                            ? `${new Date((project as any).deadlineStart).toLocaleDateString()} — ${new Date((project as any).deadlineEnd).toLocaleDateString()}`
-                            : new Date((project as any).deadlineEnd).toLocaleDateString())
-                        : (project.deadline
-                            ? new Date(project.deadline).toLocaleDateString()
-                            : "No deadline")}
+                      {formatDeadlineRange(project.deadline, (project as any).deadlineStart, (project as any).deadlineEnd) || "No deadline"}
                     </TableCell>
                     <TableCell className="text-sm">
                       {new Date(project.createdAt).toLocaleDateString()}
@@ -1170,13 +1165,7 @@ export function SuperAdminDashboard() {
                     <div>
                       <span className="text-muted-foreground">Deadline:</span>{' '}
                       <span>
-                        {((previewProject as any).deadlineStart && (previewProject as any).deadlineEnd)
-                          ? (((previewProject as any).deadlineStart !== (previewProject as any).deadlineEnd)
-                              ? `${new Date((previewProject as any).deadlineStart).toLocaleDateString()} — ${new Date((previewProject as any).deadlineEnd).toLocaleDateString()}`
-                              : new Date((previewProject as any).deadlineEnd).toLocaleDateString())
-                          : (previewProject.deadline
-                              ? new Date(previewProject.deadline).toLocaleDateString()
-                              : 'No deadline')}
+                        {formatDeadlineRange(previewProject.deadline, (previewProject as any).deadlineStart, (previewProject as any).deadlineEnd) || "No deadline"}
                       </span>
                     </div>
                     <div>

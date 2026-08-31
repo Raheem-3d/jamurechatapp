@@ -45,7 +45,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { cn } from "@/lib/utils"
+import { cn, parseLocalDate, formatDeadlineRange } from "@/lib/utils"
 
 type TaskAssignee = {
   id?: string
@@ -234,7 +234,7 @@ export default function TaskCalendarPage() {
 
   // Range helpers & colors
   const normalizeYMD = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate())
-  const parseDate = (val?: string) => (val ? new Date(val) : undefined)
+  const parseDate = (val?: string) => (val ? (parseLocalDate(val) || new Date(val)) : undefined)
   const getTaskRange = (t: Task) => {
     const deadlineDate = parseDate(t.deadline)
     const dStart = parseDate(t.deadlineStart)
