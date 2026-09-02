@@ -1075,6 +1075,13 @@ export default function MessageInput({
                   }
                 }
               }}
+              onFocus={() => {
+                if (typeof window !== "undefined") {
+                  window.scrollTo(0, 0);
+                  document.documentElement.scrollTop = 0;
+                  document.body.scrollTop = 0;
+                }
+              }}
               placeholder="Message"
               rows={1}
               className="w-full bg-transparent text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder-slate-500 text-sm leading-5 py-1 px-1.5 resize-none border-0 outline-none ring-0 focus:border-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 shadow-none appearance-none block min-h-[26px] max-h-[120px]"

@@ -162,11 +162,18 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
     if (!socket) return;
 
     const onNewNotification = (notification: any) => {
-      // show only if for this user
-      if (!session?.user?.id || notification.userId !== session.user.id) return;
+      const currentUserId = session?.user?.id;
+      if (!currentUserId) return;
+
+      // 1. Show only if targeted at this user
+      if (String(notification.userId) !== String(currentUserId)) return;
+
+      // 2. NEVER notify the sender of their own message/action
+      if (notification.senderId && String(notification.senderId) === String(currentUserId)) return;
+
       if (!shouldShowOnce(notification)) return;
 
-      // Suppress notifications if channel is muted by user
+      // 3. Suppress notifications if channel is muted by user
       if (notification.channelId && typeof window !== "undefined") {
         const isChannelMuted =
           localStorage.getItem(`muted_channel_${notification.channelId}`) ===
@@ -196,7 +203,7 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
       // 2. Toast UI alert
       toast(`${priorityEmoji} ${notifTitle}`, {
         description: notifContent,
-        duration: 10000,
+        duration: 8000,
       });
 
       // 3. Dispatch for active UI components
@@ -206,7 +213,7 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
         );
       } catch { }
 
-      // 4. Native OS / Desktop / Mobile Service Worker Notification
+      // 4. Native OS / Desktop / Mobile Service Worker Notification (Only when tab is hidden)
       const electronAPI = (window as any).electronAPI;
       if (electronAPI?.notify) {
         electronAPI.notify(notifTitle, notifContent, undefined, {
@@ -218,9 +225,12 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
       } else if (
         typeof window !== "undefined" &&
         "Notification" in window &&
-        Notification.permission === "granted"
+        Notification.permission === "granted" &&
+        typeof document !== "undefined" &&
+        document.hidden
       ) {
         try {
+          const notifTag = notification.id || `notif-${notification.channelId || notification.userId || Date.now()}`;
           if ("serviceWorker" in navigator) {
             navigator.serviceWorker.ready.then((reg) => {
               reg.showNotification(notifTitle, {
@@ -228,7 +238,8 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
                 icon: "/icons/icon-192x192.png",
                 badge: "/icons/icon-192x192.png",
                 vibrate: [200, 100, 200],
-                tag: notification.id || "jamurechat-notif",
+                tag: notifTag,
+                renotify: false,
                 data: {
                   url: notification.channelId
                     ? `/dashboard/channels/${notification.channelId}`
@@ -241,17 +252,18 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
               new Notification(notifTitle, {
                 body: notifContent,
                 icon: "/icons/icon-192x192.png",
+                tag: notifTag,
               });
             });
           } else {
             new Notification(notifTitle, {
               body: notifContent,
               icon: "/icons/icon-192x192.png",
+              tag: notifTag,
             });
           }
         } catch { }
       }
-
     };
 
     socket.on("new-notification", onNewNotification);
