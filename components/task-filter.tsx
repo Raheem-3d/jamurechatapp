@@ -55,9 +55,12 @@ export default function TaskFilter({ onFilterChange }: FilterProps) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline">
-          <Filter className="h-4 w-4 mr-2" />
-          Filter
+        <Button
+          variant="outline"
+          className="h-11 px-3.5 sm:px-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 text-xs font-bold text-slate-700 dark:text-slate-200 shadow-2xs flex items-center gap-1.5 shrink-0 hover:bg-slate-50 dark:hover:bg-slate-800 active:scale-95 transition-all cursor-pointer"
+        >
+          <Filter className="h-4 w-4 text-slate-500" />
+          <span>Filter</span>
         </Button>
       </DialogTrigger>
       <DialogContent>

@@ -848,9 +848,9 @@ export default function MessageInput({
     <div
       ref={dropZoneRef}
       className={cn(
-        "bg-[#F0F2F5] dark:bg-[#111B21] p-2 sm:p-3 relative transition-all duration-200 min-h-[60px]",
+        "bg-slate-50/95 dark:bg-slate-950/95 backdrop-blur-md p-2 sm:p-3 relative transition-all duration-200 border-t border-slate-200/80 dark:border-slate-800/80",
         isDragging &&
-          "ring-4 ring-[#00A884] bg-[#00A884]/10 dark:bg-[#00A884]/20 ring-opacity-50",
+          "ring-4 ring-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/40 ring-opacity-50",
       )}
       onDragEnter={handleDragEnter}
       onDragLeave={handleDragLeave}
@@ -859,13 +859,13 @@ export default function MessageInput({
     >
       {/* Drag Overlay */}
       {isDragging && (
-        <div className="absolute inset-0 bg-[#00A884]/20 dark:bg-[#00A884]/30 flex items-center justify-center z-50 rounded-lg border-4 border-dashed border-[#00A884] border-opacity-70">
-          <div className="text-center p-4 sm:p-8 bg-white dark:bg-[#111B21] rounded-lg shadow-2xl border border-[#00A884] dark:border-[#00A884] mx-2">
-            <Upload className="h-8 w-8 sm:h-12 sm:w-12 text-[#00A884] mx-auto mb-2 sm:mb-4" />
-            <p className="text-base sm:text-xl font-bold text-[#111B21] dark:text-[#E9EDEF] mb-1 sm:mb-2">
+        <div className="absolute inset-0 bg-indigo-500/20 dark:bg-indigo-500/30 flex items-center justify-center z-50 rounded-2xl border-4 border-dashed border-indigo-500 border-opacity-70">
+          <div className="text-center p-4 sm:p-8 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-indigo-500 mx-2">
+            <Upload className="h-8 w-8 sm:h-12 sm:w-12 text-indigo-600 mx-auto mb-2 sm:mb-4 animate-bounce" />
+            <p className="text-base sm:text-xl font-bold text-slate-900 dark:text-white mb-1 sm:mb-2">
               Drop files to upload
             </p>
-            <p className="text-xs sm:text-sm text-[#8696A0] dark:text-[#8696A0]">
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
               Release files anywhere in this area
             </p>
           </div>
@@ -875,19 +875,19 @@ export default function MessageInput({
       {/* Reply Preview - WhatsApp Style */}
       <div className="space-y-1 sm:space-y-2 mb-1 sm:mb-2">
         {replyToMessage && (
-          <div className="flex items-start gap-2 rounded-lg bg-[#FFF9C4] dark:bg-[#2A3942] p-2 sm:p-3 border-l-4 border-[#FFD700] mx-1">
+          <div className="flex items-start gap-2 rounded-2xl bg-indigo-50/80 dark:bg-indigo-950/60 p-2 sm:p-2.5 border-l-4 border-indigo-600 mx-1">
             <div className="flex-1 min-w-0">
-              <div className="text-xs font-medium text-[#00A884] mb-0.5">
+              <div className="text-xs font-bold text-indigo-600 dark:text-indigo-400 mb-0.5">
                 Replying to {replyToMessage.senderName ?? "message"}
               </div>
-              <div className="text-sm text-[#111B21] dark:text-[#E9EDEF] break-words line-clamp-2">
+              <div className="text-xs text-slate-700 dark:text-slate-300 break-words line-clamp-2">
                 {replyToMessage.preview ?? ""}
               </div>
             </div>
             <Button
               variant="ghost"
               size="icon"
-              className="h-6 w-6 text-[#8696A0] hover:text-[#54656F] dark:text-[#8696A0] dark:hover:text-[#E9EDEF] flex-shrink-0 -mr-1 -mt-1"
+              className="h-6 w-6 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 flex-shrink-0 -mr-1 -mt-1 rounded-full"
               onClick={() => {
                 setReplyToMessage(null);
                 setPinned(null);
@@ -899,31 +899,31 @@ export default function MessageInput({
         )}
       </div>
 
-      {/* File Previews - WhatsApp Style */}
+      {/* File Previews */}
       {files.length > 0 && (
-        <div className="mb-2 p-2 bg-[#FFFFFF] dark:bg-[#202C33] rounded-lg border border-[#E9EDEF] dark:border-[#2A3942] mx-1">
+        <div className="mb-2 p-2.5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-2xs mx-1">
           <div className="flex items-center justify-between mb-2">
-            <p className="text-xs font-medium text-[#8696A0]">
-              {files.length} file{files.length > 1 ? "s" : ""}
+            <p className="text-xs font-semibold text-slate-600 dark:text-slate-400">
+              {files.length} file{files.length > 1 ? "s" : ""} selected
             </p>
             <Button
               variant="ghost"
               size="sm"
-              className="h-6 px-2 text-xs text-[#8696A0] hover:text-[#00A884] dark:text-[#8696A0] dark:hover:text-[#00A884]"
+              className="h-6 px-2 text-xs text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50 rounded-lg"
               onClick={() => setFiles([])}
               disabled={isUploading || isSubmitting}
             >
-              Clear
+              Clear all
             </Button>
           </div>
-          <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-[#8696A0] scrollbar-track-transparent">
+          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-thin">
             {files.map((file, index) => {
               const isImage = file.type.startsWith("image/");
               const isVideo = file.type.startsWith("video/");
               const isAudio = file.type.startsWith("audio/");
               return (
                 <div key={index} className="relative flex-shrink-0 group">
-                  <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-lg bg-[#F0F2F5] dark:bg-[#2A3942] overflow-hidden border border-[#E9EDEF] dark:border-[#2A3942]">
+                  <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl bg-slate-100 dark:bg-slate-800 overflow-hidden border border-slate-200 dark:border-slate-700 flex items-center justify-center">
                     {isImage ? (
                       <img
                         src={previews[index]}
@@ -931,30 +931,28 @@ export default function MessageInput({
                         className="w-full h-full object-cover"
                       />
                     ) : isVideo ? (
-                      <div className="w-full h-full flex items-center justify-center bg-[#00A884]/10">
-                        <Video className="h-6 w-6 text-[#00A884]" />
+                      <div className="w-full h-full flex items-center justify-center bg-indigo-50 dark:bg-indigo-950/50">
+                        <Video className="h-6 w-6 text-indigo-600" />
                       </div>
                     ) : isAudio ? (
-                      <div className="w-full h-full flex items-center justify-center bg-[#8696A0]/10">
-                        <Music className="h-6 w-6 text-[#8696A0]" />
+                      <div className="w-full h-full flex items-center justify-center bg-amber-50 dark:bg-amber-950/50">
+                        <Music className="h-6 w-6 text-amber-600" />
                       </div>
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-[#F0F2F5]">
-                        <File className="h-6 w-6 text-[#8696A0]" />
+                      <div className="w-full h-full flex items-center justify-center bg-slate-100 dark:bg-slate-800">
+                        <File className="h-6 w-6 text-slate-500" />
                       </div>
                     )}
                     <button
                       onClick={() => removeFile(index)}
                       disabled={isUploading || isSubmitting}
-                      className="absolute -top-1 -right-1 h-5 w-5 bg-[#F15C6D] text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
+                      className="absolute top-1 right-1 h-5 w-5 bg-rose-500 text-white rounded-full flex items-center justify-center shadow-md hover:scale-110 transition-transform"
                     >
-                      <X className="h-3 w-3" />
+                      <X className="h-3 w-3 stroke-[3]" />
                     </button>
                   </div>
-                  <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white text-[10px] px-1 py-0.5 truncate rounded-b-lg">
-                    {file.name.length > 15
-                      ? file.name.slice(0, 15) + "..."
-                      : file.name}
+                  <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-[9px] px-1 py-0.5 truncate rounded-b-xl">
+                    {file.name}
                   </div>
                 </div>
               );
@@ -962,13 +960,13 @@ export default function MessageInput({
           </div>
           {isUploading && (
             <div className="mt-2 space-y-1">
-              <div className="flex justify-between text-xs text-[#8696A0]">
+              <div className="flex justify-between text-xs text-slate-500 font-medium">
                 <span>Uploading...</span>
                 <span>{uploadProgress}%</span>
               </div>
               <Progress
                 value={uploadProgress}
-                className="h-1.5 bg-[#E9EDEF] dark:bg-[#2A3942]"
+                className="h-1.5 bg-slate-100 dark:bg-slate-800"
               />
             </div>
           )}
@@ -977,7 +975,7 @@ export default function MessageInput({
 
       {/* AI Smart Reply Strip - channel only */}
       {aiEnabled && channelId && (
-        <div className="border-b border-[#E9EDEF] dark:border-[#2A3942]">
+        <div className="border-b border-slate-200/80 dark:border-slate-800 mb-2">
           <AISmartReply
             channelId={channelId}
             lastMessage={lastChannelMessage}
@@ -988,10 +986,10 @@ export default function MessageInput({
         </div>
       )}
 
-      {/* Input Form - WhatsApp Style */}
+      {/* WhatsApp-Style Input Form */}
       <form
         onSubmit={handleSubmit}
-        className="flex items-end gap-1 sm:gap-2 px-1 sm:px-2"
+        className="flex items-end gap-2 w-full"
       >
         <input
           type="file"
@@ -1004,51 +1002,41 @@ export default function MessageInput({
           .cab,.bin,.cue,.toast,.vcd,.iso,.mdf,.nrg,.uue,.xxe,.zipx,.rar,.alz,.arc,.arj,.bz2,.bzip2,.cab,.cpio,.gz,.lzh,.lzma,.lzo,.rz,.sfark,.szip,.tar,.tbz2,.tgz,.txz,.xz,.z,.zoo,.zst,spl,sit,.sitx,"
         />
 
-        {/* WhatsApp-style input container */}
-        <div className="flex-1 flex items-end bg-[#FFFFFF] dark:bg-[#202C33] rounded-lg sm:rounded-xl px-2 sm:px-3 py-1 sm:py-2 shadow-sm">
+        {/* WhatsApp-style Rounded Input Box */}
+        <div className="flex-1 flex items-center bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-3xl px-2 sm:px-3 py-1 shadow-2xs focus-within:border-indigo-500/50 focus-within:ring-2 focus-within:ring-indigo-500/20 transition-all min-w-0">
           {/* Emoji Button */}
-          {/*   <Popover open={showEmojiPicker} onOpenChange={setShowEmojiPicker}>
+          <Popover open={showEmojiPicker} onOpenChange={setShowEmojiPicker}>
             <PopoverTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
+              <button
                 type="button"
-                className="h-9 w-9 sm:h-10 sm:w-10 text-[#8696A0] hover:text-[#54656F] dark:text-[#8696A0] dark:hover:text-[#E9EDEF] hover:bg-transparent rounded-full flex-shrink-0"
+                className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0 cursor-pointer"
                 title="Add emoji"
               >
-                <Smile className="h-5 w-5 sm:h-6 sm:w-6" />
-              </Button>
+                <Smile className="w-4 h-4 sm:w-5 sm:h-5" />
+              </button>
             </PopoverTrigger>
-            <PopoverContent className="w-auto p-0 border-none" align="start" side="top" sideOffset={10}>
+            <PopoverContent className="w-auto p-0 border-none shadow-2xl rounded-2xl overflow-hidden" align="start" side="top" sideOffset={12}>
               <EmojiPicker
                 onEmojiClick={handleEmojiClick}
                 width={300}
-                height={350}
+                height={360}
               />
             </PopoverContent>
           </Popover>
-*/}
-          {/* Attachment Button */}
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isSubmitting || isUploading}
-            className="h-9 w-9 sm:h-10 sm:w-10 text-[#8696A0] hover:text-[#54656F] dark:text-[#8696A0] dark:hover:text-[#E9EDEF] hover:bg-transparent rounded-full flex-shrink-0 hidden sm:flex"
-            title="Attach files"
-          >
-            <Paperclip className="h-5 w-5 sm:h-6 sm:w-6" />
-          </Button>
 
-          {/* Message Input */}
+          {/* Message Input Textarea (Native without rogue borders/rings) */}
           <div className="flex-1 relative mx-1 min-w-0" ref={wrapperRef}>
-            <Textarea
+            <textarea
               ref={textareaRef}
               value={message}
-              autoFocus
-              onFocus={() => fileInputRef.current?.focus()}
-              onChange={(e) => handleChange(e.target.value)}
+              onChange={(e) => {
+                handleChange(e.target.value);
+                // Auto grow textarea smoothly
+                if (textareaRef.current) {
+                  textareaRef.current.style.height = "auto";
+                  textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 120)}px`;
+                }
+              }}
               onKeyDown={(e) => {
                 if (mentionOpen) {
                   if (
@@ -1077,7 +1065,7 @@ export default function MessageInput({
                   return;
                 }
 
-                // Send message on Enter (including when only files are attached)
+                // Send message on Enter
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
                   const hasContent =
@@ -1087,15 +1075,15 @@ export default function MessageInput({
                   }
                 }
               }}
-              placeholder="Type a message..."
-              className="min-h-[36px] sm:min-h-[40px] max-h-[100px] sm:max-h-[120px] resize-none border-0 shadow-none focus-visible:ring-0 px-0 bg-transparent text-[#111B21] dark:text-[#E9EDEF] placeholder-[#8696A0] dark:placeholder-[#8696A0] text-[15px] leading-5 py-2"
-              disabled={isSubmitting || isUploading}
+              placeholder="Message"
               rows={1}
+              className="w-full bg-transparent text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder-slate-500 text-sm leading-5 py-1 px-1.5 resize-none border-0 outline-none ring-0 focus:border-0 focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 shadow-none appearance-none block min-h-[26px] max-h-[120px]"
+              disabled={isSubmitting || isUploading}
             />
 
             {/* Mention Dropdown */}
             {mentionOpen && mentionCandidates.length > 0 && (
-              <div className="absolute left-0 bottom-12 z-20 w-60 sm:w-72 max-h-48 sm:max-h-64 overflow-auto rounded-lg border border-[#E9EDEF] dark:border-[#2A3942] bg-white dark:bg-[#111B21] shadow-xl">
+              <div className="absolute left-0 bottom-12 z-20 w-60 sm:w-72 max-h-48 sm:max-h-64 overflow-auto rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xl divide-y divide-slate-100 dark:divide-slate-800">
                 {mentionCandidates.map((m, i) => (
                   <button
                     type="button"
@@ -1105,21 +1093,19 @@ export default function MessageInput({
                       insertMention(m.name);
                     }}
                     className={cn(
-                      "w-full px-4 py-2 text-left hover:bg-[#F0F2F5] dark:hover:bg-[#2A3942] transition-colors",
-                      i === mentionIndex && "bg-[#F0F2F5] dark:bg-[#2A3942]",
+                      "w-full px-3.5 py-2 text-left hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex items-center gap-2.5",
+                      i === mentionIndex && "bg-slate-50 dark:bg-slate-800",
                     )}
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-[#00A884] flex items-center justify-center text-white text-sm font-medium">
-                        {m.name.charAt(0).toUpperCase()}
+                    <div className="w-7 h-7 rounded-full bg-indigo-600 flex items-center justify-center text-white text-xs font-bold shrink-0">
+                      {m.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                        {m.name}
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium text-[#111B21] dark:text-[#E9EDEF] truncate">
-                          {m.name}
-                        </div>
-                        <div className="text-xs text-[#8696A0] capitalize">
-                          {m.type}
-                        </div>
+                      <div className="text-[10px] text-slate-400 capitalize">
+                        {m.type}
                       </div>
                     </div>
                   </button>
@@ -1128,51 +1114,63 @@ export default function MessageInput({
             )}
           </div>
 
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            title="Buzz"
-            className="flex h-9 w-9 text-[#8696A0] hover:text-[#54656F] dark:text-[#8696A0] dark:hover:text-[#E9EDEF] hover:bg-transparent rounded-full flex-shrink-0"
-            onClick={handleBuzz}
-            disabled={isSubmitting || isUploading || isBuzzing}
-          >
-            {isBuzzing ? (
-              <Loader2 className="h-5 w-5 animate-spin" />
-            ) : (
-              <BellRing className="h-5 w-5" />
-            )}
-          </Button>
-
-          {aiEnabled && (
-            <MessageRewriter
-              message={message}
-              onApply={(rewritten) => setMessage(rewritten)}
+          {/* Right Action Buttons Inside Input Pill */}
+          <div className="flex items-center gap-0.5 shrink-0">
+            {/* Attachment Button (Always visible on mobile & desktop) */}
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
               disabled={isSubmitting || isUploading}
-            />
-          )}
+              className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer shrink-0"
+              title="Attach files or media"
+            >
+              <Paperclip className="w-3.5 h-3.5 sm:w-4.5 sm:h-4.5" />
+            </button>
+
+            {/* Buzz Button */}
+            <button
+              type="button"
+              title="Send Buzz notification"
+              className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-amber-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer shrink-0"
+              onClick={handleBuzz}
+              disabled={isSubmitting || isUploading || isBuzzing}
+            >
+              {isBuzzing ? (
+                <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin text-amber-500" />
+              ) : (
+                <BellRing className="w-3.5 h-3.5 sm:w-4.5 sm:h-4.5" />
+              )}
+            </button>
+
+            {/* AI Rewriter */}
+            {aiEnabled && (
+              <MessageRewriter
+                message={message}
+                onApply={(rewritten) => setMessage(rewritten)}
+                disabled={isSubmitting || isUploading}
+              />
+            )}
+          </div>
         </div>
 
-        {/* Send/Mic Button - WhatsApp Style */}
-        <Button
+        {/* WhatsApp-Style Circular Send Button */}
+        <button
           type="submit"
           disabled={!hasContent || isSubmitting || isUploading}
-          size="icon"
           className={cn(
-            "h-11 w-11 sm:h-12 sm:w-12 rounded-full flex-shrink-0 transition-all duration-200 shadow-md",
+            "w-9 h-9 sm:w-11 sm:h-11 rounded-full flex-shrink-0 shadow-sm flex items-center justify-center transition-all duration-200 cursor-pointer",
             hasContent && !isSubmitting && !isUploading
-              ? "bg-[#00A884] hover:bg-[#008C71] text-white"
-              : "bg-[#00A884] hover:bg-[#008C71] text-white",
-            !hasContent && "opacity-50 cursor-not-allowed",
+              ? "bg-indigo-600 hover:bg-indigo-700 text-white scale-105 active:scale-95 shadow-indigo-500/25"
+              : "bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed opacity-60",
           )}
-          title={hasContent ? "Send message" : "Record voice"}
+          title="Send message"
         >
           {isSubmitting ? (
-            <Loader2 className="h-5 w-5 sm:h-6 sm:w-6 animate-spin" />
+            <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" />
           ) : (
-            <Send className="h-5 w-5 sm:h-6 sm:w-6 ml-0.5" />
+            <Send className="w-3.5 h-3.5 sm:w-4.5 sm:h-4.5 ml-0.5 stroke-[2.5]" />
           )}
-        </Button>
+        </button>
       </form>
     </div>
   );

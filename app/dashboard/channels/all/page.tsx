@@ -18,9 +18,9 @@ type Channel = {
   isPublic: boolean
   isDepartment: boolean
   createdAt: string
-  _count: {
-    members: number
-    messages: number
+  _count?: {
+    members?: number
+    messages?: number
   }
 }
 
@@ -195,6 +195,9 @@ export default function AllChannelsPage() {
 }
 
 function ChannelCard({ channel }: { channel: Channel }) {
+  const memberCount = channel?._count?.members ?? (Array.isArray((channel as any)?.members) ? (channel as any).members.length : 0);
+  const messageCount = channel?._count?.messages ?? (Array.isArray((channel as any)?.messages) ? (channel as any).messages.length : 0);
+
   return (
     <Card>
       <CardHeader className="pb-2">
@@ -218,9 +221,9 @@ function ChannelCard({ channel }: { channel: Channel }) {
       <CardContent className="pb-2">
         <div className="flex items-center text-sm text-gray-500">
           <Users className="h-4 w-4 mr-1" />
-          <span>{channel._count.members} members</span>
+          <span>{memberCount} members</span>
           <span className="mx-2">•</span>
-          <span>{channel._count.messages} messages</span>
+          <span>{messageCount} messages</span>
         </div>
       </CardContent>
       <CardFooter>

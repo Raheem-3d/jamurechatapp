@@ -14,7 +14,12 @@ const PUBLIC_PATHS = [
   "/api/organizations",
   "/api/upload", // Allow large file uploads without middleware restrictions
   "/u/billing", // allow billing
+  "/manifest.json",
+  "/manifest.webmanifest",
+  "/sw.js",
+  "/icons",
 ]
+
 
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl

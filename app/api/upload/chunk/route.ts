@@ -8,6 +8,7 @@ import { join, resolve } from "path";
 import { v4 as uuidv4 } from "uuid";
 import Busboy from "busboy";
 import { Readable as NodeReadable } from "stream";
+import cloudinary from "@/lib/cloudinary";
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -23,7 +24,7 @@ export const config = {
 };
 
 const CHUNK_DIR = resolve(process.cwd(), "public", "uploads", "chunks");
-const UPLOADS_DIR = resolve(process.cwd(), "public", "uploads");
+// const UPLOADS_DIR = resolve(process.cwd(), "public", "uploads");
 
 export async function POST(req: Request) {
   try {
@@ -100,7 +101,6 @@ export async function POST(req: Request) {
 
     // Create chunks directory
     await mkdir(CHUNK_DIR, { recursive: true });
-    await mkdir(UPLOADS_DIR, { recursive: true });
 
     // Save chunk
     const chunkPath = join(CHUNK_DIR, `${fileId}_chunk_${chunkIndex}`);
@@ -116,17 +116,13 @@ export async function POST(req: Request) {
       // All chunks received - merge them
       console.log(`All chunks received for ${fileName}, merging...`);
 
-      const ext = fileName.includes('.') ? fileName.split('.').pop()?.toLowerCase() ?? 'bin' : 'bin';
-      const localName = `${uuidv4()}.${ext}`;
-      const finalPath = join(UPLOADS_DIR, localName);
-
       // Sort chunks by index and merge
       const sortedChunks = fileChunks.sort((a, b) => {
         const aIndex = parseInt(a.split('_chunk_')[1], 10);
         const bIndex = parseInt(b.split('_chunk_')[1], 10);
         return aIndex - bIndex;
       });
-      //
+      
       const buffers: Buffer[] = [];
       for (const chunkFile of sortedChunks) {
         const chunkData = await readFile(join(CHUNK_DIR, chunkFile));
@@ -134,7 +130,37 @@ export async function POST(req: Request) {
       }
 
       const finalBuffer = Buffer.concat(buffers);
-      await writeFile(finalPath, finalBuffer);
+
+      /* =========================================================================
+       * [LOCAL STORAGE MERGED WRITE - COMMENTED OUT FOR FUTURE USE]
+       * =========================================================================
+       * await mkdir(UPLOADS_DIR, { recursive: true });
+       * const ext = fileName.includes('.') ? fileName.split('.').pop()?.toLowerCase() ?? 'bin' : 'bin';
+       * const localName = `${uuidv4()}.${ext}`;
+       * const finalPath = join(UPLOADS_DIR, localName);
+       * await writeFile(finalPath, finalBuffer);
+       * const origin = new URL('http://10.0.4.106:3000').origin;
+       * const fileUrl = `${origin}/u/${localName}`;
+       * ========================================================================= */
+
+      // Upload merged file to Cloudinary with resource_type: "auto"
+      const uploadResult = await new Promise<any>((res, rej) => {
+        const uploadStream = cloudinary.uploader.upload_stream(
+          {
+            resource_type: "auto",
+            folder: "jamurechat/uploads",
+            use_filename: true,
+            unique_filename: true,
+          },
+          (error, result) => {
+            if (error) return rej(error);
+            res(result);
+          }
+        );
+        uploadStream.end(finalBuffer);
+      });
+
+      const fileUrl = uploadResult.secure_url || uploadResult.url;
 
       // Clean up chunks
       for (const chunkFile of sortedChunks) {
@@ -145,10 +171,7 @@ export async function POST(req: Request) {
         }
       }
 
-      const origin = new URL('http://10.0.4.106:3000').origin;
-      const fileUrl = `${origin}/u/${localName}`;
-
-      console.log(`File merged successfully: ${finalPath}`);
+      console.log(`File uploaded to Cloudinary successfully: ${fileUrl}`);
 
       return NextResponse.json({
         success: true,
@@ -156,9 +179,9 @@ export async function POST(req: Request) {
         files: [{
           fileUrl,
           fileName,
-          fileType,
-          localName,
-          size: finalBuffer.length,
+          fileType: fileType || (uploadResult.format ? `${uploadResult.resource_type}/${uploadResult.format}` : null),
+          localName: uploadResult.public_id,
+          size: uploadResult.bytes || finalBuffer.length,
         }],
       }, { status: 200 });
     }

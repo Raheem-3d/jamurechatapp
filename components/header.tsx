@@ -45,6 +45,8 @@ import { ThemeCustomizer } from "./theme-customizer";
 import { ThemeToggle } from "./theme-toggle";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
+import { MobileSidebarDrawer } from "@/components/mobile/MobileSidebarDrawer";
+import { useNotifications } from "@/contexts/notifications-context";
 
 type Notification = {
   id: string;
@@ -65,6 +67,8 @@ export default function Header() {
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showSearchResults, setShowSearchResults] = useState(false);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const { unreadCount } = useNotifications();
   const { socket, isConnected } = useSocket();
   const { toast } = useToast();
   const { user } = useAuth();
@@ -114,6 +118,8 @@ export default function Header() {
   useEffect(() => {
     const titleMap: { [key: string]: string } = {
       "/dashboard": "Dashboard",
+      "/dashboard/chats": "Chats",
+      "/dashboard/messages": "Messages",
       "/dashboard/tasks": "Projects",
       "/dashboard/people": "Team",
       "/dashboard/settings": "Settings",
@@ -123,8 +129,9 @@ export default function Header() {
       "/dashboard/reminders": "Reminders",
     };
 
-    const matchedPath = Object.keys(titleMap).find((path) =>
-      pathname?.startsWith(path),
+    const sortedPaths = Object.keys(titleMap).sort((a, b) => b.length - a.length);
+    const matchedPath = sortedPaths.find((path) =>
+      pathname === path || pathname?.startsWith(path + "/") || pathname?.startsWith(path)
     );
 
     setTitle(matchedPath ? titleMap[matchedPath] : "Workspace");
@@ -213,100 +220,40 @@ export default function Header() {
   };
 
   return (
-    <header className="sticky top-0 z-50 border-b border-slate-200/80 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl shadow-2xs">
-      <div className="flex h-14 items-center justify-between px-4 md:px-6 gap-4">
+    <header className="sticky top-0 z-50 border-b border-slate-200/80 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl shadow-2xs pt-[env(safe-area-inset-top,0px)]">
+      <div className="flex h-14 items-center justify-between px-3 md:px-6 gap-3">
         {/* Left Section - Mobile Drawer, Logo & Page Title */}
         <div className="flex items-center gap-3 shrink-0">
           {/* Mobile menu sheet */}
-          <Sheet>
+          <Sheet open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
             <SheetTrigger asChild className="lg:hidden">
               <Button
                 variant="outline"
                 size="sm"
-                className="h-8 w-8 p-0 rounded-xl border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200"
+                className="h-9 w-9 p-0 rounded-2xl border-slate-200/90 dark:border-slate-800 text-slate-700 dark:text-slate-200 bg-slate-100/90 dark:bg-slate-800/90 shadow-2xs hover:bg-slate-200 active:scale-90 transition-all cursor-pointer"
+                aria-label="Open navigation menu"
               >
-                <Menu className="h-4 w-4" />
+                <Menu className="h-4.5 w-4.5" />
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="w-72 p-4">
-              <div className="flex h-full flex-col">
-                <div className="mb-6 flex items-center space-x-3 p-2 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200/60 dark:border-slate-700/60">
-                  <Avatar className="h-10 w-10 shrink-0">
-                    <AvatarImage
-                      src={user?.image || ""}
-                      alt={user?.name || ""}
-                    />
-                    <AvatarFallback className="bg-gradient-to-br from-indigo-600 to-purple-600 text-white font-bold">
-                      {user?.name?.charAt(0)?.toUpperCase() || "U"}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="min-w-0 flex-1">
-                    <p className="font-bold text-slate-900 dark:text-white text-xs truncate">
-                      {user?.name}
-                    </p>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
-                      {user?.email}
-                    </p>
-                  </div>
-                </div>
-
-                <nav className="flex-1 space-y-1">
-                  {[
-                    { href: "/dashboard", label: "Dashboard" },
-                    { href: "/dashboard/tasks", label: "Projects" },
-                    { href: "/dashboard/people", label: "Team" },
-                    { href: "/dashboard/calendar", label: "Calendar" },
-                    { href: "/dashboard/notification", label: "Notifications" },
-                    { href: "/dashboard/reminders", label: "Reminders" },
-                    { href: "/dashboard/settings", label: "Settings" },
-                  ].map((item) => (
-                    <Button
-                      key={item.href}
-                      variant="ghost"
-                      className={cn(
-                        "w-full justify-start text-xs font-semibold rounded-xl text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 h-9",
-                        pathname === item.href &&
-                          "bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-800/80 font-bold",
-                      )}
-                      asChild
-                    >
-                      <Link href={item.href}>{item.label}</Link>
-                    </Button>
-                  ))}
-                </nav>
-
-                <div className="mt-auto border-t border-slate-200 dark:border-slate-800 pt-4">
-                  <Button
-                    variant="ghost"
-                    className="w-full justify-start text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl h-9"
-                    onClick={handleLogout}
-                  >
-                    <LogOut className="mr-2 h-4 w-4" />
-                    Sign Out
-                  </Button>
-                </div>
-              </div>
+            <SheetContent side="left" className="w-80 p-0 border-r border-slate-200/80 dark:border-slate-800 shadow-2xl">
+              <MobileSidebarDrawer onClose={() => setIsDrawerOpen(false)} />
             </SheetContent>
           </Sheet>
 
           {/* Logo Brand & Title Badge */}
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2">
             <Link
               href="/dashboard"
-              className="flex items-center gap-2.5 group focus:outline-none"
+              className="flex flex-col group focus:outline-none"
             >
-              <div className="h-8 w-8 bg-gradient-to-tr from-indigo-600 via-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-xs shadow-indigo-500/20 text-white shrink-0 group-hover:scale-105 transition-transform duration-200">
-                <Building className="h-4 w-4" />
-              </div>
-              <span className="text-sm font-black text-slate-900 dark:text-white tracking-tight hidden sm:inline-block">
-                Jamure
+              <span className="text-base font-bold text-slate-900 dark:text-white tracking-tight leading-tight group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                {title || "Dashboard"}
+              </span>
+              <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider leading-none mt-0.5">
+                Workspace
               </span>
             </Link>
-
-            <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-extrabold text-indigo-600 dark:text-indigo-400 bg-indigo-50/80 dark:bg-indigo-950/60 px-2.5 py-0.5 rounded-lg border border-indigo-100 dark:border-indigo-800/80 shadow-2xs">
-              <Sparkles className="h-3 w-3" />
-              {title}
-            </span>
           </div>
         </div>
 
@@ -413,13 +360,13 @@ export default function Header() {
                               className={cn(
                                 "h-8 w-8 rounded-xl flex items-center justify-center shrink-0 transition-transform group-hover/item:scale-105 shadow-2xs",
                                 result.type === "message" &&
-                                  "bg-blue-50 text-blue-600 dark:bg-blue-950/70 dark:text-blue-400 border border-blue-100 dark:border-blue-900/40",
+                                "bg-blue-50 text-blue-600 dark:bg-blue-950/70 dark:text-blue-400 border border-blue-100 dark:border-blue-900/40",
                                 result.type === "task" &&
-                                  "bg-indigo-50 text-indigo-600 dark:bg-indigo-950/70 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/40",
+                                "bg-indigo-50 text-indigo-600 dark:bg-indigo-950/70 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/40",
                                 result.type === "channel" &&
-                                  "bg-purple-50 text-purple-600 dark:bg-purple-950/70 dark:text-purple-400 border border-purple-100 dark:border-purple-900/40",
+                                "bg-purple-50 text-purple-600 dark:bg-purple-950/70 dark:text-purple-400 border border-purple-100 dark:border-purple-900/40",
                                 result.type === "user" &&
-                                  "bg-amber-50 text-amber-600 dark:bg-amber-950/70 dark:text-amber-400 border border-amber-100 dark:border-amber-900/40",
+                                "bg-amber-50 text-amber-600 dark:bg-amber-950/70 dark:text-amber-400 border border-amber-100 dark:border-amber-900/40",
                               )}
                             >
                               {result.type === "message" && (
@@ -544,22 +491,33 @@ export default function Header() {
               title="Refresh Page"
             >
               <RotateCcw
-                className={`h-3.5 w-3.5 text-slate-600 dark:text-slate-300 ${
-                  isRefreshing ? "animate-spin" : ""
-                }`}
+                className={`h-3.5 w-3.5 text-slate-600 dark:text-slate-300 ${isRefreshing ? "animate-spin" : ""
+                  }`}
               />
             </Button>
           </div>
 
-          {/* Notifications Button */}
+          {/* Mobile Notifications Direct Link (Opens Dedicated Screen without cramped popover) */}
+          <div className="block sm:hidden">
+            <Button
+              variant="ghost"
+              size="icon"
+              asChild
+              className="relative h-9 w-9 rounded-2xl text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer active:scale-95 shrink-0"
+            >
+              <Link href="/dashboard/notification" aria-label="Notifications">
+                <Bell className="h-4.5 w-4.5 text-slate-600 dark:text-slate-300" />
+                {unreadCount > 0 && (
+                  <span className="absolute top-1.5 right-1.5 h-2.5 w-2.5 rounded-full bg-rose-500 ring-2 ring-white dark:ring-slate-900 shadow-xs" />
+                )}
+              </Link>
+            </Button>
+          </div>
+
+          {/* Desktop Notifications Popover Dropdown */}
           <div className="hidden sm:block">
             <NotificationsButton />
           </div>
-
-          {/* Theme Customizer */}
-          {/* <div className="hidden sm:block">
-            <ThemeCustomizer />
-          </div> */}
 
           {/* Team Icon for Admin */}
           {isAdmin && (
@@ -583,14 +541,17 @@ export default function Header() {
             <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
-                className="h-8 px-2 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-all flex items-center gap-2"
+                className="h-9 px-1.5 sm:px-2 rounded-2xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-all flex items-center gap-2 cursor-pointer active:scale-95"
               >
-                <Avatar className="h-7 w-7 shrink-0 aspect-square rounded-full ring-2 ring-indigo-500/20">
-                  <AvatarImage src={user?.image || ""} alt={user?.name || ""} />
-                  <AvatarFallback className="btext-white text-[11px] font-extrabold flex items-center justify-center rounded-full">
-                    {user?.name?.charAt(0)?.toUpperCase() || "U"}
-                  </AvatarFallback>
-                </Avatar>
+                <div className="relative shrink-0">
+                  <Avatar className="h-8 w-8 rounded-full ring-2 ring-indigo-500/20 shadow-xs">
+                    <AvatarImage src={user?.image || ""} alt={user?.name || ""} />
+                    <AvatarFallback className="bg-indigo-600 text-white text-xs font-bold flex items-center justify-center rounded-full">
+                      {user?.name?.charAt(0)?.toUpperCase() || "U"}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-white dark:border-slate-900 shadow-2xs" />
+                </div>
                 <span className="hidden sm:block text-xs font-bold text-slate-800 dark:text-slate-200 max-w-24 truncate">
                   {user?.name?.split(" ")[0]}
                 </span>

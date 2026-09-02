@@ -11,6 +11,7 @@ import { getDepartmentColor } from "@/lib/utils"
 import { Search } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import PeopleSearch from "@/components/people-search"
+import { PeopleMobile } from "@/components/people/PeopleMobile"
 import { getSessionUserWithPermissions } from "@/lib/org"
 import { hasPermission } from "@/lib/permissions"
 import OrgAddUserForm from "@/components/org-add-user-form"
@@ -49,26 +50,31 @@ export default async function PeoplePage() {
     },
   })
 
-  console.log(session,'session')
-
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-3xl font-bold tracking-tight">People</h2>
-        {/* Org admins can add people within their organization */}
-        {user.organizationId && hasPermission(user.role, 'ORG_USERS_MANAGE', user.isSuperAdmin) ? (
-          <div className="hidden md:block">
-            {/* Placeholder for possible future link-based flow */}
-          </div>
-        ) : null}
+    <div className="w-full">
+      {/* Mobile Team Directory View */}
+      <div className="block md:hidden w-full">
+        <PeopleMobile users={users as any} departments={departments as any} currentUser={session as any} />
       </div>
+
+      {/* Desktop Team Directory View (Exact Existing Design Preserved) */}
+      <div className="hidden md:block space-y-6">
+        <div className="flex items-center justify-between">
+          <h2 className="text-3xl font-bold tracking-tight">People</h2>
+          {/* Org admins can add people within their organization */}
+          {user.organizationId && hasPermission(user.role, 'ORG_USERS_MANAGE', user.isSuperAdmin) ? (
+            <div className="hidden md:block">
+              {/* Placeholder for possible future link-based flow */}
+            </div>
+          ) : null}
+        </div>
 
         {user.organizationId && hasPermission(user.role, 'ORG_USERS_MANAGE', user.isSuperAdmin) && (
           <OrgAddUserForm />
         )}
 
-        <PeopleSearch users={users as any} departments={departments as any}  currentUser={session as any}/>
-
+        <PeopleSearch users={users as any} departments={departments as any} currentUser={session as any} />
+      </div>
     </div>
   )
 }

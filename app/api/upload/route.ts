@@ -1,21 +1,25 @@
-
-
-// app/api/upload/route.ts (or similar)
+// app/api/upload/route.ts
 // Requires Node.js server runtime (default) — not edge runtime
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { mkdir } from "fs/promises";
-import { createWriteStream } from "fs";
-import { join, resolve } from "path";
 import { v4 as uuidv4 } from "uuid";
 import Busboy from "busboy";
 import { Readable as NodeReadable } from "stream";
+import cloudinary from "@/lib/cloudinary";
+
+/* =========================================================================
+ * [LOCAL STORAGE IMPORTS - COMMENTED OUT FOR FUTURE USE]
+ * =========================================================================
+ * import { mkdir } from "fs/promises";
+ * import { createWriteStream } from "fs";
+ * import { join, resolve } from "path";
+ * ========================================================================= */
 
 const MAX_FILES = 50;
-const LOCAL_MAX_BYTES = 5 * 1024 * 1024 * 1024; // 5GB
+const MAX_BYTES = 500 * 1024 * 1024; // 500MB per file for Cloudinary
 
-// Route configuration for large file uploads
+// Route configuration for file uploads
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300; // up to 5 minutes for large uploads
@@ -28,44 +32,77 @@ export async function POST(req: Request) {
     // Log request details for debugging
     const contentType = req.headers.get('content-type') || '';
     const contentLength = req.headers.get('content-length');
-    console.log('Upload request received:', {
+    console.log('Upload request received (Cloudinary):', {
       contentType,
       contentLength: contentLength ? `${(parseInt(contentLength) / 1024 / 1024).toFixed(2)}MB` : 'unknown',
       hasBody: !!req.body,
     });
 
-    const uploadsDir = resolve(process.cwd(), "public", "uploads");
-    await mkdir(uploadsDir, { recursive: true });
-
-    const origin = new URL('http://10.0.4.106:3000').origin;
+    /* =========================================================================
+     * [LOCAL STORAGE SETUP - COMMENTED OUT FOR FUTURE USE]
+     * =========================================================================
+     * const uploadsDir = resolve(process.cwd(), "public", "uploads");
+     * await mkdir(uploadsDir, { recursive: true });
+     * const origin = new URL('http://10.0.4.106:3000').origin;
+     * ========================================================================= */
 
     // Fallback: handle raw binary uploads (application/octet-stream)
     if (contentType.startsWith('application/octet-stream')) {
-      const localName = `${uuidv4()}.bin`;
-      const outPath = join(uploadsDir, localName);
-      const writeStream = createWriteStream(outPath, { flags: 'w' });
-
       const body = req.body;
       if (!body) {
         return NextResponse.json({ success: false, message: 'No body' }, { status: 400 });
       }
 
-      // Stream the request body directly to disk
-      const nodeReadable = NodeReadable.fromWeb(body as any);
-      const writeDone = new Promise<void>((resolveWrite, rejectWrite) => {
-        writeStream.on('finish', () => resolveWrite());
-        writeStream.on('error', (err) => rejectWrite(err));
-      });
-      nodeReadable.pipe(writeStream);
-      await writeDone;
+      /* =========================================================================
+       * [LOCAL STORAGE RAW UPLOAD - COMMENTED OUT FOR FUTURE USE]
+       * =========================================================================
+       * const localName = `${uuidv4()}.bin`;
+       * const outPath = join(uploadsDir, localName);
+       * const writeStream = createWriteStream(outPath, { flags: 'w' });
+       * const nodeReadable = NodeReadable.fromWeb(body as any);
+       * const writeDone = new Promise<void>((resolveWrite, rejectWrite) => {
+       *   writeStream.on('finish', () => resolveWrite());
+       *   writeStream.on('error', (err) => rejectWrite(err));
+       * });
+       * nodeReadable.pipe(writeStream);
+       * await writeDone;
+       * const fileUrl = `${origin}/u/${localName}`;
+       * return NextResponse.json({ success: true, files: [{ fileUrl, fileName: null, fileType: 'application/octet-stream', localName, size: 0 }], failed: [] }, { status: 200 });
+       * ========================================================================= */
 
-      const fileUrl = `${origin}/u/${localName}`;
-      return NextResponse.json({ success: true, files: [{ fileUrl, fileName: null, fileType: 'application/octet-stream', localName, size: 0 }], failed: [] }, { status: 200 });
+      // Cloudinary Raw Upload
+      const nodeReadable = NodeReadable.fromWeb(body as any);
+      const uploadResult = await new Promise<any>((resolveUpload, rejectUpload) => {
+        const uploadStream = cloudinary.uploader.upload_stream(
+          {
+            resource_type: "auto",
+            folder: "jamurechat/uploads",
+          },
+          (error, result) => {
+            if (error) return rejectUpload(error);
+            resolveUpload(result);
+          }
+        );
+        nodeReadable.pipe(uploadStream);
+      });
+
+      const fileUrl = uploadResult.secure_url || uploadResult.url;
+      return NextResponse.json({
+        success: true,
+        files: [{
+          fileUrl,
+          fileName: uploadResult.original_filename || null,
+          fileType: uploadResult.format ? `${uploadResult.resource_type}/${uploadResult.format}` : 'application/octet-stream',
+          localName: uploadResult.public_id,
+          size: uploadResult.bytes || 0,
+        }],
+        failed: [],
+      }, { status: 200 });
     }
 
     const files: Array<{ fileUrl: string; fileName: string; fileType: string | null; localName: string; size: number }> = [];
     const failed: Array<{ name: string; reason: string }> = [];
-    const fileWrites: Promise<void>[] = [];
+    const fileUploadPromises: Promise<void>[] = [];
 
     // Convert the Web ReadableStream to Node stream for Busboy
     const nodeReq = NodeReadable.fromWeb(req.body as any);
@@ -73,15 +110,13 @@ export async function POST(req: Request) {
 
     let bb: any;
     try {
-      // Busboy configuration with larger limits and better error handling
       bb = Busboy({
         headers: (nodeReq as any).headers,
         limits: {
           files: MAX_FILES,
-          fileSize: LOCAL_MAX_BYTES,
-          parts: MAX_FILES + 10, // Allow extra parts for form fields
+          fileSize: MAX_BYTES,
+          parts: MAX_FILES + 10,
         },
-        // Don't process empty part boundaries that can cause "Unexpected end of form"
         preservePath: true,
       });
     } catch (err: any) {
@@ -95,7 +130,7 @@ export async function POST(req: Request) {
 
     bb.on('file', (_fieldname: string, file: NodeJS.ReadableStream, info: { filename: string; mimeType: string }) => {
       if (streamEnded) {
-        file.resume(); // Drain the stream to prevent backpressure
+        file.resume();
         return;
       }
 
@@ -107,82 +142,95 @@ export async function POST(req: Request) {
         return;
       }
 
-      // Prevent errors in filename from breaking parsing
-      const safeFilename = filename ? filename.replace(/[^a-zA-Z0-9._-]/g, '_') : 'file';
-      const ext = safeFilename && safeFilename.includes('.') ? safeFilename.split('.').pop()?.toLowerCase() ?? 'bin' : 'bin';
-      const localName = `${uuidv4()}.${ext}`;
-      const outPath = join(uploadsDir, localName);
-      const writeStream = createWriteStream(outPath, { flags: 'w' });
+      /* =========================================================================
+       * [LOCAL STORAGE FILE PIPING - COMMENTED OUT FOR FUTURE USE]
+       * =========================================================================
+       * const safeFilename = filename ? filename.replace(/[^a-zA-Z0-9._-]/g, '_') : 'file';
+       * const ext = safeFilename && safeFilename.includes('.') ? safeFilename.split('.').pop()?.toLowerCase() ?? 'bin' : 'bin';
+       * const localName = `${uuidv4()}.${ext}`;
+       * const outPath = join(uploadsDir, localName);
+       * const writeStream = createWriteStream(outPath, { flags: 'w' });
+       * file.pipe(writeStream);
+       * ========================================================================= */
 
+      // Buffer file chunks in memory for Cloudinary upload
+      const chunks: Buffer[] = [];
       let received = 0;
       let fileSizeExceeded = false;
-      let fileProcessed = false;
 
       file.on('data', (data: Buffer) => {
         if (fileSizeExceeded) return;
         received += data.length;
-        if (received > LOCAL_MAX_BYTES) {
+        if (received > MAX_BYTES) {
           fileSizeExceeded = true;
-          failed.push({ name: filename, reason: 'File exceeds 5GB limit' });
-          file.unpipe(writeStream);
+          failed.push({ name: filename, reason: 'File exceeds Cloudinary upload limit' });
           file.resume();
-          try { writeStream.destroy(); } catch { }
+        } else {
+          chunks.push(data);
         }
       });
 
       file.on('error', (err: any) => {
         console.warn(`Error reading file ${filename}:`, err?.message);
         file.resume();
-        try { writeStream.destroy(); } catch { }
         if (!fileSizeExceeded) {
           failed.push({ name: filename, reason: err?.message || 'Read error' });
         }
       });
 
-      if (!fileSizeExceeded) {
-        file.pipe(writeStream);
-      }
-
-      const writePromise = new Promise<void>((resolveWrite) => {
-        // Resolve on finish or error, don't reject to allow partial uploads
-        const onFinish = () => {
-          if (fileProcessed) return; // Prevent duplicate processing
-          fileProcessed = true;
-
-          if (!fileSizeExceeded) {
-            const fileUrl = `${origin}/u/${localName}`;
-            files.push({ fileUrl, fileName: filename, fileType: mimeType || null, localName, size: received });
-            console.log('✅ Wrote file to:', outPath, `(${(received / 1024 / 1024).toFixed(2)}MB)`);
+      const uploadPromise = new Promise<void>((resolveUpload) => {
+        file.on('end', async () => {
+          if (fileSizeExceeded) {
+            resolveUpload();
+            return;
           }
-          resolveWrite();
-        };
 
-        const onError = (err: any) => {
-          if (fileProcessed) return; // Prevent duplicate error handling
-          fileProcessed = true;
+          try {
+            const fileBuffer = Buffer.concat(chunks);
+            
+            // Cloudinary upload with resource_type: "auto"
+            // This handles Images, PDFs, Audio, Video, and Docs automatically
+            const result = await new Promise<any>((res, rej) => {
+              const uploadStream = cloudinary.uploader.upload_stream(
+                {
+                  resource_type: "auto",
+                  folder: "jamurechat/uploads",
+                  use_filename: true,
+                  unique_filename: true,
+                },
+                (error, result) => {
+                  if (error) return rej(error);
+                  res(result);
+                }
+              );
+              uploadStream.end(fileBuffer);
+            });
 
-          console.warn(`❌ Error writing file ${filename}:`, err?.message);
-          if (!fileSizeExceeded) {
-            failed.push({ name: filename, reason: err?.message || 'Write failed' });
+            const fileUrl = result.secure_url || result.url;
+            files.push({
+              fileUrl,
+              fileName: filename,
+              fileType: mimeType || result.format ? `${result.resource_type}/${result.format}` : null,
+              localName: result.public_id,
+              size: result.bytes || received,
+            });
+            console.log('✅ Uploaded file to Cloudinary:', fileUrl, `(${(received / 1024 / 1024).toFixed(2)}MB)`);
+          } catch (err: any) {
+            console.error(`❌ Cloudinary upload error for ${filename}:`, err);
+            failed.push({ name: filename, reason: err?.message || 'Cloudinary upload failed' });
+          } finally {
+            resolveUpload();
           }
-          resolveWrite();
-        };
-
-        writeStream.on('finish', onFinish);
-        writeStream.on('error', onError);
-        writeStream.on('close', () => {
-          if (!fileProcessed) onFinish();
         });
       });
 
-      fileWrites.push(writePromise);
+      fileUploadPromises.push(uploadPromise);
     });
 
     bb.on('error', (err: any) => {
       console.error('Busboy error:', err?.message);
       busboyErrorOccurred = true;
       streamEnded = true;
-      // Mark all pending file writes to complete
       if (err?.message?.includes('Unexpected end of form')) {
         console.warn('Form parsing interrupted - likely network issue or truncated request');
       }
@@ -206,7 +254,6 @@ export async function POST(req: Request) {
 
       bb.on('error', (e: any) => {
         console.warn('Busboy stream error:', e?.message);
-        // Don't resolve on error - wait for finish/close
       });
 
       // Timeout fallback
@@ -215,15 +262,12 @@ export async function POST(req: Request) {
           console.warn('Busboy stream timeout - forcing completion');
           cleanup();
         }
-      }, 285000); // 285 seconds
+      }, 285000);
     });
 
     nodeReq.on('error', (err: any) => {
       console.warn('Request stream error:', err?.message);
       streamEnded = true;
-      if (err?.message?.includes('socket hang up') || err?.message?.includes('ECONNRESET')) {
-        console.warn('Network disconnection detected');
-      }
     });
 
     nodeReq.on('end', () => {
@@ -235,11 +279,11 @@ export async function POST(req: Request) {
 
     try {
       await finished;
-      // Wait for all file writes to complete
-      const results = await Promise.allSettled(fileWrites);
+      // Wait for all Cloudinary uploads to complete
+      const results = await Promise.allSettled(fileUploadPromises);
       const rejected = results.filter(r => r.status === 'rejected');
       if (rejected.length > 0) {
-        console.warn(`${rejected.length} file writes failed`);
+        console.warn(`${rejected.length} file uploads failed`);
       }
     } catch (err) {
       console.warn('Stream processing error (continuing with partial results):', err);
@@ -247,24 +291,21 @@ export async function POST(req: Request) {
 
     if (files.length === 0 && failed.length === 0) {
       const message = busboyErrorOccurred
-        ? 'Upload failed - possible network interruption. The request body may have been truncated. Please try:\n1. Uploading smaller files\n2. Uploading one file at a time\n3. Checking your network connection\n4. Restarting your browser'
+        ? 'Upload failed - possible network interruption. The request body may have been truncated.'
         : 'No file(s) provided';
       return NextResponse.json({ success: false, message }, { status: busboyErrorOccurred ? 422 : 400 });
     }
 
-    // Deduplicate files by localName (in case of duplicate events)
+    // Deduplicate files by localName/public_id
     const uniqueFiles: typeof files = [];
     const seenLocalNames = new Set<string>();
     for (const file of files) {
       if (!seenLocalNames.has(file.localName)) {
         uniqueFiles.push(file);
         seenLocalNames.add(file.localName);
-      } else {
-        console.warn(`⚠️ Deduplicated duplicate file: ${file.localName}`);
       }
     }
 
-    // Return 200 as long as at least one file succeeded
     const status = uniqueFiles.length > 0 ? 200 : 500;
     const success = uniqueFiles.length > 0 && failed.length === 0 ? true : uniqueFiles.length > 0;
 
@@ -277,15 +318,13 @@ export async function POST(req: Request) {
       status,
       success,
       filesCount: uniqueFiles.length,
-      originalFilesCount: files.length,
       failedCount: failed.length,
-      deduplicatedCount: files.length - uniqueFiles.length,
-      files: uniqueFiles.map(f => ({ fileName: f.fileName, size: f.size }))
+      files: uniqueFiles.map(f => ({ fileName: f.fileName, size: f.size, url: f.fileUrl }))
     });
 
     return NextResponse.json(responseData, { status });
   } catch (error) {
     console.error("Error uploading files:", error);
-    return NextResponse.json({ message: "Something went wrong" }, { status: 500 });
+    return NextResponse.json({ message: "Something went wrong", error: error instanceof Error ? error.message : String(error) }, { status: 500 });
   }
 }

@@ -233,17 +233,46 @@ export default function RealTimeMessages({
           return [...prev, normalizeAndInfer(newMessage)];
         });
 
-        // Electron notification for incoming messages (not from current user)
+        // Electron / Mobile Service Worker / Browser notification for incoming messages
         try {
           const isIncoming = newMessage.senderId !== currentUserId;
           const title = newMessage?.sender?.name || "New message";
           const body =
             newMessage?.content ||
             (newMessage.fileUrls?.length ? "Sent an attachment" : "");
-          if (isIncoming && (window as any)?.electronAPI?.notify) {
-            (window as any).electronAPI.notify(title, body);
+          if (isIncoming) {
+            if ((window as any)?.electronAPI?.notify) {
+              (window as any).electronAPI.notify(title, body);
+            } else if (
+              typeof window !== "undefined" &&
+              "Notification" in window &&
+              Notification.permission === "granted" &&
+              document.hidden
+            ) {
+              if ("serviceWorker" in navigator) {
+                navigator.serviceWorker.ready.then((reg) => {
+                  reg.showNotification(title, {
+                    body,
+                    icon: "/icons/icon-192x192.png",
+                    badge: "/icons/icon-192x192.png",
+                    vibrate: [200, 100, 200],
+                    tag: newMessage.id || "chat-message",
+                    data: {
+                      url: newMessage.channelId
+                        ? `/dashboard/channels/${newMessage.channelId}`
+                        : `/dashboard/messages/${newMessage.senderId}`,
+                    },
+                  } as any);
+                }).catch(() => {
+                  new Notification(title, { body, icon: "/icons/icon-192x192.png" });
+                });
+              } else {
+                new Notification(title, { body, icon: "/icons/icon-192x192.png" });
+              }
+            }
           }
         } catch {}
+
       }
     };
 

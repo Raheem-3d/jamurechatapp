@@ -206,7 +206,7 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
         );
       } catch {}
 
-      // 4. Native OS / Desktop Notification
+      // 4. Native OS / Desktop / Mobile Service Worker Notification
       const electronAPI = (window as any).electronAPI;
       if (electronAPI?.notify) {
         electronAPI.notify(notifTitle, notifContent, undefined, {
@@ -221,12 +221,37 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
         Notification.permission === "granted"
       ) {
         try {
-          new Notification(notifTitle, {
-            body: notifContent,
-            icon: "/Desktopicon.ico",
-          });
+          if ("serviceWorker" in navigator) {
+            navigator.serviceWorker.ready.then((reg) => {
+              reg.showNotification(notifTitle, {
+                body: notifContent,
+                icon: "/icons/icon-192x192.png",
+                badge: "/icons/icon-192x192.png",
+                vibrate: [200, 100, 200],
+                tag: notification.id || "jamurechat-notif",
+                data: {
+                  url: notification.channelId
+                    ? `/dashboard/channels/${notification.channelId}`
+                    : notification.taskId
+                    ? `/dashboard/tasks/${notification.taskId}`
+                    : "/dashboard",
+                },
+              } as any);
+            }).catch(() => {
+              new Notification(notifTitle, {
+                body: notifContent,
+                icon: "/icons/icon-192x192.png",
+              });
+            });
+          } else {
+            new Notification(notifTitle, {
+              body: notifContent,
+              icon: "/icons/icon-192x192.png",
+            });
+          }
         } catch {}
       }
+
     };
 
     socket.on("new-notification", onNewNotification);

@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <defs>
+    <linearGradient id="pwa-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6366f1" />
+      <stop offset="50%" stop-color="#4f46e5" />
+      <stop offset="100%" stop-color="#3730a3" />
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="8" stdDeviation="16" flood-color="#000" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+  <!-- Background with smooth rounded corners -->
+  <rect width="512" height="512" rx="112" fill="url(#pwa-grad)" />
+  
+  <!-- Chat Bubble & Communication Symbol -->
+  <g filter="url(#shadow)">
+    <!-- Main Chat Bubble -->
+    <path d="M120 160 C 120 125, 145 100, 180 100 L 332 100 C 367 100, 392 125, 392 160 L 392 272 C 392 307, 367 332, 332 332 L 230 332 L 150 392 L 158 332 L 180 332 C 145 332, 120 307, 120 272 Z" fill="#ffffff" fill-opacity="0.95" />
+    
+    <!-- Accent Sparkle / J Symbol -->
+    <path d="M220 180 H 292 V 252 C 292 275, 272 288, 252 288 C 235 288, 222 278, 218 266" stroke="#4f46e5" stroke-width="24" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+    <circle cx="292" cy="180" r="14" fill="#6366f1" />
+  </g>
+</svg>

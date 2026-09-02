@@ -27,6 +27,7 @@ import {
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { RemindersMobile } from "@/components/reminders/RemindersMobile"
 import { useRouter } from "next/navigation"
 import { useEffect } from "react"
 
@@ -164,9 +165,21 @@ export function RemindersDashboard({ currentUser, reminders: initialReminders, u
   const sentCount = reminders.filter((r) => r.isSent).length
 
   return (
-    <div className="w-full space-y-5">
-      {/* Sleek Header Bar */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 px-5 border border-slate-200/80 dark:border-slate-800 shadow-xs">
+    <div className="w-full">
+      {/* Mobile Reminders View */}
+      <div className="block md:hidden w-full">
+        <RemindersMobile
+          currentUser={currentUser}
+          reminders={reminders}
+          onToggleMute={toggleMute}
+          onDeleteReminder={deleteReminder}
+        />
+      </div>
+
+      {/* Desktop Reminders View (Exact Existing Design Preserved) */}
+      <div className="hidden md:block w-full space-y-5">
+        {/* Sleek Header Bar */}
+        <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 px-5 border border-slate-200/80 dark:border-slate-800 shadow-xs">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <Button
@@ -424,8 +437,9 @@ export function RemindersDashboard({ currentUser, reminders: initialReminders, u
               )}
             </>
           )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   )
 }

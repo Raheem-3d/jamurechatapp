@@ -46,6 +46,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { cn, parseLocalDate, formatDeadlineRange } from "@/lib/utils"
+import { CalendarMobile } from "@/components/calendar/CalendarMobile"
 
 type TaskAssignee = {
   id?: string
@@ -474,314 +475,337 @@ export default function TaskCalendarPage() {
   }
 
   return (
-    <div className="w-full space-y-5">
-      {/* Sleek Header Bar */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 px-5 border border-slate-200/80 dark:border-slate-800 shadow-xs">
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-indigo-50 dark:bg-indigo-950/60 rounded-xl text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-800/80 shrink-0">
-              <CalendarDays className="h-5 w-5" />
+    <>
+      {/* Dedicated Native Mobile Task Calendar */}
+      <CalendarMobile
+        date={date}
+        setDate={setDate}
+        currentMonth={currentMonth}
+        setCurrentMonth={setCurrentMonth}
+        tasks={tasks}
+        filteredTasks={filteredTasks}
+        canCreateTasks={canCreateTasks}
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
+        selectedTaskName={selectedTaskName}
+        setSelectedTaskName={setSelectedTaskName}
+        uniqueTaskNames={uniqueTaskNames}
+        dayInRange={dayInRange}
+        upcomingCount={upcomingTasksCount}
+        completedCount={completedTasksCount}
+        inProgressCount={inProgressTasksCount}
+      />
+
+      {/* Desktop Calendar View */}
+      <div className="hidden md:block w-full space-y-5">
+        {/* Sleek Header Bar */}
+        <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 px-5 border border-slate-200/80 dark:border-slate-800 shadow-xs">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-indigo-50 dark:bg-indigo-950/60 rounded-xl text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-800/80 shrink-0">
+                <CalendarDays className="h-5 w-5" />
+              </div>
+              <div>
+                <h1 className="text-base font-bold text-slate-900 dark:text-white leading-tight">
+                  Task Calendar
+                </h1>
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                  Manage your tasks and deadlines efficiently
+                </p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-base font-bold text-slate-900 dark:text-white leading-tight">
-                Task Calendar
-              </h1>
-              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                Manage your tasks and deadlines efficiently
-              </p>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/60 p-1 rounded-xl border border-slate-200/60 dark:border-slate-800">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handlePrevMonth}
+                  className="h-7 w-7 p-0 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <span className="text-xs font-bold px-2 text-slate-900 dark:text-white min-w-[110px] text-center">
+                  {format(currentMonth, "MMMM yyyy")}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleNextMonth}
+                  className="h-7 w-7 p-0 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setCurrentMonth(new Date())
+                  setDate(new Date())
+                }}
+                className="h-8 rounded-xl border-slate-200 dark:border-slate-700 text-xs font-semibold px-3"
+              >
+                Today
+              </Button>
+
+              {canCreateTasks && (
+                <Button asChild size="sm" className="h-8 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl text-xs px-3 shadow-xs">
+                  <Link href="/dashboard/tasks/new" className="flex items-center gap-1">
+                    <Plus className="h-3.5 w-3.5" />
+                    New Task
+                  </Link>
+                </Button>
+              )}
             </div>
           </div>
+        </div>
 
-          <div className="flex items-center gap-2 flex-wrap">
-            <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/60 p-1 rounded-xl border border-slate-200/60 dark:border-slate-800">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handlePrevMonth}
-                className="h-7 w-7 p-0 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700"
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <span className="text-xs font-bold px-2 text-slate-900 dark:text-white min-w-[110px] text-center">
-                {format(currentMonth, "MMMM yyyy")}
+        {/* FILTER BAR FOR ALL USERS (ADMINS, MANAGERS & EMPLOYEES) */}
+        <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4 text-indigo-500" />
+              <h3 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+                Task Filters
+              </h3>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                Showing <strong className="text-slate-900 dark:text-white">{filteredTasks.length}</strong> of {userOnlyTasks.length} tasks
               </span>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleNextMonth}
-                className="h-7 w-7 p-0 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-700"
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
+              {activeFiltersCount > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearFilters}
+                  className="h-7 text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl px-2 flex items-center gap-1"
+                >
+                  <RotateCcw className="h-3 w-3" />
+                  Clear Filters
+                </Button>
+              )}
+            </div>
+          </div>
+
+          <div className={`grid grid-cols-1 ${isAdmin ? "sm:grid-cols-3" : "sm:grid-cols-2"} gap-3`}>
+            {/* 1. Search Input */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+              <Input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search tasks..."
+                className="pl-9 h-9 text-xs bg-slate-50 dark:bg-slate-800/50 border-slate-200/80 dark:border-slate-700/80 rounded-xl"
+              />
             </div>
 
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setCurrentMonth(new Date())
-                setDate(new Date())
-              }}
-              className="h-8 rounded-xl border-slate-200 dark:border-slate-700 text-xs font-semibold px-3"
-            >
-              Today
-            </Button>
-
-            {canCreateTasks && (
-              <Button asChild size="sm" className="h-8 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl text-xs px-3 shadow-xs">
-                <Link href="/dashboard/tasks/new" className="flex items-center gap-1">
-                  <Plus className="h-3.5 w-3.5" />
-                  New Task
-                </Link>
-              </Button>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* FILTER BAR FOR ALL USERS (ADMINS, MANAGERS & EMPLOYEES) */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200/80 dark:border-slate-800 shadow-xs space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Filter className="h-4 w-4 text-indigo-500" />
-            <h3 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
-              Task Filters
-            </h3>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-              Showing <strong className="text-slate-900 dark:text-white">{filteredTasks.length}</strong> of {userOnlyTasks.length} tasks
-            </span>
-            {activeFiltersCount > 0 && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={clearFilters}
-                className="h-7 text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl px-2 flex items-center gap-1"
-              >
-                <RotateCcw className="h-3 w-3" />
-                Clear Filters
-              </Button>
-            )}
-          </div>
-        </div>
-
-        <div className={`grid grid-cols-1 ${isAdmin ? "sm:grid-cols-3" : "sm:grid-cols-2"} gap-3`}>
-          {/* 1. Search Input */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-            <Input
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search tasks..."
-              className="pl-9 h-9 text-xs bg-slate-50 dark:bg-slate-800/50 border-slate-200/80 dark:border-slate-700/80 rounded-xl"
-            />
-          </div>
-
-          {/* 2. Task Name Dropdown Filter */}
-          <div className="relative">
-            <Select value={selectedTaskName} onValueChange={(val) => setSelectedTaskName(val)}>
-              <SelectTrigger className="h-9 text-xs bg-slate-50 dark:bg-slate-800/50 border-slate-200/80 dark:border-slate-700/80 rounded-xl">
-                <div className="flex items-center gap-2 truncate">
-                  <ListTodo className="h-3.5 w-3.5 text-purple-500 shrink-0" />
-                  <SelectValue placeholder="Filter by Task Name" />
-                </div>
-              </SelectTrigger>
-              <SelectContent className="rounded-xl max-h-64">
-                <SelectItem value="ALL" className="text-xs font-semibold">
-                  All Task Names ({uniqueTaskNames.length})
-                </SelectItem>
-                <SelectGroup>
-                  <SelectLabel className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
-                    Task Titles
-                  </SelectLabel>
-                  {uniqueTaskNames.map((name) => (
-                    <SelectItem key={name} value={name} className="text-xs">
-                      <span className="truncate">{name}</span>
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* 3. User Dropdown Filter (Admin Only) */}
-          {isAdmin && (
+            {/* 2. Task Name Dropdown Filter */}
             <div className="relative">
-              <Select value={selectedUserId} onValueChange={(val) => setSelectedUserId(val)}>
+              <Select value={selectedTaskName} onValueChange={(val) => setSelectedTaskName(val)}>
                 <SelectTrigger className="h-9 text-xs bg-slate-50 dark:bg-slate-800/50 border-slate-200/80 dark:border-slate-700/80 rounded-xl">
                   <div className="flex items-center gap-2 truncate">
-                    <UserIcon className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
-                    <SelectValue placeholder="Filter by User" />
+                    <ListTodo className="h-3.5 w-3.5 text-purple-500 shrink-0" />
+                    <SelectValue placeholder="Filter by Task Name" />
                   </div>
                 </SelectTrigger>
                 <SelectContent className="rounded-xl max-h-64">
                   <SelectItem value="ALL" className="text-xs font-semibold">
-                    All Users ({userFilterOptions.length})
+                    All Task Names ({uniqueTaskNames.length})
                   </SelectItem>
                   <SelectGroup>
                     <SelectLabel className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
-                      Assigned Users
+                      Task Titles
                     </SelectLabel>
-                    {userFilterOptions.map((u) => (
-                      <SelectItem key={u.id} value={u.id} className="text-xs">
-                        <div className="flex items-center gap-1.5 truncate">
-                          <UserCheck className="h-3 w-3 text-indigo-500 shrink-0" />
-                          <span className="truncate">{u.name}</span>
-                          {u.email && (
-                            <span className="text-[10px] text-slate-400 font-normal">
-                              ({u.email})
-                            </span>
-                          )}
-                        </div>
+                    {uniqueTaskNames.map((name) => (
+                      <SelectItem key={name} value={name} className="text-xs">
+                        <span className="truncate">{name}</span>
                       </SelectItem>
                     ))}
                   </SelectGroup>
                 </SelectContent>
               </Select>
             </div>
-          )}
-        </div>
-      </div>
 
-      {/* Metric Cards Row */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Total Deadlines</p>
-              <p className="text-2xl font-black text-slate-900 dark:text-white mt-0.5">{filteredTasks.length}</p>
-            </div>
-            <div className="h-9 w-9 rounded-xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 flex items-center justify-center border border-blue-100 dark:border-blue-900/40">
-              <CalendarIcon className="h-4 w-4" />
-            </div>
-          </div>
-        </Card>
-
-        <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Upcoming</p>
-              <p className="text-2xl font-black text-slate-900 dark:text-white mt-0.5">{upcomingTasksCount}</p>
-            </div>
-            <div className="h-9 w-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center border border-indigo-100 dark:border-indigo-900/40">
-              <Clock className="h-4 w-4" />
-            </div>
-          </div>
-        </Card>
-
-        <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Completed</p>
-              <p className="text-2xl font-black text-slate-900 dark:text-white mt-0.5">{completedTasksCount}</p>
-            </div>
-            <div className="h-9 w-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center border border-emerald-100 dark:border-emerald-900/40">
-              <CheckCircle2 className="h-4 w-4" />
-            </div>
-          </div>
-        </Card>
-
-        <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">In Progress</p>
-              <p className="text-2xl font-black text-slate-900 dark:text-white mt-0.5">{inProgressTasksCount}</p>
-            </div>
-            <div className="h-9 w-9 rounded-xl bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 flex items-center justify-center border border-amber-100 dark:border-amber-900/40">
-              <BarChart3 className="h-4 w-4" />
-            </div>
-          </div>
-        </Card>
-      </div>
-
-      {/* Main Content Layout: Calendar Grid + Selected Date Task Side Panel */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-        {/* Left Column: Calendar Grid */}
-        <Card className="lg:col-span-8 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs p-4">
-          <CustomCalendar />
-        </Card>
-
-        {/* Right Column: Selected Date Task Details Side Panel */}
-        <Card className="lg:col-span-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs overflow-hidden">
-          <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <CalendarDays className="h-4 w-4 text-indigo-500" />
-                  {date ? format(date, "EEEE, MMM d") : "Selected Date"}
-                </CardTitle>
-                <CardDescription className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                  Tasks scheduled for this date
-                </CardDescription>
-              </div>
-              <Badge variant="secondary" className="bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-extrabold text-xs px-2 py-0.5">
-                {selectedDateTasks.length} {selectedDateTasks.length === 1 ? "Task" : "Tasks"}
-              </Badge>
-            </div>
-          </CardHeader>
-
-          <CardContent className="p-4 space-y-3">
-            {selectedDateTasks.length > 0 ? (
-              selectedDateTasks.map((t) => (
-                <div
-                  key={t.id}
-                  className="p-3.5 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-800/30 hover:border-indigo-200 dark:hover:border-indigo-800 transition-all space-y-2 group"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <h4 className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
-                      {t.title}
-                    </h4>
-                    {getPriorityBadge(t.priority)}
-                  </div>
-
-                  {t.description && (
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2 leading-relaxed">
-                      {t.description}
-                    </p>
-                  )}
-
-                  <div className="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-slate-800/60">
-                    <Badge
-                      variant="outline"
-                      className={cn(
-                        "text-[10px] font-bold flex items-center gap-1",
-                        t.status === "DONE"
-                          ? "bg-emerald-50 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800"
-                          : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300"
-                      )}
-                    >
-                      {t.status === "DONE" ? (
-                        <>
-                          <CheckCircle2 className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
-                          Completed
-                        </>
-                      ) : (
-                        t.status
-                      )}
-                    </Badge>
-
-                    <Button variant="ghost" size="sm" asChild className="h-6 text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 px-2">
-                      <Link href={`/dashboard/tasks/${t.id}/record`} className="flex items-center gap-1">
-                        View
-                        <ArrowRight className="h-3 w-3" />
-                      </Link>
-                    </Button>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="text-center py-10">
-                <div className="w-10 h-10 mx-auto bg-slate-100 dark:bg-slate-800 rounded-xl flex items-center justify-center text-slate-400 mb-2">
-                  <CalendarDays className="h-5 w-5" />
-                </div>
-                <p className="text-xs font-bold text-slate-700 dark:text-slate-300">No tasks on this date</p>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Select another day or adjust your parameters</p>
+            {/* 3. User Dropdown Filter (Admin Only) */}
+            {isAdmin && (
+              <div className="relative">
+                <Select value={selectedUserId} onValueChange={(val) => setSelectedUserId(val)}>
+                  <SelectTrigger className="h-9 text-xs bg-slate-50 dark:bg-slate-800/50 border-slate-200/80 dark:border-slate-700/80 rounded-xl">
+                    <div className="flex items-center gap-2 truncate">
+                      <UserIcon className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
+                      <SelectValue placeholder="Filter by User" />
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl max-h-64">
+                    <SelectItem value="ALL" className="text-xs font-semibold">
+                      All Users ({userFilterOptions.length})
+                    </SelectItem>
+                    <SelectGroup>
+                      <SelectLabel className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+                        Assigned Users
+                      </SelectLabel>
+                      {userFilterOptions.map((u) => (
+                        <SelectItem key={u.id} value={u.id} className="text-xs">
+                          <div className="flex items-center gap-1.5 truncate">
+                            <UserCheck className="h-3 w-3 text-indigo-500 shrink-0" />
+                            <span className="truncate">{u.name}</span>
+                            {u.email && (
+                              <span className="text-[10px] text-slate-400 font-normal">
+                                ({u.email})
+                              </span>
+                            )}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
+
+        {/* Metric Cards Row */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Total Deadlines</p>
+                <p className="text-2xl font-black text-slate-900 dark:text-white mt-0.5">{filteredTasks.length}</p>
+              </div>
+              <div className="h-9 w-9 rounded-xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 flex items-center justify-center border border-blue-100 dark:border-blue-900/40">
+                <CalendarIcon className="h-4 w-4" />
+              </div>
+            </div>
+          </Card>
+
+          <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Upcoming</p>
+                <p className="text-2xl font-black text-slate-900 dark:text-white mt-0.5">{upcomingTasksCount}</p>
+              </div>
+              <div className="h-9 w-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center border border-indigo-100 dark:border-indigo-900/40">
+                <Clock className="h-4 w-4" />
+              </div>
+            </div>
+          </Card>
+
+          <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">Completed</p>
+                <p className="text-2xl font-black text-slate-900 dark:text-white mt-0.5">{completedTasksCount}</p>
+              </div>
+              <div className="h-9 w-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center border border-emerald-100 dark:border-emerald-900/40">
+                <CheckCircle2 className="h-4 w-4" />
+              </div>
+            </div>
+          </Card>
+
+          <Card className="rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400">In Progress</p>
+                <p className="text-2xl font-black text-slate-900 dark:text-white mt-0.5">{inProgressTasksCount}</p>
+              </div>
+              <div className="h-9 w-9 rounded-xl bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 flex items-center justify-center border border-amber-100 dark:border-amber-900/40">
+                <BarChart3 className="h-4 w-4" />
+              </div>
+            </div>
+          </Card>
+        </div>
+
+        {/* Main Content Layout: Calendar Grid + Selected Date Task Side Panel */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+          {/* Left Column: Calendar Grid */}
+          <Card className="lg:col-span-8 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs p-4">
+            <CustomCalendar />
+          </Card>
+
+          {/* Right Column: Selected Date Task Details Side Panel */}
+          <Card className="lg:col-span-4 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs overflow-hidden">
+            <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/40 p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <CalendarDays className="h-4 w-4 text-indigo-500" />
+                    {date ? format(date, "EEEE, MMM d") : "Selected Date"}
+                  </CardTitle>
+                  <CardDescription className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                    Tasks scheduled for this date
+                  </CardDescription>
+                </div>
+                <Badge variant="secondary" className="bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-extrabold text-xs px-2 py-0.5">
+                  {selectedDateTasks.length} {selectedDateTasks.length === 1 ? "Task" : "Tasks"}
+                </Badge>
+              </div>
+            </CardHeader>
+
+            <CardContent className="p-4 space-y-3">
+              {selectedDateTasks.length > 0 ? (
+                selectedDateTasks.map((t) => (
+                  <div
+                    key={t.id}
+                    className="p-3.5 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/40 dark:bg-slate-800/30 hover:border-indigo-200 dark:hover:border-indigo-800 transition-all space-y-2 group"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <h4 className="text-xs font-bold text-slate-900 dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                        {t.title}
+                      </h4>
+                      {getPriorityBadge(t.priority)}
+                    </div>
+
+                    {t.description && (
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2 leading-relaxed">
+                        {t.description}
+                      </p>
+                    )}
+
+                    <div className="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-slate-800/60">
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          "text-[10px] font-bold flex items-center gap-1",
+                          t.status === "DONE"
+                            ? "bg-emerald-50 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800"
+                            : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300"
+                        )}
+                      >
+                        {t.status === "DONE" ? (
+                          <>
+                            <CheckCircle2 className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
+                            Completed
+                          </>
+                        ) : (
+                          t.status
+                        )}
+                      </Badge>
+
+                      <Button variant="ghost" size="sm" asChild className="h-6 text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 px-2">
+                        <Link href={`/dashboard/tasks/${t.id}/record`} className="flex items-center gap-1">
+                          View
+                          <ArrowRight className="h-3 w-3" />
+                        </Link>
+                      </Button>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-10">
+                  <div className="w-10 h-10 mx-auto bg-slate-100 dark:bg-slate-800 rounded-xl flex items-center justify-center text-slate-400 mb-2">
+                    <CalendarDays className="h-5 w-5" />
+                  </div>
+                  <p className="text-xs font-bold text-slate-700 dark:text-slate-300">No tasks on this date</p>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Select another day or adjust your parameters</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
-    </div>
+    </>
   )
 }

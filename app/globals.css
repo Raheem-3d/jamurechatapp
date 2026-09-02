@@ -2,11 +2,28 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Emoji font support for proper rendering across platforms */
+/* Emoji font support and Mobile App Native Touch & Feel */
 @layer base {
-  body {
+  html, body {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    overscroll-behavior-y: none;
+    touch-action: manipulation;
+  }
+
+  /* Remove scrollbars on mobile viewport for clean native mobile app look */
+  @media (max-width: 768px) {
+    ::-webkit-scrollbar {
+      display: none !important;
+      width: 0px !important;
+      height: 0px !important;
+    }
+    * {
+      scrollbar-width: none !important;
+      -ms-overflow-style: none !important;
+    }
   }
 }
 
