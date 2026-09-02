@@ -1,8 +1,6 @@
-
-
 import type React from "react"
 import "./globals.css"
-import type { Metadata, Viewport } from "next" // ✅ Add Viewport
+import type { Metadata, Viewport } from "next"
 import { Plus_Jakarta_Sans } from "next/font/google"
 import { ThemeProvider } from "@/components/theme-provider"
 import { getServerSession } from "next-auth"
@@ -10,9 +8,9 @@ import { authOptions } from "@/lib/auth"
 import SessionProvider from "@/components/session-provider"
 import { AuthProvider } from "@/contexts/auth-context"
 import { Toaster } from "sonner"
-import SWRegistrar from "@/components/sw-registrar"
 import GlobalLoader from "@/components/GlobalLoader"
 import { BuzzOverlay } from "@/components/buzz-overlay"
+import { PWAManager } from "@/components/pwa-manager"
 
 const fontSans = Plus_Jakarta_Sans({
   subsets: ["latin"],
@@ -22,26 +20,47 @@ const fontSans = Plus_Jakarta_Sans({
 
 export const metadata: Metadata = {
   title: {
-    default: "Office Chat App",
-    template: "%s | Office Chat App" // ✅ Dynamic title
+    default: "JamureChat - Team Chat & Collaboration",
+    template: "%s | JamureChat",
   },
   description: "Chat and task management for your organization",
   generator: "Abdul Raheem",
-  keywords: ["chat", "task management", "office", "collaboration"], // ✅ SEO
-  authors: [{ name: " Raheem" }],
+  applicationName: "JamureChat",
+  manifest: "/manifest.json",
+  keywords: ["chat", "task management", "office", "collaboration", "real-time messaging"],
+  authors: [{ name: "Raheem" }],
   creator: "Abdul Raheem",
   publisher: "Abdul Raheem",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "JamureChat",
+  },
+  formatDetection: {
+    telephone: false,
+  },
+  icons: {
+    icon: [
+      { url: "/icons/icon-192x192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icons/icon-512x512.png", sizes: "512x512", type: "image/png" },
+      { url: "/icons/icon.svg", type: "image/svg+xml" },
+    ],
+    apple: [
+      { url: "/icons/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+    ],
+    shortcut: "/icons/icon-192x192.png",
+  },
 }
 
-// ✅ Add viewport for better mobile experience
 export const viewport: Viewport = {
-  width: 'device-width',
+  width: "device-width",
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
+  viewportFit: "cover",
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: 'white' },
-    { media: '(prefers-color-scheme: dark)', color: 'black' }
+    { media: "(prefers-color-scheme: light)", color: "#4f46e5" },
+    { media: "(prefers-color-scheme: dark)", color: "#0f172a" },
   ],
 }
 
@@ -54,16 +73,21 @@ export default async function RootLayout({
 
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={fontSans.className}>
+      <head>
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+      </head>
+      <body className={fontSans.className} suppressHydrationWarning>
         <SessionProvider session={session}>
           <AuthProvider>
             <ThemeProvider
               attribute="class"
               defaultTheme="system"
               enableSystem
-              disableTransitionOnChange // ✅ Smoother theme switching
+              disableTransitionOnChange
             >
-              <SWRegistrar />
+              <PWAManager />
               <GlobalLoader />
               <BuzzOverlay />
               {children}
@@ -71,7 +95,7 @@ export default async function RootLayout({
                 position="top-center"
                 richColors
                 closeButton
-                duration={4000} // ✅ Custom duration
+                duration={4000}
               />
             </ThemeProvider>
           </AuthProvider>

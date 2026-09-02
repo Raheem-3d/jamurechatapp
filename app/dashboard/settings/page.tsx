@@ -11,6 +11,7 @@ import ProfileSettings from "@/components/profile-settings"
 import { Badge } from "@/components/ui/badge"
 import AdminSettings from "@/components/admin-settings"
 import NotificationSettings from "@/components/notification-settings"
+import { SettingsMobile } from "@/components/settings/SettingsMobile"
 import { 
   User, 
   Settings, 
@@ -42,7 +43,14 @@ export default async function SettingsPage() {
   const isAdmin = user?.role === "ADMIN" || user?.role === "ORG_ADMIN"
 
   return (
-    <div className="min-h-screen bg-slate-50/50 dark:bg-slate-950 p-4 sm:p-6 lg:p-8 space-y-6">
+    <div className="w-full">
+      {/* Mobile Settings View */}
+      <div className="block md:hidden w-full">
+        <SettingsMobile user={user} isAdmin={isAdmin} />
+      </div>
+
+      {/* Desktop Settings View (Exact Existing Design Preserved) */}
+      <div className="hidden md:block min-h-screen bg-slate-50/50 dark:bg-slate-950 p-4 sm:p-6 lg:p-8 space-y-6">
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Top Control Header Bar */}
         <div className="flex items-center gap-4 bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
@@ -125,6 +133,7 @@ export default async function SettingsPage() {
           )}
         </div>
       </div>
+    </div>
     </div>
   );
 }

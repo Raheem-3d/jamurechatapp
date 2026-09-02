@@ -286,22 +286,34 @@ function buildWhereClause(whereObj: Record<string, any> = {}, tableName?: string
   };
 }
 
-// Helper to check for network connection errors
 function isConnectionError(err: any): boolean {
   if (!err) return false;
   const code = err.code || "";
-  return code === "ECONNRESET" || code === "PROTOCOL_CONNECTION_LOST" || code === "ETIMEDOUT" || code === "EPIPE";
+  const msg = err.message || "";
+  return (
+    code === "ECONNRESET" ||
+    code === "PROTOCOL_CONNECTION_LOST" ||
+    code === "ETIMEDOUT" ||
+    code === "EPIPE" ||
+    code === "ER_CON_COUNT_ERROR" ||
+    code === "ENOTFOUND" ||
+    code === "ECONNREFUSED" ||
+    code === "PROTOCOL_ENQUEUE_AFTER_FATAL_ERROR" ||
+    msg.includes("Connection lost") ||
+    msg.includes("closed")
+  );
 }
 
 // Low-level query functions with connection retry
-export async function rawQuery<T = any>(sql: string, params: any[] = [], retries = 2): Promise<T[]> {
+export async function rawQuery<T = any>(sql: string, params: any[] = [], retries = 3): Promise<T[]> {
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
       const [rows] = await pool.query(sql, params);
       return rows as T[];
     } catch (err: any) {
       if (isConnectionError(err) && attempt < retries) {
-        await new Promise((resolve) => setTimeout(resolve, 150));
+        const delay = (attempt + 1) * 200;
+        await new Promise((resolve) => setTimeout(resolve, delay));
         continue;
       }
       throw err;
@@ -315,14 +327,15 @@ export async function rawQueryOne<T = any>(sql: string, params: any[] = []): Pro
   return rows && rows.length > 0 ? rows[0] : null;
 }
 
-export async function rawExecute(sql: string, params: any[] = [], retries = 2): Promise<any> {
+export async function rawExecute(sql: string, params: any[] = [], retries = 3): Promise<any> {
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
       const [result] = await pool.execute(sql, params);
       return result;
     } catch (err: any) {
       if (isConnectionError(err) && attempt < retries) {
-        await new Promise((resolve) => setTimeout(resolve, 150));
+        const delay = (attempt + 1) * 200;
+        await new Promise((resolve) => setTimeout(resolve, delay));
         continue;
       }
       throw err;

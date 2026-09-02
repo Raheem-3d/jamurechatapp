@@ -10,25 +10,35 @@ import { Mail, Smartphone, MessageSquare, Save } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 
 interface NotificationPreferences {
-  // email: boolean
   push: boolean
   sms: boolean
 }
 
 interface NotificationSettingsProps {
-  preferences: NotificationPreferences
-  onPreferencesChange: (preferences: NotificationPreferences) => void
+  preferences?: NotificationPreferences
+  onPreferencesChange?: (preferences: NotificationPreferences) => void
 }
 
-export default  function NotificationSettings({ preferences, onPreferencesChange }: NotificationSettingsProps) {
+export default function NotificationSettings({ preferences: controlledPreferences, onPreferencesChange }: NotificationSettingsProps) {
+  const [internalPreferences, setInternalPreferences] = useState<NotificationPreferences>({
+    push: true,
+    sms: false,
+  })
   const [loading, setLoading] = useState(false)
   const { toast } = useToast()
 
+  const currentPreferences = controlledPreferences || internalPreferences
+
   const handleToggle = (type: keyof NotificationPreferences) => {
-    onPreferencesChange({
-      ...preferences,
-      [type]: !preferences[type],
-    })
+    const updated = {
+      ...currentPreferences,
+      [type]: !currentPreferences[type],
+    }
+    if (onPreferencesChange) {
+      onPreferencesChange(updated)
+    } else {
+      setInternalPreferences(updated)
+    }
   }
 
   const handleSave = async () => {
@@ -37,7 +47,7 @@ export default  function NotificationSettings({ preferences, onPreferencesChange
       const response = await fetch("/api/users/me/notifications", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(preferences),
+        body: JSON.stringify(currentPreferences),
       })
 
       if (!response.ok) throw new Error("Failed to save notification preferences")
@@ -72,7 +82,7 @@ export default  function NotificationSettings({ preferences, onPreferencesChange
               <p className="text-sm text-gray-600">Receive browser push notifications</p>
             </div>
           </div>
-          <Switch checked={preferences.push} onCheckedChange={() => handleToggle("push")} />
+          <Switch checked={currentPreferences.push} onCheckedChange={() => handleToggle("push")} />
         </div>
 
         {/* SMS Notifications */}
@@ -84,7 +94,7 @@ export default  function NotificationSettings({ preferences, onPreferencesChange
               <p className="text-sm text-gray-600">Receive text message alerts</p>
             </div>
           </div>
-          <Switch checked={preferences.sms} onCheckedChange={() => handleToggle("sms")} />
+          <Switch checked={currentPreferences.sms} onCheckedChange={() => handleToggle("sms")} />
         </div>
       </div>
 

@@ -155,7 +155,7 @@ export default function NewChannelPage() {
       // Notify sidebar and other listeners to refresh immediately
       try {
         window.dispatchEvent(new CustomEvent('channel:created', { detail: channel }))
-      } catch {}
+      } catch { }
 
       router.push(`/dashboard/channels/${channel.id}`)
       router.refresh()
@@ -178,8 +178,8 @@ export default function NewChannelPage() {
   const filteredPeople = useMemo(() => {
     const q = debouncedSearch.toLowerCase()
     if (!q) return users ?? []
-    return (users ?? []).filter((u) => 
-      u.name.toLowerCase().includes(q) || 
+    return (users ?? []).filter((u) =>
+      u.name.toLowerCase().includes(q) ||
       u.email.toLowerCase().includes(q)
     )
   }, [users, debouncedSearch])
@@ -337,8 +337,8 @@ export default function NewChannelPage() {
                       <span className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
                         {isPublic ? "Public Channel" : "Private Channel"}
                       </span>
-                      <Switch 
-                        checked={isPublic} 
+                      <Switch
+                        checked={isPublic}
                         onCheckedChange={setIsPublic}
                         className="data-[state=checked]:bg-emerald-600 scale-90"
                       />
@@ -500,8 +500,8 @@ export default function NewChannelPage() {
                   >
                     Cancel
                   </Button>
-                  <Button 
-                    type="submit" 
+                  <Button
+                    type="submit"
                     disabled={isLoading || !name.trim()}
                     className="flex-1 h-10 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-xs disabled:opacity-50"
                   >

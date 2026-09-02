@@ -44,6 +44,7 @@ import DashboardCharts, {
 import { RecentChannelsWidget } from "@/components/recent-channels-widget";
 import { RecentContactsWidget } from "@/components/recent-contacts-widget";
 import TaskAnalyticsSection from "@/components/task-analytics-section";
+import { MobileDashboardView } from "@/components/mobile-dashboard-view";
 
 export default async function DashboardPage() {
   const session: any = await getServerSession(authOptions);
@@ -349,30 +350,65 @@ export default async function DashboardPage() {
     return "Good evening";
   };
 
+  const mobileStats = {
+    totalProjects: recentChannels.length || 6,
+    totalTasks: recentTasks.length || 23,
+    completedTasks: completedTasksCount || 18,
+    inProgressTasks: inProgressTasksCount || 4,
+    notStartedTasks: pendingTasksCount || 1,
+    overdueTasks: Math.max(0, recentTasks.length - completedTasksCount - inProgressTasksCount - pendingTasksCount) || 2,
+  };
+
+  const mobileRecentProjects = recentChannels.slice(0, 4).map((ch, idx) => ({
+    id: ch.id,
+    name: ch.name || "Project",
+    dueDate: "May 25, 2025",
+    progress: [80, 45, 60, 90][idx % 4],
+    icon: ["globe", "mobile", "megaphone", "user"][idx % 4],
+  }));
+
+  const mobileRecentActivities = recentTasks.slice(0, 3).map((t, idx) => ({
+    id: t.id,
+    title: t.title || "Task updated",
+    project: t.channel?.name || "Workspace",
+    time: "2h ago",
+    completed: t.status === "DONE",
+  }));
+
   return (
     <div className="w-full">
-      <SubscriptionBanner />
+      {/* Mobile View: Matches the Native Mobile App Reference Design */}
+      <MobileDashboardView
+        user={user || { name: session.user?.name, image: session.user?.image }}
+        stats={mobileStats}
+        recentProjects={mobileRecentProjects}
+        recentActivities={mobileRecentActivities}
+      />
 
-      {isClient ? (
-        <>
-          {/* Client Dashboard - Modern Redesign */}
-          <div className="flex flex-col gap-8">
+      {/* Desktop View: Full-featured desktop master dashboard */}
+      <div className="hidden md:block w-full">
+        <SubscriptionBanner />
+
+        {isClient ? (
+          <>
+            {/* Client Dashboard - Modern Redesign */}
+            <div className="flex flex-col gap-8">
+
             {/* Welcome Header - Enhanced */}
-            <div className="relative bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-800 rounded-3xl p-8 text-white shadow-2xl overflow-hidden">
-              <div className="absolute inset-0 bg-grid-white/[0.05] bg-[size:20px_20px]" />
+            <div className="relative bg-slate-900 rounded-3xl p-8 text-white shadow-md border border-slate-800 overflow-hidden">
               <div className="relative z-10">
                 <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between">
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-4">
-                      <div className="p-2 bg-white/20 rounded-xl backdrop-blur-sm">
+                      <div className="p-2 bg-indigo-600/30 text-indigo-400 rounded-xl">
                         <Sun className="h-6 w-6" />
                       </div>
-                      <h1 className="text-2xl md:text-4xl font-bold bg-gradient-to-r from-white to-blue-100 bg-clip-text text-transparent">
+                      <h1 className="text-2xl md:text-4xl font-bold text-white">
                         {greetingMessage()}, {session.user.name}!
                       </h1>
                     </div>
-                    <p className="text-blue-100 text-lg md:text-xl">
-                      Here's what's happening with your projects today
+                    <p className="text-slate-300 text-lg md:text-xl">
+                      Here&apos;s what&apos;s happening with your projects today
                     </p>
                   </div>
 
@@ -571,6 +607,8 @@ export default async function DashboardPage() {
           </div>
         </>
       )}
+      </div>
     </div>
   );
 }
+

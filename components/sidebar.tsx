@@ -444,78 +444,43 @@ export default function Sidebar({
     }
   }, [sidebarRef, setWidth]);
 
-  if (isClient) {
-    navItems = [
-      {
-        title: "Dashboard",
-        href: "/dashboard",
-        icon: <LucideLayoutDashboard className="h-5 w-5" />,
-      },
-      ...(aiEnabled
-        ? [
-          {
-            title: " Jamure AI ",
-            href: "/dashboard/ai-assistant",
-            icon: <Bot className="h-5 w-5" />,
-            badge: <Sparkles className="h-3 w-3 text-yellow-500" />,
-          },
-        ]
-        : []),
-      {
-        title: "Calendar",
-        href: "/dashboard/calendar",
-        icon: <Calendar className="h-5 w-5" />,
-      },
-      {
-        title: "Notifications",
-        href: "/dashboard/notification",
-        icon: <Bell className="h-5 w-5" />,
-      },
-      {
-        title: "Reminders",
-        href: "/dashboard/reminders",
-        icon: <CalendarCheck className="h-5 w-5" />,
-      },
-    ];
-  } else {
-    navItems = [
-      {
-        title: "Dashboard",
-        href: "/dashboard",
-        icon: <LucideLayoutDashboard className="h-5 w-5" />,
-      },
-      ...(aiEnabled
-        ? [
-          {
-            title: " Jamure AI ",
-            href: "/dashboard/ai-assistant",
-            icon: <Bot className="h-5 w-5" />,
-            badge: <Sparkles className="h-3 w-3 text-yellow-500" />,
-          },
-        ]
-        : []),
-      {
-        title: "Calendar",
-        href: "/dashboard/calendar",
-        icon: <Calendar className="h-5 w-5" />,
-      },
-      {
-        title: "Notifications",
-        href: "/dashboard/notification",
-        icon: <Bell className="h-5 w-5" />,
-      },
-      {
-        title: "Reports & Analytics",
-        href: "/dashboard/reports",
-        icon: <BarChart3 className="h-5 w-5" />,
-      },
-      {
-        title: "Reminders",
-        href: "/dashboard/reminders",
-        icon: <CalendarCheck className="h-5 w-5" />,
-      },
-    ];
-  }
+  navItems = [
+    {
+      title: "Dashboard",
+      href: "/dashboard",
+      icon: <LucideLayoutDashboard className="h-5 w-5" />,
+    },
+    ...(aiEnabled
+      ? [
+        {
+          title: " Jamure AI ",
+          href: "/dashboard/ai-assistant",
+          icon: <Bot className="h-5 w-5" />,
+          badge: <Sparkles className="h-3 w-3 text-yellow-500" />,
+        },
+      ]
+      : []),
+    {
+      title: "Calendar",
+      href: "/dashboard/calendar",
+      icon: <Calendar className="h-5 w-5" />,
+    },
+    {
+      title: "Notifications",
+      href: "/dashboard/notification",
+      icon: <Bell className="h-5 w-5" />,
+    },
+    {
+      title: "Reports & Analytics",
+      href: "/dashboard/reports",
+      icon: <BarChart3 className="h-5 w-5" />,
+    },
+    {
+      title: "Reminders",
+      href: "/dashboard/reminders",
+      icon: <CalendarCheck className="h-5 w-5" />,
+    },
+  ];
 
   //
 
@@ -573,7 +538,7 @@ export default function Sidebar({
       <div className="p-5 border-b border-slate-200/80 dark:border-slate-800 flex items-center justify-between bg-slate-50/40 dark:bg-slate-900/40">
         {!isCollapsed && (
           <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-xl flex items-center justify-center shadow-md shadow-indigo-500/20 text-white font-bold text-sm">
+            <div className="w-8 h-8 bg-indigo-600 rounded-xl flex items-center justify-center shadow-sm text-white font-bold text-sm">
               <Building className="h-4 w-4 text-white" />
             </div>
             <div>
@@ -590,7 +555,7 @@ export default function Sidebar({
         )}
         {isCollapsed && (
           <div className="flex justify-center w-full">
-            <div className="w-8 h-8 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-xl flex items-center justify-center shadow-md text-white font-bold">
+            <div className="w-8 h-8 bg-indigo-600 rounded-xl flex items-center justify-center shadow-sm text-white font-bold">
               <Building className="h-4 w-4 text-white" />
             </div>
           </div>
@@ -828,7 +793,7 @@ export default function Sidebar({
                               </div>
                             ) : (
                               <>
-                                <div className="w-6 h-6 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-[11px] text-white font-extrabold shadow-2xs">
+                                <div className="w-6 h-6 rounded-full bg-indigo-600 flex items-center justify-center text-[11px] text-white font-extrabold shadow-2xs">
                                   {contact.name?.charAt(0)?.toUpperCase() ||
                                     "U"}
                                 </div>
@@ -1029,7 +994,7 @@ export default function Sidebar({
                 className="w-11 h-11 rounded-2xl object-cover border border-indigo-100 dark:border-indigo-900/60 shadow-xs"
               />
             ) : (
-              <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-indigo-500 via-purple-600 to-pink-500 flex items-center justify-center text-base font-extrabold text-white shadow-md shadow-indigo-500/20">
+              <div className="w-11 h-11 rounded-2xl bg-indigo-600 flex items-center justify-center text-base font-extrabold text-white shadow-xs">
                 {user?.name?.charAt(0)?.toUpperCase() || "U"}
               </div>
             )}

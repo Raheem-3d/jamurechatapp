@@ -99,10 +99,10 @@ export function MessageRewriter({ message, onApply, disabled }: MessageRewriterP
           variant="ghost"
           size="icon"
           disabled={disabled || !message.trim()}
-          className="h-10 w-10 text-purple-500 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-200 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-full transition-colors"
+          className="h-7 w-7 sm:h-8 sm:w-8 text-purple-500 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-200 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-full transition-colors shrink-0"
           title="AI Rewrite Message"
         >
-          <Sparkles className="h-5 w-5" />
+          <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[600px]">

@@ -8,6 +8,7 @@ import MessageInput from "@/components/message-input";
 import { useSocket } from "@/hooks/use-socket";
 import { formatDistanceToNow } from "date-fns";
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { 
   Phone, 
   Video, 
@@ -16,7 +17,8 @@ import {
   Paperclip,
   Smile,
   Mic,
-  Folder
+  Folder,
+  ArrowLeft
 } from "lucide-react";
 import { SharedContentPanel } from "@/components/shared-content-panel";
 import { WhatsAppMessageSearch } from "@/components/whatsapp-message-search";
@@ -35,7 +37,17 @@ export default function DirectMessageClient({
 }: any) {
   const { onlineUsers } = useSocket();
   const [lastSeen, setLastSeen] = useState<string | null>(null);
-  const isOnline = onlineUsers.includes(recipient?.id);
+  const isOnline = Boolean(
+    recipient?.id &&
+    onlineUsers &&
+    (Array.isArray(onlineUsers)
+      ? onlineUsers.includes(recipient.id)
+      : onlineUsers instanceof Set
+      ? onlineUsers.has(recipient.id)
+      : typeof onlineUsers === "object"
+      ? (onlineUsers as any)[recipient.id]
+      : false)
+  );
 
   const [lastSeenMap, setLastSeenMap] = useState<Record<string, string>>(() => {
     if (typeof window === "undefined") return {};
@@ -156,68 +168,79 @@ export default function DirectMessageClient({
   };
 
   return (
-    <div className="flex flex-col h-full bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 overflow-hidden shadow-xs">
-      {/* Header - Sleek Enterprise Bar */}
-      <div className="px-5 py-3.5 bg-white dark:bg-slate-900 border-b border-slate-200/80 dark:border-slate-800 flex items-center justify-between shadow-xs">
-        <div
-          className="flex items-center gap-3 cursor-pointer group select-none"
-          onClick={() => setShowSharedMediaPanel(true)}
-          title="Click to view shared media, docs & links"
-        >
-          <Avatar className="h-10 w-10 ring-2 ring-indigo-500/20 shrink-0 group-hover:scale-105 transition-transform">
-            <AvatarImage
-              src={recipient.image || ""}
-              alt={recipient.name || ""}
-            />
-            <AvatarFallback className="bg-gradient-to-br from-indigo-600 to-purple-600 text-white font-bold text-sm">
-              {recipient.name?.charAt(0)?.toUpperCase() || "U"}
-            </AvatarFallback>
-          </Avatar>
-          <div className="flex flex-col">
-            <div className="flex items-center gap-2">
-              <h2 className="font-bold text-slate-900 dark:text-white text-base leading-tight group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
-                {recipient.name}
-              </h2>
-              {recipient.department && (
-                <Badge
-                  variant="secondary"
-                  className="bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-extrabold text-[10px] px-2 py-0.5"
-                >
-                  {recipient.department.name}
-                </Badge>
-              )}
-            </div>
-            <div className="flex items-center gap-1.5 mt-0.5">
-              <span
-                className={`h-2 w-2 rounded-full ${
-                  isOnline ? "bg-emerald-500" : "bg-slate-400"
-                }`}
+    <div className="flex flex-col h-[calc(100dvh-60px)] md:h-full bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 overflow-hidden shadow-xs">
+      {/* Header - WhatsApp Mobile Bar */}
+      <div className="px-3 sm:px-5 py-2.5 sm:py-3.5 bg-white dark:bg-slate-900 border-b border-slate-200/80 dark:border-slate-800 flex items-center justify-between shadow-xs">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 overflow-hidden">
+          {/* Back to Chats on Mobile */}
+          <Link
+            href="/dashboard/chats"
+            className="p-1.5 -ml-1 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 md:hidden flex items-center justify-center cursor-pointer shrink-0"
+            title="Back to Chats"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </Link>
+
+          <div
+            className="flex items-center gap-2.5 sm:gap-3 cursor-pointer group select-none min-w-0"
+            onClick={() => setShowSharedMediaPanel(true)}
+            title="Click to view shared media, docs & links"
+          >
+            <Avatar className="h-9 w-9 sm:h-10 sm:w-10 ring-2 ring-indigo-500/20 shrink-0 group-hover:scale-105 transition-transform">
+              <AvatarImage
+                src={recipient.image || ""}
+                alt={recipient.name || ""}
               />
-              <span className="text-slate-500 dark:text-slate-400 text-[11px] font-medium">
-                {isOnline ? "Online" : lastSeenText ? `Last seen ${lastSeenText}` : "Offline"}
-              </span>
+              <AvatarFallback className="bg-indigo-600 text-white font-bold text-sm">
+                {recipient.name?.charAt(0)?.toUpperCase() || "U"}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex flex-col min-w-0">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <h2 className="font-bold text-slate-900 dark:text-white text-sm sm:text-base leading-tight truncate group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+                  {recipient.name}
+                </h2>
+                {recipient.department && (
+                  <Badge
+                    variant="secondary"
+                    className="bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-extrabold text-[9px] px-1.5 py-0 hidden sm:inline-flex border-0"
+                  >
+                    {recipient.department.name}
+                  </Badge>
+                )}
+              </div>
+              <div className="flex items-center gap-1 mt-0.5">
+                <span
+                  className={`h-2 w-2 rounded-full shrink-0 ${
+                    isOnline ? "bg-emerald-500 animate-pulse" : "bg-slate-400"
+                  }`}
+                />
+                <span className="text-slate-500 dark:text-slate-400 text-[10px] sm:text-[11px] font-medium truncate">
+                  {isOnline ? "online" : lastSeenText ? `last seen ${lastSeenText}` : "offline"}
+                </span>
+              </div>
             </div>
           </div>
         </div>
 
         {/* Header Actions */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <button
             onClick={() => setShowSearchModal(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/80 text-slate-700 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 text-xs font-bold transition-all border border-slate-200/60 dark:border-slate-700/60 shadow-2xs"
+            className="flex items-center justify-center w-8 h-8 sm:w-auto sm:h-auto sm:px-3 sm:py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/80 text-slate-700 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 text-xs font-bold transition-all border border-slate-200/60 dark:border-slate-700/60 shadow-xs"
             title="Search Messages"
           >
             <Search className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
-            <span className="hidden sm:inline">Search</span>
+            <span className="hidden sm:inline sm:ml-1.5">Search</span>
           </button>
 
           <button
             onClick={() => setShowSharedMediaPanel(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/80 text-slate-700 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 text-xs font-bold transition-all border border-slate-200/60 dark:border-slate-700/60 shadow-2xs"
+            className="flex items-center justify-center w-8 h-8 sm:w-auto sm:h-auto sm:px-3 sm:py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/80 text-slate-700 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 text-xs font-bold transition-all border border-slate-200/60 dark:border-slate-700/60 shadow-xs"
             title="Shared Media, Docs & Links"
           >
             <Folder className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
-            <span className="hidden sm:inline">Shared Content</span>
+            <span className="hidden sm:inline sm:ml-1.5">Shared Content</span>
           </button>
         </div>
       </div>

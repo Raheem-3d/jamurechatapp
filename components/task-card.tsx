@@ -237,7 +237,7 @@ export default function TaskCard({
                   className="h-6.5 text-[11px] font-bold rounded-lg border-indigo-200 dark:border-indigo-800/80 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 px-2 shadow-2xs flex items-center gap-1"
                   title="Discussion Channel"
                 >
-                  <Link href={task.channel?.id ? `/dashboard/channels/${task.channel.id}` : `/dashboard/tasks/${task.id}`}>
+                  <Link href={task.channel?.id ? `/dashboard/channels/${task.channel.id}` : `/dashboard/tasks/${task.id}/channel`}>
                     <MessageSquare className="h-3 w-3" />
                     Channel
                   </Link>
@@ -410,7 +410,7 @@ export default function TaskCard({
                 className="h-6.5 text-[10px] font-bold rounded-lg border-indigo-200 dark:border-indigo-800/80 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 px-2 shadow-2xs flex items-center gap-1"
                 title="Discussion Channel"
               >
-                <Link href={task.channel?.id ? `/dashboard/channels/${task.channel.id}` : `/dashboard/tasks/${task.id}`}>
+                <Link href={task.channel?.id ? `/dashboard/channels/${task.channel.id}` : `/dashboard/tasks/${task.id}/channel`}>
                   <MessageSquare className="h-3 w-3" />
                   Channel
                 </Link>

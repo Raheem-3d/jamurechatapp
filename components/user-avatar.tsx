@@ -13,7 +13,17 @@ type UserAvatarProps = {
 
 export function UserAvatar({ user, size = "md", showStatus = true }: UserAvatarProps) {
   const { onlineUsers } = useSocket()
-  const isOnline = onlineUsers.includes(user.id)
+  const isOnline = Boolean(
+    user?.id &&
+    onlineUsers &&
+    (Array.isArray(onlineUsers)
+      ? onlineUsers.includes(user.id)
+      : onlineUsers instanceof Set
+      ? onlineUsers.has(user.id)
+      : typeof onlineUsers === "object"
+      ? (onlineUsers as any)[user.id]
+      : false)
+  )
 
   const sizeClasses = {
     sm: "h-6 w-6",

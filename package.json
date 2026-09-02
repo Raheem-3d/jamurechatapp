@@ -71,7 +71,7 @@
   "scripts": {
     "dev": "pnpm exec next dev",
     "build": "pnpm exec next build",
-    "start": "NODE_ENV=production node server.js",
+    "start": "cross-env NODE_ENV=production node server.js",
     "test": "pnpm vitest run",
     "dist:win": "pnpm exec electron-builder --win nsis",
     "dist": "pnpm exec electron-builder",

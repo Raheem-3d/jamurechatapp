@@ -228,67 +228,67 @@ export default function AIAssistant() {
   const modeQueries: Record<AssistantMode, QueryCategory[]> = {
     analyst: isEmployee
       ? [
-          {
-            title: "My Work & Tasks",
-            queries: [
-              { text: "What are my current active tasks?", icon: ListTodo, description: "Your assigned task list" },
-              { text: "What are my overdue tasks?", icon: Clock, description: "Check missed deadlines" },
-              { text: "What should I prioritize today?", icon: Target, description: "Personal AI priority suggestions" },
-            ],
-          },
-        ]
+        {
+          title: "My Work & Tasks",
+          queries: [
+            { text: "What are my current active tasks?", icon: ListTodo, description: "Your assigned task list" },
+            { text: "What are my overdue tasks?", icon: Clock, description: "Check missed deadlines" },
+            { text: "What should I prioritize today?", icon: Target, description: "Personal AI priority suggestions" },
+          ],
+        },
+      ]
       : [
-          {
-            title: "My Projects & Performance",
-            queries: [
-              { text: "What is the status of my created/assigned projects?", icon: BarChart3, description: "Overview of your projects" },
-              { text: "Which of my project tasks are overdue?", icon: Clock, description: "Late tasks in your projects" },
-              { text: "Show priority breakdown for my projects", icon: TrendingUp, description: "Priority analysis of your work" },
-            ],
-          },
-        ],
+        {
+          title: "My Projects & Performance",
+          queries: [
+            { text: "What is the status of my created/assigned projects?", icon: BarChart3, description: "Overview of your projects" },
+            { text: "Which of my project tasks are overdue?", icon: Clock, description: "Late tasks in your projects" },
+            { text: "Show priority breakdown for my projects", icon: TrendingUp, description: "Priority analysis of your work" },
+          ],
+        },
+      ],
     writer: isEmployee
       ? [
-          {
-            title: "My Drafts & Updates",
-            queries: [
-              { text: "Draft a progress update for my current task", icon: FileText, description: "Personal status update for lead" },
-              { text: "Help me draft a clear project question", icon: MessageSquare, description: "Ask lead/team for clarification" },
-              { text: "Write a summary of my completed work", icon: Sparkles, description: "Summarize your achievements" },
-            ],
-          },
-        ]
+        {
+          title: "My Drafts & Updates",
+          queries: [
+            { text: "Draft a progress update for my current task", icon: FileText, description: "Personal status update for lead" },
+            { text: "Help me draft a clear project question", icon: MessageSquare, description: "Ask lead/team for clarification" },
+            { text: "Write a summary of my completed work", icon: Sparkles, description: "Summarize your achievements" },
+          ],
+        },
+      ]
       : [
-          {
-            title: "Project Reports & Docs",
-            queries: [
-              { text: "Generate a status report for my project", icon: FileText, description: "Project progress overview" },
-              { text: "Draft a project update for stakeholders", icon: MessageSquare, description: "Update message for team/client" },
-              { text: "Write a kickoff description for my task", icon: Rocket, description: "Clear project scope description" },
-            ],
-          },
-        ],
+        {
+          title: "Project Reports & Docs",
+          queries: [
+            { text: "Generate a status report for my project", icon: FileText, description: "Project progress overview" },
+            { text: "Draft a project update for stakeholders", icon: MessageSquare, description: "Update message for team/client" },
+            { text: "Write a kickoff description for my task", icon: Rocket, description: "Clear project scope description" },
+          ],
+        },
+      ],
     planner: isEmployee
       ? [
-          {
-            title: "My Daily Schedule",
-            queries: [
-              { text: "How should I structure my work schedule today?", icon: Brain, description: "Personal time-blocking advice" },
-              { text: "Break down my assigned task into smaller steps", icon: Target, description: "Subtask breakdown" },
-              { text: "Identify potential risks or delays for my tasks", icon: AlertCircle, description: "Personal risk analysis" },
-            ],
-          },
-        ]
+        {
+          title: "My Daily Schedule",
+          queries: [
+            { text: "How should I structure my work schedule today?", icon: Brain, description: "Personal time-blocking advice" },
+            { text: "Break down my assigned task into smaller steps", icon: Target, description: "Subtask breakdown" },
+            { text: "Identify potential risks or delays for my tasks", icon: AlertCircle, description: "Personal risk analysis" },
+          ],
+        },
+      ]
       : [
-          {
-            title: "Project Milestones & Planning",
-            queries: [
-              { text: "Help me plan milestones for my project", icon: Target, description: "Project milestone planning" },
-              { text: "Suggest priority sequence for my project tasks", icon: Brain, description: "Optimize task sequence" },
-              { text: "Identify timeline risks in my project", icon: AlertCircle, description: "Risk analysis for your projects" },
-            ],
-          },
-        ],
+        {
+          title: "Project Milestones & Planning",
+          queries: [
+            { text: "Help me plan milestones for my project", icon: Target, description: "Project milestone planning" },
+            { text: "Suggest priority sequence for my project tasks", icon: Brain, description: "Optimize task sequence" },
+            { text: "Identify timeline risks in my project", icon: AlertCircle, description: "Risk analysis for your projects" },
+          ],
+        },
+      ],
   };
 
   const categories = modeQueries[mode] || [];

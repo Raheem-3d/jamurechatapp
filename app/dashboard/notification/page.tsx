@@ -30,6 +30,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { NotificationsMobile } from "@/components/notifications/NotificationsMobile"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { formatDistanceToNow } from "date-fns"
@@ -165,9 +166,23 @@ export default function NotificationPage() {
   }
 
   return (
-    <div className="w-full space-y-5">
-      {/* Sleek Header Bar */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 px-5 border border-slate-200/80 dark:border-slate-800 shadow-xs">
+    <div className="w-full">
+      {/* Mobile Notifications View */}
+      <div className="block md:hidden w-full">
+        <NotificationsMobile
+          notifications={notifications}
+          unreadCount={unreadCount}
+          markAllAsRead={handleMarkAllAsRead}
+          markAsRead={markAsRead}
+          isMuted={isMuted}
+          toggleMute={toggleMute}
+        />
+      </div>
+
+      {/* Desktop Notifications View (Exact Existing Design Preserved) */}
+      <div className="hidden md:block w-full space-y-5">
+        {/* Sleek Header Bar */}
+        <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 px-5 border border-slate-200/80 dark:border-slate-800 shadow-xs">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <Button
@@ -470,6 +485,7 @@ export default function NotificationPage() {
             </div>
           </Card>
         </div>
+      </div>
       </div>
     </div>
   )

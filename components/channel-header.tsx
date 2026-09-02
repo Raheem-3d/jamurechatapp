@@ -196,16 +196,17 @@ export default function ChannelHeader({ channel }: ChannelHeaderProps) {
   return (
     <div>
       <motion.div
-        className="px-5 py-3 border-b border-slate-200/80 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-slate-900 shadow-xs"
+        className="px-3.5 sm:px-5 py-2.5 sm:py-3 border-b border-slate-200/80 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-slate-900 shadow-xs gap-2 sm:gap-3"
         initial={{ y: -10, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ duration: 0.2 }}
       >
-        <div className="flex items-center gap-3">
+        {/* Left Side: Back Button + Channel Avatar + Truncated Title & Details */}
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 overflow-hidden">
           <Button
             variant="outline"
             size="sm"
-            className="h-8 w-8 p-0 rounded-xl border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 shrink-0"
+            className="h-8 w-8 p-0 rounded-xl border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 shrink-0 cursor-pointer"
             onClick={() => router.back()}
             title="Back"
           >
@@ -225,15 +226,18 @@ export default function ChannelHeader({ channel }: ChannelHeaderProps) {
             )}
           </div>
 
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="font-bold text-slate-900 dark:text-white text-base leading-tight">
+          <div className="min-w-0 flex-1 overflow-hidden">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <h2
+                className="font-bold text-slate-900 dark:text-white text-xs sm:text-sm md:text-base leading-tight truncate"
+                title={channel.name}
+              >
                 {channel.name}
               </h2>
               {Boolean(channel.department) && (
                 <Badge
                   variant="secondary"
-                  className="bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-extrabold text-[10px] px-2 py-0.5"
+                  className="bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-extrabold text-[9px] sm:text-[10px] px-1.5 py-0.2 shrink-0 hidden xs:inline-flex"
                 >
                   {channel.department.name}
                 </Badge>
@@ -241,42 +245,30 @@ export default function ChannelHeader({ channel }: ChannelHeaderProps) {
               {Boolean(channel.isTaskThread && channel.task) && (
                 <Badge
                   variant="secondary"
-                  className="bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 font-extrabold text-[10px] px-2 py-0.5"
+                  className="bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 font-extrabold text-[9px] sm:text-[10px] px-1.5 py-0.2 shrink-0 hidden xs:inline-flex"
                 >
                   Task Thread
                 </Badge>
               )}
             </div>
-            <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mt-0.5">
+            <p className="text-[10px] sm:text-[11px] font-medium text-slate-500 dark:text-slate-400 mt-0.5 truncate">
               {displayMembers.length} {displayMembers.length === 1 ? "member" : "members"}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        {/* Right Side: Desktop Actions (Full buttons) */}
+        <div className="hidden md:flex items-center gap-1.5 shrink-0">
           <Button
             variant="outline"
             size="sm"
             onClick={() => setShowMembers(true)}
             className="h-8 rounded-xl border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 px-3"
+            title="Members"
           >
             <Users className="h-3.5 w-3.5 mr-1.5 text-indigo-500" />
-            Members
+            <span>Members</span>
           </Button>
-
-          {/* <Button
-            variant="ghost"
-            size="sm"
-            onClick={toggleMute}
-            className="h-8 w-8 p-0 rounded-xl text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
-            title={isMuted ? "Unmute Notifications" : "Mute Notifications"}
-          >
-            {isMuted ? (
-              <BellOff className="h-4 w-4 text-rose-500" />
-            ) : (
-              <Bell className="h-4 w-4 text-slate-400" />
-            )}
-          </Button> */}
 
           <Button
             variant="outline"
@@ -286,7 +278,7 @@ export default function ChannelHeader({ channel }: ChannelHeaderProps) {
             title="Search Messages"
           >
             <Search className="h-3.5 w-3.5 text-indigo-500" />
-            <span className="hidden sm:inline">Search</span>
+            <span>Search</span>
           </Button>
 
           <Button
@@ -297,7 +289,7 @@ export default function ChannelHeader({ channel }: ChannelHeaderProps) {
             title="Shared Media, Docs & Links"
           >
             <Folder className="h-3.5 w-3.5 text-indigo-500" />
-            <span className="hidden sm:inline">Shared Content</span>
+            <span>Shared Content</span>
           </Button>
 
           {aiEnabled && (
@@ -312,9 +304,9 @@ export default function ChannelHeader({ channel }: ChannelHeaderProps) {
               <Button
                 variant="outline"
                 size="sm"
-                className="h-8 w-8 p-0 rounded-xl border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200"
+                className="h-8 w-8 p-0 rounded-xl border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 cursor-pointer"
               >
-                <SlidersHorizontal className="h-5 w-5" />
+                <SlidersHorizontal className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent
@@ -356,23 +348,13 @@ export default function ChannelHeader({ channel }: ChannelHeaderProps) {
               <DropdownMenuItem asChild className="dark:hover:bg-gray-700">
                 <Link
                   href={`/dashboard/channels/${channel.id}/info`}
-                  className="flex items-center"
+                  className="flex items-center cursor-pointer"
                 >
-                  <Info className="h-4 w-4 mr-2" />
+                  <Info className="h-4 w-4 mr-2 text-indigo-500" />
                   Channel Info
                 </Link>
               </DropdownMenuItem>
-              {/* <DropdownMenuItem
-                onClick={toggleMute}
-                className="flex items-center dark:hover:bg-gray-700"
-              >
-                {isMuted ? (
-                  <Bell className="h-4 w-4 mr-2" />
-                ) : (
-                  <BellOff className="h-4 w-4 mr-2" />
-                )}
-                {isMuted ? "Enable Notifications" : "Mute Notifications"}
-              </DropdownMenuItem> */}
+
               {isAdmin && (
                 <>
                   <DropdownMenuSeparator className="dark:bg-gray-600" />
@@ -382,14 +364,113 @@ export default function ChannelHeader({ channel }: ChannelHeaderProps) {
                         pathname: `/dashboard/channels/${channel.id}/edit`,
                         query: { data: JSON.stringify(channel) },
                       }}
-                      className="flex items-center"
+                      className="flex items-center cursor-pointer"
                     >
-                      <Settings className="h-4 w-4 mr-2" />
+                      <Settings className="h-4 w-4 mr-2 text-indigo-500" />
                       Edit Channel
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem
-                    className="text-red-600 dark:text-red-400 dark:hover:bg-red-900/20"
+                    className="text-red-600 dark:text-red-400 dark:hover:bg-red-900/20 cursor-pointer"
+                    onClick={() => setShowDeleteConfirm(true)}
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete Channel
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+        {/* Right Side: Mobile Actions (Streamlined Compact Buttons) */}
+        <div className="flex md:hidden items-center gap-1 shrink-0">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowSearchModal(true)}
+            className="h-8 w-8 p-0 rounded-xl border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-indigo-50 dark:hover:bg-indigo-950 shrink-0 cursor-pointer"
+            title="Search Messages"
+          >
+            <Search className="h-3.5 w-3.5 text-indigo-500" />
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowMembers(true)}
+            className="h-8 w-8 p-0 rounded-xl border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 shrink-0 cursor-pointer"
+            title="Channel Members"
+          >
+            <Users className="h-3.5 w-3.5 text-indigo-500" />
+          </Button>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 w-8 p-0 rounded-xl border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 shrink-0 cursor-pointer"
+                title="More Options"
+              >
+                <SlidersHorizontal className="h-3.5 w-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="end"
+              className="w-52 rounded-xl dark:bg-gray-800 dark:border-gray-700 shadow-xl"
+            >
+              <DropdownMenuItem asChild className="dark:hover:bg-gray-700">
+                <Link
+                  href={`/dashboard/channels/${channel.id}/info`}
+                  className="flex items-center cursor-pointer"
+                >
+                  <Info className="h-4 w-4 mr-2 text-indigo-500" />
+                  Channel Details & Info
+                </Link>
+              </DropdownMenuItem>
+
+              <DropdownMenuItem
+                onClick={() => setShowSharedMediaPanel(true)}
+                className="flex items-center cursor-pointer dark:hover:bg-gray-700"
+              >
+                <Folder className="h-4 w-4 mr-2 text-indigo-500" />
+                Media, Docs & Links
+              </DropdownMenuItem>
+
+              {aiEnabled && (
+                <>
+                  <DropdownMenuSeparator className="dark:bg-gray-600" />
+                  <DropdownMenuItem
+                    onClick={() => setShowActionExtractor(true)}
+                    className="flex items-center cursor-pointer dark:hover:bg-gray-700"
+                  >
+                    <ListChecks className="h-4 w-4 mr-2 text-indigo-500" />
+                    <div>
+                      <p className="text-xs font-semibold">Extract Tasks</p>
+                      <p className="text-[10px] text-slate-400">AI scans chat for tasks</p>
+                    </div>
+                  </DropdownMenuItem>
+                </>
+              )}
+
+              {isAdmin && (
+                <>
+                  <DropdownMenuSeparator className="dark:bg-gray-600" />
+                  <DropdownMenuItem asChild className="dark:hover:bg-gray-700">
+                    <Link
+                      href={{
+                        pathname: `/dashboard/channels/${channel.id}/edit`,
+                        query: { data: JSON.stringify(channel) },
+                      }}
+                      className="flex items-center cursor-pointer"
+                    >
+                      <Settings className="h-4 w-4 mr-2 text-indigo-500" />
+                      Edit Channel
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    className="text-red-600 dark:text-red-400 dark:hover:bg-red-900/20 cursor-pointer"
                     onClick={() => setShowDeleteConfirm(true)}
                   >
                     <Trash2 className="h-4 w-4 mr-2" />

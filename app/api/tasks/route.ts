@@ -144,6 +144,39 @@ export async function GET(req: Request) {
       ],
     })
 
+    // Attach matching channels by taskId or taskReferenceId if direct relation is missing
+    const taskIds = tasks.map((t: any) => t.id);
+    if (taskIds.length > 0) {
+      try {
+        const taskChannels = await db.channel.findMany({
+          where: {
+            OR: [
+              { taskId: { in: taskIds } },
+              { taskReferenceId: { in: taskIds } },
+            ],
+          },
+          select: {
+            id: true,
+            name: true,
+            taskId: true,
+            taskReferenceId: true,
+          },
+        });
+        const channelByTaskMap = new Map();
+        taskChannels.forEach((c: any) => {
+          if (c.taskId) channelByTaskMap.set(c.taskId, { id: c.id, name: c.name });
+          if (c.taskReferenceId) channelByTaskMap.set(c.taskReferenceId, { id: c.id, name: c.name });
+        });
+        tasks.forEach((t: any) => {
+          if (!t.channel && channelByTaskMap.has(t.id)) {
+            t.channel = channelByTaskMap.get(t.id);
+          }
+        });
+      } catch (e) {
+        console.error("Error attaching channels to tasks in GET /api/tasks:", e);
+      }
+    }
+
     return NextResponse.json(tasks)
   } catch (error) {
     console.error("Error fetching tasks:", error)

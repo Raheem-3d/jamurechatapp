@@ -12,12 +12,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { formatDate, formatDeadlineRange, getPriorityColor, getStatusColor } from "@/lib/utils";
-import TaskStatusUpdate from "@/components/task-status-update";
-import TaskComments from "@/components/task-comments";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   CalendarClock,
   MessageSquare,
@@ -37,7 +31,13 @@ import {
   Calendar,
 } from "lucide-react";
 import { differenceInDays } from "date-fns";
-import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { formatDate, formatDeadlineRange, getPriorityColor, getStatusColor, cn } from "@/lib/utils";
+import TaskStatusUpdate from "@/components/task-status-update";
+import TaskComments from "@/components/task-comments";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { TaskDetailMobile } from "@/components/tasks/TaskDetailMobile";
 
 export default async function TaskDetailPage({
   params,
@@ -195,9 +195,28 @@ export default async function TaskDetailPage({
   );
 
   return (
-    <div className="w-full space-y-4">
-      {/* Full Width Top Navigation & Task Header Strip */}
-      <div className="w-full bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5 border border-slate-200/80 dark:border-slate-800 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <>
+      {/* Dedicated Native Mobile Task Detail Screen */}
+      <div className="block lg:hidden w-full">
+        <TaskDetailMobile
+          task={task}
+          taskId={taskId}
+          isCreator={isCreator}
+          isAssignee={isAssignee}
+          canEdit={canEdit}
+          canComment={canComment}
+          accessInfo={accessInfo}
+          historyEvents={historyEvents}
+          uniqueAssignments={uniqueAssignments}
+          isUrgent={Boolean(isUrgent)}
+          isOverdue={Boolean(isOverdue)}
+        />
+      </div>
+
+      {/* Desktop Task Detail View */}
+      <div className="hidden lg:block w-full space-y-4">
+        {/* Full Width Top Navigation & Task Header Strip */}
+        <div className="w-full bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5 border border-slate-200/80 dark:border-slate-800 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-3.5 min-w-0 flex-1">
           <Button
             variant="outline"
@@ -551,7 +570,8 @@ export default async function TaskDetailPage({
         </div>
       </div>
     </div>
-  );
+  </>
+);
 }
 
 
