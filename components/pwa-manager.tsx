@@ -1,9 +1,13 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
+import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 
 export function PWAManager() {
+  const { data: session } = useSession();
+  const currentUserId = (session as any)?.user?.id;
+
   const [mounted, setMounted] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
@@ -17,6 +21,56 @@ export function PWAManager() {
   // Notification state
   const [showNotifPrompt, setShowNotifPrompt] = useState(false);
   const [permissionState, setPermissionState] = useState<string>("default");
+
+  // Helper to convert base64 VAPID public key
+  const urlBase64ToUint8Array = (base64String: string) => {
+    const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; ++i) {
+      outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+  };
+
+  const syncPushSubscription = useCallback(async () => {
+    if (typeof window === "undefined" || !("serviceWorker" in navigator) || !("PushManager" in window)) return;
+    if (Notification.permission !== "granted") return;
+
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+      if (!vapidPublicKey) return;
+
+      let sub = await reg.pushManager.getSubscription();
+      if (!sub) {
+        const applicationServerKey = urlBase64ToUint8Array(vapidPublicKey);
+        sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey,
+        });
+      }
+
+      if (sub) {
+        await fetch("/api/push/subscribe", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ subscription: sub.toJSON() }),
+        });
+        console.log("✅ [PWA] Push subscription bound to current user:", currentUserId);
+      }
+    } catch (err) {
+      console.warn("⚠️ [PWA] Could not subscribe to PushManager:", err);
+    }
+  }, [currentUserId]);
+
+  // Synchronize push subscription whenever user logs in or switches
+  useEffect(() => {
+    if (currentUserId) {
+      syncPushSubscription();
+    }
+  }, [currentUserId, syncPushSubscription]);
 
   useEffect(() => {
     setMounted(true);
@@ -50,45 +104,6 @@ export function PWAManager() {
     };
     window.addEventListener("resize", handleResize);
 
-    // Helper to convert base64 VAPID public key
-    const urlBase64ToUint8Array = (base64String: string) => {
-      const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
-      const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
-      const rawData = window.atob(base64);
-      const outputArray = new Uint8Array(rawData.length);
-      for (let i = 0; i < rawData.length; ++i) {
-        outputArray[i] = rawData.charCodeAt(i);
-      }
-      return outputArray;
-    };
-
-    const subscribeDeviceToPush = async (swReg: ServiceWorkerRegistration) => {
-      try {
-        const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-        if (!vapidPublicKey || !("PushManager" in window)) return;
-
-        let sub = await swReg.pushManager.getSubscription();
-        if (!sub) {
-          const applicationServerKey = urlBase64ToUint8Array(vapidPublicKey);
-          sub = await swReg.pushManager.subscribe({
-            userVisibleOnly: true,
-            applicationServerKey,
-          });
-        }
-
-        if (sub) {
-          await fetch("/api/push/subscribe", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ subscription: sub.toJSON() }),
-          });
-          console.log("✅ [PWA] Push subscription synchronized with server");
-        }
-      } catch (err) {
-        console.warn("⚠️ [PWA] Could not subscribe to PushManager:", err);
-      }
-    };
-
     // 1. Register Service Worker safely
     if (typeof window !== "undefined" && "serviceWorker" in navigator) {
       try {
@@ -97,7 +112,7 @@ export function PWAManager() {
           .then(async (reg) => {
             console.log("✅ Service Worker Registered");
             if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "granted") {
-              await subscribeDeviceToPush(reg);
+              await syncPushSubscription();
             }
           })
           .catch((e) => console.error("❌ SW registration failed", e));

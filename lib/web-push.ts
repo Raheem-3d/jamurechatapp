@@ -21,6 +21,7 @@ export interface PushPayload {
   url?: string;
   tag?: string;
   renotify?: boolean;
+  senderId?: string;
 }
 
 /**
@@ -53,9 +54,11 @@ export async function sendWebPushToUser(userId: string | string[], payload: Push
       icon: payload.icon || "/icons/icon-192x192.png",
       badge: payload.badge || "/icons/icon-192x192.png",
       tag: payload.tag || "jamurechat-notification",
-      renotify: payload.renotify ?? true,
+      renotify: payload.renotify ?? false,
+      senderId: payload.senderId,
       data: {
         url: payload.url || "/dashboard",
+        senderId: payload.senderId,
       },
     });
 

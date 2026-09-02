@@ -95,18 +95,29 @@ self.addEventListener('push', (event) => {
 
   try {
     const data = event.data.json();
-    const title = data.title || 'JamureChat';
-    const options = {
-      body: data.body || 'You have a new message',
-      icon: data.icon || '/icons/icon-192x192.png',
-      badge: '/icons/icon-192x192.png',
-      data: data.data || { url: '/' },
-      vibrate: [100, 50, 100],
-      tag: data.tag || 'jamurechat-notification',
-      renotify: true,
-    };
 
-    event.waitUntil(self.registration.showNotification(title, options));
+    event.waitUntil(
+      self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+        // If an open active tab is focused in the app, suppress popup
+        const isFocusedInApp = clients.some((c) => c.focused);
+        if (isFocusedInApp) {
+          return;
+        }
+
+        const title = data.title || 'JamureChat';
+        const options = {
+          body: data.body || 'You have a new message',
+          icon: data.icon || '/icons/icon-192x192.png',
+          badge: '/icons/icon-192x192.png',
+          data: data.data || { url: '/' },
+          vibrate: [100, 50, 100],
+          tag: data.tag || `notif-${Date.now()}`,
+          renotify: false,
+        };
+
+        return self.registration.showNotification(title, options);
+      })
+    );
   } catch (err) {
     console.error('Error handling push notification:', err);
   }
