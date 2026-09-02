@@ -233,22 +233,30 @@ export default function RealTimeMessages({
           return [...prev, normalizeAndInfer(newMessage)];
         });
 
-        // Electron / Mobile Service Worker / Browser notification for incoming messages
+        // Electron / Browser notification for incoming messages ONLY when user is in another tab
         try {
-          const isIncoming = newMessage.senderId !== currentUserId;
-          const title = newMessage?.sender?.name || "New message";
-          const body =
-            newMessage?.content ||
-            (newMessage.fileUrls?.length ? "Sent an attachment" : "");
-          if (isIncoming) {
+          const senderIdStr = String(newMessage?.senderId || "");
+          const currentUserIdStr = String(currentUserId || (session as any)?.user?.id || "");
+          const isIncoming = Boolean(
+            senderIdStr &&
+            currentUserIdStr &&
+            senderIdStr !== currentUserIdStr
+          );
+
+          if (isIncoming && typeof document !== "undefined" && document.hidden) {
+            const title = newMessage?.sender?.name || "New message";
+            const body =
+              newMessage?.content ||
+              (newMessage.fileUrls?.length ? "Sent an attachment" : "");
+
             if ((window as any)?.electronAPI?.notify) {
               (window as any).electronAPI.notify(title, body);
             } else if (
               typeof window !== "undefined" &&
               "Notification" in window &&
-              Notification.permission === "granted" &&
-              document.hidden
+              Notification.permission === "granted"
             ) {
+              const notifTag = `msg-${newMessage.id || Date.now()}`;
               if ("serviceWorker" in navigator) {
                 navigator.serviceWorker.ready.then((reg) => {
                   reg.showNotification(title, {
@@ -256,7 +264,8 @@ export default function RealTimeMessages({
                     icon: "/icons/icon-192x192.png",
                     badge: "/icons/icon-192x192.png",
                     vibrate: [200, 100, 200],
-                    tag: newMessage.id || "chat-message",
+                    tag: notifTag,
+                    renotify: false,
                     data: {
                       url: newMessage.channelId
                         ? `/dashboard/channels/${newMessage.channelId}`
@@ -264,10 +273,10 @@ export default function RealTimeMessages({
                     },
                   } as any);
                 }).catch(() => {
-                  new Notification(title, { body, icon: "/icons/icon-192x192.png" });
+                  new Notification(title, { body, icon: "/icons/icon-192x192.png", tag: notifTag });
                 });
               } else {
-                new Notification(title, { body, icon: "/icons/icon-192x192.png" });
+                new Notification(title, { body, icon: "/icons/icon-192x192.png", tag: notifTag });
               }
             }
           }

@@ -54,7 +54,7 @@ export default function DashboardLayout({
     <SocketProvider>
       <NotificationsProvider>
         <NavigationLoader />
-        <div className="flex h-[100dvh] h-screen bg-slate-50/60 dark:bg-slate-950 overflow-hidden">
+        <div className="flex h-[100dvh] max-h-[100dvh] w-full bg-slate-50/60 dark:bg-slate-950 overflow-hidden fixed inset-0 md:relative">
           {/* Desktop Sidebar */}
           <div
             className="hidden md:flex transition-all duration-300"
@@ -82,14 +82,14 @@ export default function DashboardLayout({
           </Sheet>
 
           {/* Main Content Area */}
-          <div className="flex flex-col flex-1 h-full min-h-0 overflow-hidden bg-slate-50/60 dark:bg-slate-950 relative">
+          <div className="flex flex-col flex-1 h-full min-h-0 max-h-full overflow-hidden bg-slate-50/60 dark:bg-slate-950 relative">
             <div className={cn("shrink-0", isChatPage ? "hidden md:block" : "block")}>
               <Header />
             </div>
             <main
               className={cn(
-                "flex-1 min-h-0 bg-slate-50/60 dark:bg-slate-950 flex flex-col",
-                isChatPage ? "p-0 md:p-3 overflow-hidden" : "overflow-x-hidden overflow-y-auto px-4 py-3 sm:px-5 sm:py-4 md:p-6 pb-24 md:pb-6",
+                "flex-1 min-h-0 max-h-full bg-slate-50/60 dark:bg-slate-950 flex flex-col",
+                isChatPage ? "p-0 md:p-3 overflow-hidden h-full" : "overflow-x-hidden overflow-y-auto px-4 py-3 sm:px-5 sm:py-4 md:p-6 pb-24 md:pb-6",
               )}
             >
               {children}

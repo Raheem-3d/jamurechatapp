@@ -174,14 +174,6 @@ export async function POST(req: Request) {
         receiverId: receiverId,
       } as any
       emitToUser(receiverId, "new-notification", enrichedNotification)
-
-      // 🔔 Dispatch real Web Push (wakes up locked/closed mobile devices)
-      sendWebPushToUser(receiverId, {
-        title: `💬 ${currentUser.name || "New Message"}`,
-        body: content ? (content.length > 80 ? content.substring(0, 80) + "..." : content) : "Sent an attachment",
-        url: `/dashboard/messages/${currentUser.id}`,
-        tag: `dm-${currentUser.id}`,
-      }).catch((err) => console.error("Error sending Web Push for DM:", err));
     }
 
     if (channelId) {
@@ -192,9 +184,7 @@ export async function POST(req: Request) {
       })
       const channel = await db.channel.findUnique({ where: { id: channelId }, select: { name: true } })
 
-      const memberUserIds: string[] = []
       for (const member of channelMembers) {
-        memberUserIds.push(member.userId)
         const notification = await db.notification.create({
           data: {
             id: crypto.randomUUID(),
@@ -203,22 +193,17 @@ export async function POST(req: Request) {
               content ? content.substring(0, 50) + (content.length > 50 ? "..." : "") : "Sent a file"
             }`,
             userId: member.userId,
-            messageId: message.id,  // ✅ Added: Link notification to message for proper deletion tracking
+            messageId: message.id,
             channelId: channelId,
             read: false,
           },
         })
-        emitToUser(member.userId, "new-notification", notification)
-      }
-
-      if (memberUserIds.length > 0) {
-        // 🔔 Dispatch Web Push to channel members
-        sendWebPushToUser(memberUserIds, {
-          title: `#${channel?.name || "channel"} - ${currentUser.name || "Message"}`,
-          body: content ? (content.length > 80 ? content.substring(0, 80) + "..." : content) : "Sent an attachment",
-          url: `/dashboard/channels/${channelId}`,
-          tag: `channel-${channelId}`,
-        }).catch((err) => console.error("Error sending Web Push for channel:", err));
+        const enrichedNotif = {
+          ...notification,
+          senderId: currentUser.id,
+          receiverId: member.userId,
+        } as any
+        emitToUser(member.userId, "new-notification", enrichedNotif)
       }
     }
     return NextResponse.json(enriched, { status: 201 })

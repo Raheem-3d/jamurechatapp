@@ -14,10 +14,6 @@ export function PWAManager() {
   // Mobile state
   const [isMobile, setIsMobile] = useState(false);
 
-  // Splash Screen State
-  const [showSplash, setShowSplash] = useState(false);
-  const [splashFading, setSplashFading] = useState(false);
-
   // Notification state
   const [showNotifPrompt, setShowNotifPrompt] = useState(false);
   const [permissionState, setPermissionState] = useState<string>("default");
@@ -48,21 +44,6 @@ export function PWAManager() {
 
     setIsMobile(mobileStatus);
     setIsStandalone(installedStatus);
-
-    // Mobile Splash Screen Trigger
-    if (mobileStatus) {
-      try {
-        const hasSeen = sessionStorage.getItem("jamure_mobile_splash_shown");
-        if (!hasSeen) {
-          sessionStorage.setItem("jamure_mobile_splash_shown", "true");
-          setShowSplash(true);
-          setTimeout(() => setSplashFading(true), 1400);
-          setTimeout(() => setShowSplash(false), 1900);
-        }
-      } catch (e) {
-        // ignore storage restrictions
-      }
-    }
 
     const handleResize = () => {
       setIsMobile(checkIsMobile());
@@ -477,61 +458,6 @@ export function PWAManager() {
         </div>
       )}
 
-      {/* 4. Mobile Splash Screen Overlay (Mobile View Only) - Production Level Solid Design */}
-      {showSplash && isMobile && (
-        <div
-          className={`fixed inset-0 z-[99999] md:hidden flex flex-col items-center justify-between p-8 bg-[#0B0F19] text-white select-none transition-opacity duration-400 ease-out ${
-            splashFading ? "opacity-0 pointer-events-none" : "opacity-100"
-          }`}
-        >
-          {/* Top Spacing Header */}
-          <div className="w-full flex justify-center pt-2">
-            <span className="text-[11px] font-medium tracking-wide uppercase text-slate-400 bg-slate-900 px-3 py-1 rounded-full border border-slate-800">
-              Workspace
-            </span>
-          </div>
-
-          {/* Center Brand Identity & Crisp Vector Icon */}
-          <div className="flex flex-col items-center text-center space-y-4">
-            {/* Crisp Sharp Icon Container */}
-            <div className="w-20 h-20 rounded-2xl bg-[#131B2E] border border-slate-700/60 p-2.5 shadow-lg flex items-center justify-center">
-              <img
-                src="/icons/icon.svg"
-                alt="JamureChat Logo"
-                className="w-full h-full object-contain rounded-xl"
-                style={{ imageRendering: "-webkit-optimize-contrast" }}
-                onError={(e) => {
-                  (e.target as HTMLImageElement).src = "/icons/icon-512x512.png";
-                }}
-              />
-            </div>
-
-            {/* Brand Title & Tagline */}
-            <div className="space-y-1">
-              <h1 className="text-2xl font-bold tracking-tight text-white">
-                JamureChat
-              </h1>
-              <p className="text-xs text-slate-400 font-normal">
-                Enterprise Team Hub & Real-time Chat
-              </p>
-            </div>
-
-            {/* Clean Solid Loading Indicator */}
-            <div className="pt-3 flex flex-col items-center gap-2">
-              <div className="w-32 h-1 bg-slate-800 rounded-full overflow-hidden">
-                <div className="h-full bg-indigo-500 rounded-full w-full animate-[pulse_1.2s_ease-in-out_infinite]" />
-              </div>
-            </div>
-          </div>
-
-          {/* Bottom Footer */}
-          <div className="text-center pb-2">
-            <p className="text-[10px] text-slate-400 tracking-wider">
-              Fast • Secure • Encrypted
-            </p>
-          </div>
-        </div>
-      )}
     </>
   );
 }

@@ -168,9 +168,9 @@ export default function DirectMessageClient({
   };
 
   return (
-    <div className="flex flex-col h-full w-full bg-white dark:bg-slate-900 md:rounded-2xl md:border border-slate-200/80 dark:border-slate-800 overflow-hidden shadow-xs">
+    <div className="flex flex-col h-full max-h-full w-full bg-white dark:bg-slate-900 md:rounded-2xl md:border border-slate-200/80 dark:border-slate-800 overflow-hidden shadow-xs relative">
       {/* Header - Fixed & Pinned at Top on Mobile & Desktop */}
-      <div className="shrink-0 sticky top-0 z-20 px-3 sm:px-5 py-2.5 sm:py-3.5 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800 flex items-center justify-between shadow-xs select-none">
+      <div className="shrink-0 sticky top-0 z-30 px-3 sm:px-5 py-2.5 sm:py-3.5 bg-white dark:bg-slate-900 border-b border-slate-200/80 dark:border-slate-800 flex items-center justify-between shadow-xs select-none">
         <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 overflow-hidden">
           {/* Back to Chats on Mobile */}
           <Link
