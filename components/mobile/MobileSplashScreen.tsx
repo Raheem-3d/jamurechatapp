@@ -81,12 +81,11 @@ export function MobileSplashScreen() {
           <div className="relative w-24 h-24 rounded-3xl bg-slate-900 border border-indigo-500/40 p-3.5 shadow-2xl flex items-center justify-center overflow-hidden">
             {/* Desktop / Mobile Brand Icon */}
             <img
-              src="/Desktopicon.ico"
+              src="/icons/icon-512x512.png"
               alt="JamureChat Icon"
-              className="w-full h-full object-contain filter drop-shadow-md animate-in zoom-in-95 duration-500"
+              className="w-full h-full object-contain filter drop-shadow-md animate-in zoom-in-95 duration-500 rounded-2xl"
               onError={(e) => {
-                // Fallback to logolight.png or icons
-                (e.target as HTMLImageElement).src = "/logolight.png";
+                (e.target as HTMLImageElement).src = "/icons/icon.ico";
               }}
             />
           </div>
