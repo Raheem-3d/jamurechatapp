@@ -54,7 +54,7 @@ if (process.env.NODE_ENV !== "production") {
   globalForDb.mysqlPool = pool;
 }
 
-// Ensure task table has deadlineStart and deadlineEnd columns
+// Ensure essential schema tables & columns
 let columnsChecked = false;
 async function ensureDeadlineColumns() {
   if (columnsChecked) return;
@@ -64,6 +64,21 @@ async function ensureDeadlineColumns() {
   } catch (e: any) {}
   try {
     await pool.query("ALTER TABLE `task` ADD COLUMN `deadlineEnd` DATETIME NULL");
+  } catch (e: any) {}
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS \`push_subscription\` (
+        \`id\` VARCHAR(191) NOT NULL PRIMARY KEY,
+        \`userId\` VARCHAR(191) NOT NULL,
+        \`endpoint\` TEXT NOT NULL,
+        \`p256dh\` TEXT NOT NULL,
+        \`auth\` TEXT NOT NULL,
+        \`userAgent\` VARCHAR(255) NULL,
+        \`createdAt\` DATETIME DEFAULT CURRENT_TIMESTAMP,
+        \`updatedAt\` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX \`idx_push_userId\` (\`userId\`)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
   } catch (e: any) {}
 }
 ensureDeadlineColumns().catch(() => {});
@@ -769,14 +784,15 @@ const TABLES_WITH_CREATED_AT = new Set([
   "automationlog", "automationrule", "channel", "channelmember", "department",
   "emaillog", "invitationtoken", "message", "notification", "organization",
   "orginvite", "payment", "record", "reminder", "stage", "subscription",
-  "task", "taskassignment", "taskclient", "taskcomment", "taskinvitation", "user"
+  "task", "taskassignment", "taskclient", "taskcomment", "taskinvitation", "user",
+  "push_subscription"
 ]);
 
 const TABLES_WITH_UPDATED_AT = new Set([
   "tasktimelog", "automationrule", "channel", "channelmember", "department",
   "message", "organization", "payment", "record", "reminder", "stage",
   "subscription", "task", "taskassignment", "taskclient", "taskcomment",
-  "taskinvitation", "user"
+  "taskinvitation", "user", "push_subscription"
 ]);
 
 function hasCreatedAtField(tableName: string): boolean {

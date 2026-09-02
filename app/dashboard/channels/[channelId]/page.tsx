@@ -107,12 +107,14 @@ export default async function ChannelPage({
     },
   }) 
   return (
-    <div className="flex flex-col h-full bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-hidden">
-      <ChannelHeader channel={channel} />
-      <div className="flex-1 min-h-0">
+    <div className="flex flex-col h-full w-full bg-white dark:bg-slate-900 md:rounded-2xl md:border border-slate-200/80 dark:border-slate-800 shadow-xs overflow-hidden">
+      <div className="shrink-0 sticky top-0 z-20">
+        <ChannelHeader channel={channel} />
+      </div>
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain bg-slate-50/50 dark:bg-slate-950/40">
         <RealTimeMessages initialMessages={messages} channelId={channel.id} />
       </div>
-      <div className="bg-[#f0f2f5] dark:bg-[#111b21] p-3 border-t border-slate-200/80 dark:border-slate-800">
+      <div className="shrink-0 sticky bottom-0 z-20 bg-[#f0f2f5] dark:bg-[#111b21] p-2.5 sm:p-3 border-t border-slate-200/80 dark:border-slate-800 pb-[max(0.6rem,env(safe-area-inset-bottom))]">
         <MessageInput channelId={channel.id} receiverId={undefined} />
       </div>
     </div>

@@ -81,21 +81,21 @@ const SocketContext = createContext<SocketContextType>({
   onlineUsers: [],
   lastSeenMap: {},
   buzzerEnabled: true,
-  toggleBuzzer: () => {},
+  toggleBuzzer: () => { },
 
   // Message defaults
   sendMessage: async () => false,
   deleteMessage: async () => false,
   editMessage: async () => false,
-  updateMessageStatus: () => {},
-  markMessageAsRead: () => {},
+  updateMessageStatus: () => { },
+  markMessageAsRead: () => { },
   addReaction: async () => false,
   removeReaction: async () => false,
 
   // Channel defaults
-  joinChannel: () => {},
-  leaveChannel: () => {},
-  sendTyping: () => {},
+  joinChannel: () => { },
+  leaveChannel: () => { },
+  sendTyping: () => { },
 
   // Notification defaults
   sendNotification: async () => false,
@@ -176,7 +176,7 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
 
       const priorityEmoji =
         ({ LOW: "🟢", MEDIUM: "🟡", HIGH: "🟠", URGENT: "🔴" } as any)[
-          notification.priority
+        notification.priority
         ] || "🔔";
 
       const notifTitle =
@@ -190,8 +190,8 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
 
       // 1. Audio sound
       try {
-        new Audio("/sounds/notification.mp3").play().catch(() => {});
-      } catch {}
+        new Audio("/sounds/notification.mp3").play().catch(() => { });
+      } catch { }
 
       // 2. Toast UI alert
       toast(`${priorityEmoji} ${notifTitle}`, {
@@ -204,7 +204,7 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
         window.dispatchEvent(
           new CustomEvent("socket-notification", { detail: notification }),
         );
-      } catch {}
+      } catch { }
 
       // 4. Native OS / Desktop / Mobile Service Worker Notification
       const electronAPI = (window as any).electronAPI;
@@ -233,8 +233,8 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
                   url: notification.channelId
                     ? `/dashboard/channels/${notification.channelId}`
                     : notification.taskId
-                    ? `/dashboard/tasks/${notification.taskId}`
-                    : "/dashboard",
+                      ? `/dashboard/tasks/${notification.taskId}`
+                      : "/dashboard",
                 },
               } as any);
             }).catch(() => {
@@ -249,7 +249,7 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
               icon: "/icons/icon-192x192.png",
             });
           }
-        } catch {}
+        } catch { }
       }
 
     };
@@ -400,11 +400,11 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
           duration: 10000,
           action: reminder.task
             ? {
-                label: "View Task",
-                onClick: () => {
-                  window.location.href = `/tasks/${reminder.task.id}`;
-                },
-              }
+              label: "View Task",
+              onClick: () => {
+                window.location.href = `/tasks/${reminder.task.id}`;
+              },
+            }
             : undefined,
         });
 
@@ -464,8 +464,8 @@ export const SocketProvider = ({ children }: { children: React.ReactNode }) => {
           600,
         );
         try {
-          new Audio("/sounds/buzz.mp3").play().catch(() => {});
-        } catch {}
+          new Audio("/sounds/buzz.mp3").play().catch(() => { });
+        } catch { }
         const senderName = payload.senderName || "Someone";
         const message = payload.message || "Buzz!";
         if (document.visibilityState === "hidden")

@@ -682,7 +682,7 @@ export default function RealTimeMessages({
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full min-h-0">
       {/* Pinned Messages Banner */}
       <PinnedMessageBanner
         pinnedMessages={pinnedMessagesList}
@@ -715,7 +715,7 @@ export default function RealTimeMessages({
       )}
 
       {/* Messages */}
-      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto min-h-0">
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto min-h-0 overscroll-contain">
         {/* Load More button appears at the top when there are older messages */}
         {hasMore && (
           <div className="flex justify-center py-2 dark:bg-gray-900">

@@ -11,7 +11,6 @@ import { Toaster } from "sonner"
 import GlobalLoader from "@/components/GlobalLoader"
 import { BuzzOverlay } from "@/components/buzz-overlay"
 import { PWAManager } from "@/components/pwa-manager"
-import { MobileSplashScreen } from "@/components/mobile/MobileSplashScreen"
 
 const fontSans = Plus_Jakarta_Sans({
   subsets: ["latin"],
@@ -92,7 +91,6 @@ export default async function RootLayout({
               enableSystem
               disableTransitionOnChange
             >
-              <MobileSplashScreen />
               <PWAManager />
               <GlobalLoader />
               <BuzzOverlay />
