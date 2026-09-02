@@ -40,7 +40,9 @@ export default function PWAInstallPrompt() {
     // Check if already installed / standalone mode
     const isRunningStandalone =
       window.matchMedia("(display-mode: standalone)").matches ||
-      (window.navigator as any).standalone === true;
+      (window.navigator as any).standalone === true ||
+      document.referrer.includes("android-app://") ||
+      localStorage.getItem("jamurechat_pwa_installed") === "true";
 
     setIsStandalone(isRunningStandalone);
     if (isRunningStandalone || !mobileStatus) {
@@ -85,6 +87,8 @@ export default function PWAInstallPrompt() {
 
     // Listen for appinstalled event
     const handleAppInstalled = () => {
+      localStorage.setItem("jamurechat_pwa_installed", "true");
+      setIsStandalone(true);
       setShowPrompt(false);
       setDeferredPrompt(null);
       console.log("✅ JamureChat PWA was installed successfully");
@@ -112,6 +116,8 @@ export default function PWAInstallPrompt() {
       const { outcome } = await deferredPrompt.userChoice;
       console.log(`PWA install prompt outcome: ${outcome}`);
       if (outcome === "accepted") {
+        localStorage.setItem("jamurechat_pwa_installed", "true");
+        setIsStandalone(true);
         setShowPrompt(false);
         setDeferredPrompt(null);
       }

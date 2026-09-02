@@ -48,10 +48,37 @@ export function SettingsMobile({ user, isAdmin }: SettingsMobileProps) {
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
 
   const userInitial = user?.name ? user.name.charAt(0).toUpperCase() : "U";
+  const [isStandalone, setIsStandalone] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const isStandaloneMode =
+        window.matchMedia("(display-mode: standalone)").matches ||
+        (window.navigator as any).standalone === true ||
+        document.referrer.includes("android-app://") ||
+        localStorage.getItem("jamurechat_pwa_installed") === "true";
+      setIsStandalone(isStandaloneMode);
+    }
+  }, []);
+
+  const handleInstallPWA = () => {
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("open-pwa-install"));
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut({ redirect: false });
+    } catch (error) {
+      console.error("Logout error:", error);
+    }
+    window.location.href = "/login";
+  };
 
   return (
-    <div className="flex flex-col gap-4 pb-20 w-full">
-      {/* 1. Profile Hero Card */}
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 pb-24 px-4 pt-4 space-y-4">
+      {/* 1. User Identity Hero Card */}
       <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200/80 dark:border-slate-800 shadow-xs">
         <div className="flex items-center gap-3.5">
           <div className="w-12 h-12 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-lg shadow-sm shrink-0 overflow-hidden">
@@ -156,11 +183,26 @@ export function SettingsMobile({ user, isAdmin }: SettingsMobileProps) {
                 <Smartphone className="w-4 h-4" />
               </div>
               <div>
-                <p className="text-xs font-bold text-slate-900 dark:text-white">PWA Native Mode</p>
-                <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">Enabled & Installed</p>
+                <p className="text-xs font-bold text-slate-900 dark:text-white">PWA Mobile App</p>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
+                  {isStandalone ? "Installed & running standalone" : "Add to Home Screen for fast access"}
+                </p>
               </div>
             </div>
-            <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+            {isStandalone ? (
+              <span className="flex items-center gap-1 text-[11px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-1 rounded-lg border border-emerald-200 dark:border-emerald-800/40">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                Installed
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={handleInstallPWA}
+                className="px-2.5 py-1 text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg shadow-xs active:scale-95 transition-all cursor-pointer"
+              >
+                Install
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -256,7 +298,7 @@ export function SettingsMobile({ user, isAdmin }: SettingsMobileProps) {
             </Button>
             <Button
               size="sm"
-              onClick={() => signOut({ callbackUrl: "/login" })}
+              onClick={handleLogout}
               className="rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold"
             >
               Sign Out
