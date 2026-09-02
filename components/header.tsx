@@ -171,7 +171,12 @@ export default function Header() {
   }, [isConnected, socket]);
 
   const handleLogout = async () => {
-    await signOut({ callbackUrl: "/login" });
+    try {
+      await signOut({ redirect: false });
+    } catch (error) {
+      console.error("Logout error:", error);
+    }
+    window.location.href = "/login";
   };
 
   const handleRefresh = async () => {

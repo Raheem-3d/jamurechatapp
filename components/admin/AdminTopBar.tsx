@@ -1,6 +1,7 @@
 "use client"
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
+import { signOut } from 'next-auth/react'
 import { ThemeToggle } from '@/components/theme-toggle'
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { Bell, Search as SearchIcon, Settings, Home, LogOut, ChevronDown } from 'lucide-react'
@@ -195,9 +196,19 @@ export default function AdminTopBar({ user }: AdminTopBarProps) {
                 </DropdownMenu.Item>
                 <DropdownMenu.Separator className="h-px bg-gray-200 dark:bg-gray-800 my-2" />
                 <DropdownMenu.Item asChild>
-                  <Link href="/api/auth/signout" className="flex items-center gap-2 px-3 py-2 rounded-md text-sm text-red-600 hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer outline-none">
+                  <button
+                    onClick={async () => {
+                      try {
+                        await signOut({ redirect: false });
+                      } catch (err) {
+                        console.error("Signout error:", err);
+                      }
+                      window.location.href = "/login";
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm text-red-600 hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer outline-none text-left"
+                  >
                     <LogOut className="h-4 w-4" /> Sign out
-                  </Link>
+                  </button>
                 </DropdownMenu.Item>
               </DropdownMenu.Content>
             </DropdownMenu.Portal>

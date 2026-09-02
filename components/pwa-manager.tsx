@@ -29,8 +29,21 @@ export function PWAManager() {
       return isMobileDevice || isSmallScreen;
     };
 
+    const checkIsInstalled = () => {
+      if (typeof window === "undefined") return false;
+      const isStandaloneMode =
+        window.matchMedia("(display-mode: standalone)").matches ||
+        (window.navigator as any).standalone === true ||
+        document.referrer.includes("android-app://");
+      const storedInstalled = localStorage.getItem("jamurechat_pwa_installed") === "true";
+      return isStandaloneMode || storedInstalled;
+    };
+
     const mobileStatus = checkIsMobile();
+    const installedStatus = checkIsInstalled();
+
     setIsMobile(mobileStatus);
+    setIsStandalone(installedStatus);
 
     const handleResize = () => {
       setIsMobile(checkIsMobile());
@@ -49,84 +62,92 @@ export function PWAManager() {
       }
     }
 
-    // 2. Check standalone / installed mode
-    if (typeof window !== "undefined") {
-      const isRunningStandalone =
-        window.matchMedia("(display-mode: standalone)").matches ||
-        (window.navigator as any).standalone === true;
+    // 2. Notification Permission Check
+    if (typeof window !== "undefined" && "Notification" in window) {
+      setPermissionState(Notification.permission);
+      if (Notification.permission === "default") {
+        const notifDismissed = localStorage.getItem("jamurechat_notif_dismissed");
+        const shouldShowNotif =
+          !notifDismissed || Date.now() - parseInt(notifDismissed, 10) > 24 * 60 * 60 * 1000;
 
-      setIsStandalone(isRunningStandalone);
-
-      // 3. Notification Permission Check
-      if ("Notification" in window) {
-        setPermissionState(Notification.permission);
-        if (Notification.permission === "default") {
-          const notifDismissed = localStorage.getItem("jamurechat_notif_dismissed");
-          const shouldShowNotif =
-            !notifDismissed || Date.now() - parseInt(notifDismissed, 10) > 24 * 60 * 60 * 1000;
-
-          if (shouldShowNotif) {
-            const timer = setTimeout(() => setShowNotifPrompt(true), 2500);
-            return () => {
-              clearTimeout(timer);
-              window.removeEventListener("resize", handleResize);
-            };
-          }
+        if (shouldShowNotif) {
+          setTimeout(() => setShowNotifPrompt(true), 2500);
         }
       }
+    }
 
-      if (isRunningStandalone) {
-        return () => window.removeEventListener("resize", handleResize);
-      }
+    // 3. If already installed / downloaded, NEVER show install popup again
+    if (installedStatus) {
+      return () => {
+        window.removeEventListener("resize", handleResize);
+      };
+    }
 
-      // 4. PWA Installation check (Mobile view only)
-      const lastDismissed = localStorage.getItem("jamurechat_pwa_dismissed");
-      const pwaRecentlyDismissed =
-        lastDismissed && Date.now() - parseInt(lastDismissed, 10) < 3 * 24 * 60 * 60 * 1000;
+    // 4. PWA Installation setup (Mobile view only)
+    const userAgent = typeof window !== "undefined" ? window.navigator.userAgent.toLowerCase() : "";
+    const isIosDevice = /iphone|ipad|ipod/.test(userAgent);
+    const isSafari = /safari/.test(userAgent) && !/chrome|crios|fxios/.test(userAgent);
 
-      if (!pwaRecentlyDismissed && mobileStatus) {
-        const userAgent = window.navigator.userAgent.toLowerCase();
-        const isIosDevice = /iphone|ipad|ipod/.test(userAgent);
-        const isSafari = /safari/.test(userAgent) && !/chrome|crios|fxios/.test(userAgent);
+    if (isIosDevice && isSafari) {
+      setIsIOS(true);
+    }
 
-        if (isIosDevice && isSafari && !isRunningStandalone) {
-          setIsIOS(true);
-          const timer = setTimeout(() => setShowInstallPrompt(true), 3500);
-          return () => {
-            clearTimeout(timer);
-            window.removeEventListener("resize", handleResize);
-          };
-        }
+    const lastDismissed = typeof window !== "undefined" ? localStorage.getItem("jamurechat_pwa_dismissed") : null;
+    const pwaRecentlyDismissed =
+      lastDismissed && Date.now() - parseInt(lastDismissed, 10) < 3 * 24 * 60 * 60 * 1000;
 
-        const handleBeforeInstallPrompt = (e: Event) => {
-          e.preventDefault();
-          setDeferredPrompt(e);
-          if (checkIsMobile()) {
-            setTimeout(() => setShowInstallPrompt(true), 3000);
-          }
-        };
-
-        window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
-
-        const handleAppInstalled = () => {
-          setShowInstallPrompt(false);
-          setDeferredPrompt(null);
-        };
-
-        window.addEventListener("appinstalled", handleAppInstalled);
-
+    // Show popup on mobile if not recently dismissed
+    if (!pwaRecentlyDismissed && mobileStatus) {
+      if (isIosDevice && isSafari) {
+        const timer = setTimeout(() => setShowInstallPrompt(true), 3500);
         return () => {
+          clearTimeout(timer);
           window.removeEventListener("resize", handleResize);
-          window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
-          window.removeEventListener("appinstalled", handleAppInstalled);
         };
       }
     }
 
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      // Only show popup automatically if on mobile and not recently dismissed
+      if (checkIsMobile() && !pwaRecentlyDismissed && !checkIsInstalled()) {
+        setTimeout(() => setShowInstallPrompt(true), 3000);
+      }
+    };
+
+    const handleAppInstalled = () => {
+      localStorage.setItem("jamurechat_pwa_installed", "true");
+      setIsStandalone(true);
+      setShowInstallPrompt(false);
+      setShowIOSGuide(false);
+      setDeferredPrompt(null);
+      console.log("✅ JamureChat PWA was installed successfully");
+    };
+
+    // Listen for manual install trigger from mobile drawer / settings
+    const handleManualInstallTrigger = () => {
+      if (!checkIsMobile()) return;
+      if (isIosDevice && isSafari) {
+        setShowIOSGuide(true);
+      } else if (deferredPrompt) {
+        handleInstallClick();
+      } else {
+        setShowInstallPrompt(true);
+      }
+    };
+
+    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    window.addEventListener("appinstalled", handleAppInstalled);
+    window.addEventListener("open-pwa-install", handleManualInstallTrigger);
+
     return () => {
       window.removeEventListener("resize", handleResize);
+      window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+      window.removeEventListener("appinstalled", handleAppInstalled);
+      window.removeEventListener("open-pwa-install", handleManualInstallTrigger);
     };
-  }, []);
+  }, [deferredPrompt, isIOS]);
 
   const handleInstallClick = async () => {
     if (isIOS) {
@@ -134,14 +155,20 @@ export function PWAManager() {
       return;
     }
 
-    if (!deferredPrompt) return;
+    if (!deferredPrompt) {
+      toast.info("Tap your browser menu (⋮) and select 'Install app' or 'Add to Home Screen'");
+      return;
+    }
 
     try {
       await deferredPrompt.prompt();
       const choiceResult = await deferredPrompt.userChoice;
       if (choiceResult?.outcome === "accepted") {
+        localStorage.setItem("jamurechat_pwa_installed", "true");
+        setIsStandalone(true);
         setShowInstallPrompt(false);
         setDeferredPrompt(null);
+        toast.success("JamureChat app installed successfully!");
       }
     } catch (err) {
       console.error("Error triggering PWA install prompt:", err);

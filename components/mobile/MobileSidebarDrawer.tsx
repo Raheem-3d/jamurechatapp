@@ -21,6 +21,9 @@ import {
   Moon,
   Laptop,
   Building,
+  Download,
+  Smartphone,
+  CheckCircle2,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -31,8 +34,27 @@ export function MobileSidebarDrawer({ onClose }: { onClose?: () => void }) {
   const pathname = usePathname();
   const router = useRouter();
   const { data: session } = useSession();
-  const { user } = useAuth();
+  const { user, isOrgAdmin, isSuperAdmin } = useAuth();
   const { theme, setTheme } = useTheme();
+  const [isStandalone, setIsStandalone] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const isStandaloneMode =
+        window.matchMedia("(display-mode: standalone)").matches ||
+        (window.navigator as any).standalone === true ||
+        document.referrer.includes("android-app://") ||
+        localStorage.getItem("jamurechat_pwa_installed") === "true";
+      setIsStandalone(isStandaloneMode);
+    }
+  }, []);
+
+  const handleInstallApp = () => {
+    if (onClose) onClose();
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("open-pwa-install"));
+    }
+  };
 
   const currentUser = user || session?.user;
   const isAdmin =
@@ -47,7 +69,12 @@ export function MobileSidebarDrawer({ onClose }: { onClose?: () => void }) {
 
   const handleLogout = async () => {
     if (onClose) onClose();
-    await signOut({ callbackUrl: "/login" });
+    try {
+      await signOut({ redirect: false });
+    } catch (error) {
+      console.error("Logout error:", error);
+    }
+    window.location.href = "/login";
   };
 
   const navItems = [
@@ -221,8 +248,23 @@ export function MobileSidebarDrawer({ onClose }: { onClose?: () => void }) {
         </div>
       </div>
 
-      {/* 3. Bottom Dock & Preferences */}
-      <div className="p-3 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/80 pb-[max(1rem,env(safe-area-inset-bottom))] space-y-2">
+      {/* 3. Footer Actions with Theme & Settings */}
+      <div className="p-3 border-t border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/50 pb-[max(1rem,env(safe-area-inset-bottom))] space-y-2.5">
+        {/* Install Mobile App Button (Only when not already installed) */}
+        {!isStandalone && (
+          <button
+            type="button"
+            onClick={handleInstallApp}
+            className="w-full flex items-center justify-between p-2.5 rounded-xl bg-gradient-to-r from-indigo-600 via-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-bold text-xs shadow-md shadow-indigo-600/20 active:scale-[0.98] transition-all cursor-pointer"
+          >
+            <div className="flex items-center gap-2">
+              <Download className="w-3.5 h-3.5" />
+              <span>Install Jamure App</span>
+            </div>
+            <span className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded-md font-semibold">Install</span>
+          </button>
+        )}
+
         {/* Appearance Switcher */}
         <div className="flex items-center justify-between p-1 bg-white dark:bg-slate-800 rounded-xl border border-slate-200/80 dark:border-slate-700/60 shadow-xs">
           <button

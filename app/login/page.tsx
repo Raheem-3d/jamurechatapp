@@ -67,7 +67,7 @@ export default function LoginPage(): JSX.Element {
             : "Login failed. Please try again.";
 
         toast.error(msg);
-      } else {
+      } else if (result?.ok) {
         const destination =
           typeof callbackUrl === "string" && callbackUrl.length > 0
             ? callbackUrl
@@ -76,9 +76,10 @@ export default function LoginPage(): JSX.Element {
         toast.success("Welcome back!", {
           description: "You have been successfully logged in.",
         });
-        router.push(destination);
+        window.location.href = destination;
       }
     } catch (err) {
+      console.error("Login catch error:", err);
       toast.error("Something went wrong", {
         description: "An unexpected error occurred. Please try again.",
       });

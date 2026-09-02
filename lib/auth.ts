@@ -58,6 +58,19 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   callbacks: {
+    async redirect({ url, baseUrl }) {
+      // Allows relative callback URLs
+      if (url.startsWith("/")) return `${baseUrl}${url}`;
+      // Allows callback URLs on the same origin
+      try {
+        const urlObj = new URL(url);
+        const baseObj = new URL(baseUrl);
+        if (urlObj.origin === baseObj.origin) return url;
+      } catch (e) {
+        // invalid URL fallback
+      }
+      return baseUrl;
+    },
     async session({ token, session }) {
       const s: any = session as any
       if (token) {
