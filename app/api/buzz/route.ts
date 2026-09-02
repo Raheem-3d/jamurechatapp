@@ -1,10 +1,10 @@
-// app/api/buzz/route.ts
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { emitToChannel, emitToUser, getSocketIO } from "@/lib/socket-server";
 import { db } from "@/lib/db";
 import { buildBuzzNotificationData } from "@/lib/buzz-utils";
+import { sendWebPushToUser } from "@/lib/web-push";
 
 const BUZZ_LIMIT = 3;
 const WINDOW_MS = 60_000;
@@ -144,6 +144,14 @@ export async function POST(req: Request) {
         emitToUser(receiverId, "new-message", buzzMsg);
         emitToUser(userId, "new-message", buzzMsg);
         void emitBuzzEvent(buzzMsg, "direct");
+
+        // 🔔 Web Push for Direct Buzz
+        sendWebPushToUser(receiverId, {
+          title: `⚡ BUZZ from ${buzzInfo.senderName}`,
+          body: buzzInfo.message || "Urgent buzz alert!",
+          url: `/dashboard/messages/${userId}`,
+          tag: `buzz-${userId}`,
+        }).catch((e) => console.error("Web Push direct buzz error:", e));
       }
 
       try {
@@ -168,6 +176,13 @@ export async function POST(req: Request) {
 
     if (targets.length > 0) {
       targets.forEach((uid) => emitToUser(uid, "buzz", payload));
+      // 🔔 Web Push for Channel Buzz
+      sendWebPushToUser(targets, {
+        title: `⚡ BUZZ in #${channelId}`,
+        body: `${buzzInfo.senderName}: ${buzzInfo.message || "Urgent buzz alert!"}`,
+        url: `/dashboard/channels/${channelId}`,
+        tag: `buzz-channel-${channelId}`,
+      }).catch((e) => console.error("Web Push channel buzz error:", e));
     }
 
     try {

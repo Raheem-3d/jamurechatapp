@@ -168,9 +168,9 @@ export default function DirectMessageClient({
   };
 
   return (
-    <div className="flex flex-col h-[calc(100dvh-60px)] md:h-full bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 overflow-hidden shadow-xs">
-      {/* Header - WhatsApp Mobile Bar */}
-      <div className="px-3 sm:px-5 py-2.5 sm:py-3.5 bg-white dark:bg-slate-900 border-b border-slate-200/80 dark:border-slate-800 flex items-center justify-between shadow-xs">
+    <div className="flex flex-col h-full w-full bg-white dark:bg-slate-900 md:rounded-2xl md:border border-slate-200/80 dark:border-slate-800 overflow-hidden shadow-xs">
+      {/* Header - Fixed & Pinned at Top on Mobile & Desktop */}
+      <div className="shrink-0 sticky top-0 z-20 px-3 sm:px-5 py-2.5 sm:py-3.5 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200/80 dark:border-slate-800 flex items-center justify-between shadow-xs select-none">
         <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 overflow-hidden">
           {/* Back to Chats on Mobile */}
           <Link
@@ -224,10 +224,10 @@ export default function DirectMessageClient({
         </div>
 
         {/* Header Actions */}
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 shrink-0">
           <button
             onClick={() => setShowSearchModal(true)}
-            className="flex items-center justify-center w-8 h-8 sm:w-auto sm:h-auto sm:px-3 sm:py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/80 text-slate-700 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 text-xs font-bold transition-all border border-slate-200/60 dark:border-slate-700/60 shadow-xs"
+            className="flex items-center justify-center w-8 h-8 sm:w-auto sm:h-auto sm:px-3 sm:py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/80 text-slate-700 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 text-xs font-bold transition-all border border-slate-200/60 dark:border-slate-700/60 shadow-xs cursor-pointer"
             title="Search Messages"
           >
             <Search className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
@@ -236,7 +236,7 @@ export default function DirectMessageClient({
 
           <button
             onClick={() => setShowSharedMediaPanel(true)}
-            className="flex items-center justify-center w-8 h-8 sm:w-auto sm:h-auto sm:px-3 sm:py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/80 text-slate-700 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 text-xs font-bold transition-all border border-slate-200/60 dark:border-slate-700/60 shadow-xs"
+            className="flex items-center justify-center w-8 h-8 sm:w-auto sm:h-auto sm:px-3 sm:py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/80 text-slate-700 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 text-xs font-bold transition-all border border-slate-200/60 dark:border-slate-700/60 shadow-xs cursor-pointer"
             title="Shared Media, Docs & Links"
           >
             <Folder className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
@@ -261,8 +261,8 @@ export default function DirectMessageClient({
         recipientName={recipient.name}
       />
 
-      {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto bg-slate-50/50 dark:bg-slate-950/40">
+      {/* Messages Area - Independently Scrollable */}
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain bg-slate-50/50 dark:bg-slate-950/40">
         <RealTimeMessages
           initialMessages={messages}
           receiverId={recipient.id}
@@ -270,8 +270,8 @@ export default function DirectMessageClient({
         />
       </div>
 
-      {/* Input Area - WhatsApp Style */}
-      <div className="bg-[#f0f2f5] dark:bg-[#111b21] p-3 border-t border-slate-200/80 dark:border-slate-800">
+      {/* Input Area - Fixed Above Keyboard */}
+      <div className="shrink-0 sticky bottom-0 z-20 bg-[#f0f2f5] dark:bg-[#111b21] p-2.5 sm:p-3 border-t border-slate-200/80 dark:border-slate-800 pb-[max(0.6rem,env(safe-area-inset-bottom))]">
         <MessageInput
           channelId={undefined}
           receiverId={recipient.id}

@@ -6,6 +6,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { db } from "@/lib/db"
 import { emitToUser, emitToChannel, getSocketIO } from "@/lib/socket-server"
+import { sendWebPushToUser } from "@/lib/web-push"
 
 
 
@@ -167,12 +168,20 @@ export async function POST(req: Request) {
           read: false,
         },
       })
-        const enrichedNotification = {
-          ...notification,
-          senderId: currentUser.id,
-          receiverId: receiverId,
-        } as any
-        emitToUser(receiverId, "new-notification", enrichedNotification)
+      const enrichedNotification = {
+        ...notification,
+        senderId: currentUser.id,
+        receiverId: receiverId,
+      } as any
+      emitToUser(receiverId, "new-notification", enrichedNotification)
+
+      // 🔔 Dispatch real Web Push (wakes up locked/closed mobile devices)
+      sendWebPushToUser(receiverId, {
+        title: `💬 ${currentUser.name || "New Message"}`,
+        body: content ? (content.length > 80 ? content.substring(0, 80) + "..." : content) : "Sent an attachment",
+        url: `/dashboard/messages/${currentUser.id}`,
+        tag: `dm-${currentUser.id}`,
+      }).catch((err) => console.error("Error sending Web Push for DM:", err));
     }
 
     if (channelId) {
@@ -183,7 +192,9 @@ export async function POST(req: Request) {
       })
       const channel = await db.channel.findUnique({ where: { id: channelId }, select: { name: true } })
 
+      const memberUserIds: string[] = []
       for (const member of channelMembers) {
+        memberUserIds.push(member.userId)
         const notification = await db.notification.create({
           data: {
             id: crypto.randomUUID(),
@@ -198,6 +209,16 @@ export async function POST(req: Request) {
           },
         })
         emitToUser(member.userId, "new-notification", notification)
+      }
+
+      if (memberUserIds.length > 0) {
+        // 🔔 Dispatch Web Push to channel members
+        sendWebPushToUser(memberUserIds, {
+          title: `#${channel?.name || "channel"} - ${currentUser.name || "Message"}`,
+          body: content ? (content.length > 80 ? content.substring(0, 80) + "..." : content) : "Sent an attachment",
+          url: `/dashboard/channels/${channelId}`,
+          tag: `channel-${channelId}`,
+        }).catch((err) => console.error("Error sending Web Push for channel:", err));
       }
     }
     return NextResponse.json(enriched, { status: 201 })

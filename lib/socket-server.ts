@@ -357,6 +357,20 @@ export function initializeSocketIO(server: HTTPServer) {
       console.log("🔔 Broadcasting notification to user:", data?.userId);
       if (!data?.userId) return;
       socket.to(`user-${data.userId}`).emit("new-notification", data);
+
+      try {
+        const { sendWebPushToUser } = require("./web-push");
+        sendWebPushToUser(data.userId, {
+          title: data.title || (data.type === "REMINDER" ? "🔔 Reminder" : "🔔 JamureChat Notification"),
+          body: data.content || data.message || "You have a new notification",
+          url: data.channelId
+            ? `/dashboard/channels/${data.channelId}`
+            : data.taskId
+              ? `/dashboard/tasks/${data.taskId}`
+              : "/dashboard",
+          tag: data.id || `notif-${Date.now()}`,
+        }).catch((err: any) => console.error("[SocketServer] WebPush dispatch error:", err));
+      } catch (e) {}
     });
 
     // --------------
@@ -768,15 +782,38 @@ export function getSocketIO(): ServerIO | null {
   return (global as any).io || (global as any).socketIO || io;
 }
 
-export function emitToUser(userId: string, event: string, data: any) {
+export function emitToUser(userId: string | string[], event: string, data: any) {
   const socketIO = getSocketIO();
+  const userIds = Array.isArray(userId) ? userId : [userId];
+
   if (socketIO) {
-    // console.log(`🔌 Emitting ${event} to user-${userId}`);
-    socketIO.to(`user-${userId}`).emit(event, data);
-    return true;
+    for (const uid of userIds) {
+      socketIO.to(`user-${uid}`).emit(event, data);
+    }
   }
-  console.log("❌ Socket.io not available for emission");
-  return false;
+
+  // 🔔 Automatic Web Push dispatch for notifications across the entire app
+  if (event === "new-notification" && data) {
+    try {
+      const { sendWebPushToUser } = require("./web-push");
+      sendWebPushToUser(userIds, {
+        title: data.title || (data.type === "REMINDER" ? "🔔 Reminder" : "🔔 JamureChat Notification"),
+        body: data.content || data.message || "You have a new update",
+        url: data.channelId
+          ? `/dashboard/channels/${data.channelId}`
+          : data.taskId
+            ? `/dashboard/tasks/${data.taskId}`
+            : "/dashboard",
+        tag: data.id || `notif-${Date.now()}`,
+      }).catch((err: any) => console.error("[SocketServer] WebPush dispatch error:", err));
+    } catch (e) {}
+  }
+
+  if (!socketIO) {
+    console.log("❌ Socket.io not available for emission");
+    return false;
+  }
+  return true;
 }
 
 export function emitToChannel(channelId: string, event: string, data: any) {
