@@ -18,6 +18,10 @@ export function PWAManager() {
   // Mobile state
   const [isMobile, setIsMobile] = useState(false);
 
+  // Splash Screen State
+  const [showSplash, setShowSplash] = useState(false);
+  const [splashFading, setSplashFading] = useState(false);
+
   // Notification state
   const [showNotifPrompt, setShowNotifPrompt] = useState(false);
   const [permissionState, setPermissionState] = useState<string>("default");
@@ -98,6 +102,19 @@ export function PWAManager() {
 
     setIsMobile(mobileStatus);
     setIsStandalone(installedStatus);
+
+    // Show premium splash on mobile app initial launch
+    if (mobileStatus) {
+      try {
+        const splashShown = sessionStorage.getItem("jamure_splash_displayed");
+        if (!splashShown) {
+          sessionStorage.setItem("jamure_splash_displayed", "true");
+          setShowSplash(true);
+          setTimeout(() => setSplashFading(true), 900);
+          setTimeout(() => setShowSplash(false), 1300);
+        }
+      } catch (e) {}
+    }
 
     const handleResize = () => {
       setIsMobile(checkIsMobile());
@@ -469,6 +486,58 @@ export function PWAManager() {
             >
               Got it
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* 4. Mobile Premium Splash Screen Overlay */}
+      {showSplash && isMobile && (
+        <div
+          className={`fixed inset-0 z-[999999] md:hidden flex flex-col items-center justify-between p-8 bg-[#0B0F19] text-white select-none transition-opacity duration-300 ease-out ${
+            splashFading ? "opacity-0 pointer-events-none" : "opacity-100"
+          }`}
+        >
+          {/* Top subtle workspace badge */}
+          <div className="w-full flex justify-center pt-2">
+            <span className="text-[10px] font-semibold tracking-wider uppercase text-slate-400 bg-slate-900/90 px-3 py-1 rounded-full border border-slate-800 shadow-sm">
+              3D Power Workspace
+            </span>
+          </div>
+
+          {/* Center Brand Identity & 3D Logo */}
+          <div className="flex flex-col items-center text-center space-y-4">
+            {/* 3D App Icon Container */}
+            <div className="w-24 h-24 rounded-3xl bg-[#131B2E] border border-indigo-500/20 p-2 shadow-2xl shadow-indigo-500/10 flex items-center justify-center">
+              <img
+                src="/icons/icon-512x512.png"
+                alt="JamureChat Logo"
+                className="w-full h-full object-contain rounded-2xl"
+              />
+            </div>
+
+            {/* Brand Title & Tagline */}
+            <div className="space-y-1">
+              <h1 className="text-2xl font-black tracking-tight text-white">
+                JamureChat
+              </h1>
+              <p className="text-xs text-slate-400 font-medium">
+                Enterprise Team Hub & Real-time Chat
+              </p>
+            </div>
+
+            {/* Clean Minimal Loading Line */}
+            <div className="pt-2 flex flex-col items-center gap-2">
+              <div className="w-28 h-1 bg-slate-800/80 rounded-full overflow-hidden">
+                <div className="h-full bg-indigo-500 rounded-full w-full animate-pulse" />
+              </div>
+            </div>
+          </div>
+
+          {/* Bottom Footer */}
+          <div className="text-center pb-2">
+            <p className="text-[10px] text-slate-500 tracking-wider font-medium">
+              Fast • Secure • Encrypted
+            </p>
           </div>
         </div>
       )}
