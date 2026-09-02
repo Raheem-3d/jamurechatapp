@@ -18,22 +18,41 @@ export default function PWAInstallPrompt() {
   const [isIOS, setIsIOS] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
   const [showIOSGuide, setShowIOSGuide] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
+    const checkIsMobile = () => {
+      if (typeof window === "undefined") return false;
+      const userAgent = window.navigator.userAgent.toLowerCase();
+      const isMobileDevice = /android|iphone|ipad|ipod|blackberry|iemobile|opera mini|mobile/i.test(userAgent);
+      const isSmallScreen = window.innerWidth < 768;
+      return isMobileDevice || isSmallScreen;
+    };
+
+    const mobileStatus = checkIsMobile();
+    setIsMobile(mobileStatus);
+
+    const handleResize = () => {
+      setIsMobile(checkIsMobile());
+    };
+    window.addEventListener("resize", handleResize);
+
     // Check if already installed / standalone mode
     const isRunningStandalone =
       window.matchMedia("(display-mode: standalone)").matches ||
       (window.navigator as any).standalone === true;
 
     setIsStandalone(isRunningStandalone);
-    if (isRunningStandalone) return;
+    if (isRunningStandalone || !mobileStatus) {
+      return () => window.removeEventListener("resize", handleResize);
+    }
 
     // Check if dismissed recently (within 3 days)
     const lastDismissed = localStorage.getItem("jamurechat_pwa_dismissed");
     if (lastDismissed) {
       const diff = Date.now() - parseInt(lastDismissed, 10);
       if (diff < 3 * 24 * 60 * 60 * 1000) {
-        return;
+        return () => window.removeEventListener("resize", handleResize);
       }
     }
 
@@ -46,15 +65,20 @@ export default function PWAInstallPrompt() {
       setIsIOS(true);
       // Show prompt after a short delay so it doesn't immediately block
       const timer = setTimeout(() => setShowPrompt(true), 3000);
-      return () => clearTimeout(timer);
+      return () => {
+        clearTimeout(timer);
+        window.removeEventListener("resize", handleResize);
+      };
     }
 
-    // Listen for beforeinstallprompt (Android / Chrome / Edge / Desktop)
+    // Listen for beforeinstallprompt (Android / Chrome / Edge / Mobile)
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEvent);
-      // Show prompt after a short delay
-      setTimeout(() => setShowPrompt(true), 2500);
+      // Show prompt after a short delay only if mobile
+      if (checkIsMobile()) {
+        setTimeout(() => setShowPrompt(true), 2500);
+      }
     };
 
     window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
@@ -69,6 +93,7 @@ export default function PWAInstallPrompt() {
     window.addEventListener("appinstalled", handleAppInstalled);
 
     return () => {
+      window.removeEventListener("resize", handleResize);
       window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
       window.removeEventListener("appinstalled", handleAppInstalled);
     };
@@ -101,14 +126,14 @@ export default function PWAInstallPrompt() {
     localStorage.setItem("jamurechat_pwa_dismissed", Date.now().toString());
   };
 
-  if (isStandalone || !showPrompt) {
+  if (isStandalone || !showPrompt || !isMobile) {
     return null;
   }
 
   return (
     <>
-      {/* Floating Bottom Installation Banner */}
-      <div className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-6 sm:max-w-md z-[9999] animate-in fade-in slide-in-from-bottom-5 duration-300">
+      {/* Floating Bottom Installation Banner (Mobile Only) */}
+      <div className="fixed bottom-4 left-4 right-4 z-[9999] md:hidden animate-in fade-in slide-in-from-bottom-5 duration-300">
         <div className="bg-slate-900/95 dark:bg-slate-950/95 text-white backdrop-blur-md border border-indigo-500/30 p-4 rounded-2xl shadow-2xl flex items-center justify-between gap-3">
           <div className="flex items-center gap-3.5 min-w-0">
             <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 p-0.5 shadow-md flex-shrink-0 flex items-center justify-center">
@@ -140,7 +165,7 @@ export default function PWAInstallPrompt() {
             <button
               onClick={handleDismiss}
               aria-label="Dismiss installation prompt"
-              className="text-slate-400 hover:text-white hover:bg-slate-800 p-1.5 rounded-lg transition-colors"
+              className="text-slate-400 hover:text-white hover:bg-slate-800 p-1.5 rounded-lg transition-colors cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
@@ -148,9 +173,9 @@ export default function PWAInstallPrompt() {
         </div>
       </div>
 
-      {/* iOS Safari Installation Guide Modal */}
+      {/* iOS Safari Installation Guide Modal (Mobile Only) */}
       {showIOSGuide && (
-        <div className="fixed inset-0 z-[10000] bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-4">
+        <div className="fixed inset-0 z-[10000] bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 md:hidden">
           <div className="bg-slate-900 text-white border border-slate-800 rounded-3xl max-w-sm w-full p-6 shadow-2xl relative animate-in zoom-in-95 duration-200">
             <button
               onClick={() => setShowIOSGuide(false)}

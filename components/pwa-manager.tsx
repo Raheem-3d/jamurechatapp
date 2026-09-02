@@ -11,12 +11,31 @@ export function PWAManager() {
   const [isStandalone, setIsStandalone] = useState(false);
   const [showIOSGuide, setShowIOSGuide] = useState(false);
 
+  // Mobile state
+  const [isMobile, setIsMobile] = useState(false);
+
   // Notification state
   const [showNotifPrompt, setShowNotifPrompt] = useState(false);
   const [permissionState, setPermissionState] = useState<string>("default");
 
   useEffect(() => {
     setMounted(true);
+
+    const checkIsMobile = () => {
+      if (typeof window === "undefined") return false;
+      const userAgent = window.navigator.userAgent.toLowerCase();
+      const isMobileDevice = /android|iphone|ipad|ipod|blackberry|iemobile|opera mini|mobile/i.test(userAgent);
+      const isSmallScreen = window.innerWidth < 768;
+      return isMobileDevice || isSmallScreen;
+    };
+
+    const mobileStatus = checkIsMobile();
+    setIsMobile(mobileStatus);
+
+    const handleResize = () => {
+      setIsMobile(checkIsMobile());
+    };
+    window.addEventListener("resize", handleResize);
 
     // 1. Register Service Worker safely
     if (typeof window !== "undefined" && "serviceWorker" in navigator) {
@@ -48,19 +67,24 @@ export function PWAManager() {
 
           if (shouldShowNotif) {
             const timer = setTimeout(() => setShowNotifPrompt(true), 2500);
-            return () => clearTimeout(timer);
+            return () => {
+              clearTimeout(timer);
+              window.removeEventListener("resize", handleResize);
+            };
           }
         }
       }
 
-      if (isRunningStandalone) return;
+      if (isRunningStandalone) {
+        return () => window.removeEventListener("resize", handleResize);
+      }
 
-      // 4. PWA Installation check
+      // 4. PWA Installation check (Mobile view only)
       const lastDismissed = localStorage.getItem("jamurechat_pwa_dismissed");
       const pwaRecentlyDismissed =
         lastDismissed && Date.now() - parseInt(lastDismissed, 10) < 3 * 24 * 60 * 60 * 1000;
 
-      if (!pwaRecentlyDismissed) {
+      if (!pwaRecentlyDismissed && mobileStatus) {
         const userAgent = window.navigator.userAgent.toLowerCase();
         const isIosDevice = /iphone|ipad|ipod/.test(userAgent);
         const isSafari = /safari/.test(userAgent) && !/chrome|crios|fxios/.test(userAgent);
@@ -68,13 +92,18 @@ export function PWAManager() {
         if (isIosDevice && isSafari && !isRunningStandalone) {
           setIsIOS(true);
           const timer = setTimeout(() => setShowInstallPrompt(true), 3500);
-          return () => clearTimeout(timer);
+          return () => {
+            clearTimeout(timer);
+            window.removeEventListener("resize", handleResize);
+          };
         }
 
         const handleBeforeInstallPrompt = (e: Event) => {
           e.preventDefault();
           setDeferredPrompt(e);
-          setTimeout(() => setShowInstallPrompt(true), 3000);
+          if (checkIsMobile()) {
+            setTimeout(() => setShowInstallPrompt(true), 3000);
+          }
         };
 
         window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
@@ -87,11 +116,16 @@ export function PWAManager() {
         window.addEventListener("appinstalled", handleAppInstalled);
 
         return () => {
+          window.removeEventListener("resize", handleResize);
           window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
           window.removeEventListener("appinstalled", handleAppInstalled);
         };
       }
     }
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
   }, []);
 
   const handleInstallClick = async () => {
@@ -217,9 +251,9 @@ export function PWAManager() {
         </div>
       )}
 
-      {/* 2. PWA Install Prompt Banner */}
-      {!isStandalone && showInstallPrompt && (
-        <div className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-6 sm:max-w-md z-[9999] animate-in fade-in slide-in-from-bottom-5 duration-300">
+      {/* 2. PWA Install Prompt Banner (Mobile View Only) */}
+      {!isStandalone && showInstallPrompt && isMobile && (
+        <div className="fixed bottom-4 left-4 right-4 z-[9999] md:hidden animate-in fade-in slide-in-from-bottom-5 duration-300">
           <div className="bg-slate-900/95 dark:bg-slate-950/95 text-white backdrop-blur-md border border-indigo-500/30 p-4 rounded-2xl shadow-2xl flex items-center justify-between gap-3">
             <div className="flex items-center gap-3.5 min-w-0">
               <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 p-0.5 shadow-md flex-shrink-0 flex items-center justify-center">
@@ -266,9 +300,9 @@ export function PWAManager() {
         </div>
       )}
 
-      {/* 3. iOS Safari Installation Guide Modal */}
-      {showIOSGuide && (
-        <div className="fixed inset-0 z-[10000] bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-4">
+      {/* 3. iOS Safari Installation Guide Modal (Mobile View Only) */}
+      {showIOSGuide && isMobile && (
+        <div className="fixed inset-0 z-[10000] bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-4 md:hidden">
           <div className="bg-slate-900 text-white border border-slate-800 rounded-3xl max-w-sm w-full p-6 shadow-2xl relative animate-in zoom-in-95 duration-200">
             <button
               onClick={() => setShowIOSGuide(false)}
