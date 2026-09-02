@@ -796,16 +796,23 @@ export function emitToUser(userId: string | string[], event: string, data: any) 
   if (event === "new-notification" && data) {
     try {
       const { sendWebPushToUser } = require("./web-push");
-      sendWebPushToUser(userIds, {
-        title: data.title || (data.type === "REMINDER" ? "🔔 Reminder" : "🔔 JamureChat Notification"),
-        body: data.content || data.message || "You have a new update",
-        url: data.channelId
-          ? `/dashboard/channels/${data.channelId}`
-          : data.taskId
-            ? `/dashboard/tasks/${data.taskId}`
-            : "/dashboard",
-        tag: data.id || `notif-${Date.now()}`,
-      }).catch((err: any) => console.error("[SocketServer] WebPush dispatch error:", err));
+      const targetUserIds = data.senderId
+        ? userIds.filter((id) => String(id) !== String(data.senderId))
+        : userIds;
+
+      if (targetUserIds.length > 0) {
+        sendWebPushToUser(targetUserIds, {
+          title: data.title || (data.type === "REMINDER" ? "🔔 Reminder" : "🔔 JamureChat Notification"),
+          body: data.content || data.message || "You have a new update",
+          url: data.channelId
+            ? `/dashboard/channels/${data.channelId}`
+            : data.taskId
+              ? `/dashboard/tasks/${data.taskId}`
+              : "/dashboard",
+          tag: data.id || `notif-${Date.now()}`,
+          senderId: data.senderId,
+        }).catch((err: any) => console.error("[SocketServer] WebPush dispatch error:", err));
+      }
     } catch (e) {}
   }
 
