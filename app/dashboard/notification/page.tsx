@@ -28,6 +28,7 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { cn } from "@/lib/utils"
+import { getPaginationRange } from "@/lib/pagination"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { NotificationsMobile } from "@/components/notifications/NotificationsMobile"
@@ -385,22 +386,31 @@ export default function NotificationPage() {
                           Previous
                         </Button>
                         <div className="flex items-center gap-1">
-                          {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
-                            <Button
-                              key={pageNum}
-                              variant={pageNum === currentPage ? "default" : "outline"}
-                              size="sm"
-                              onClick={() => setCurrentPage(pageNum)}
-                              className={cn(
-                                "h-7 w-7 p-0 text-xs font-bold rounded-lg",
-                                pageNum === currentPage
-                                  ? "bg-indigo-600 text-white hover:bg-indigo-700"
-                                  : "border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200"
-                              )}
-                            >
-                              {pageNum}
-                            </Button>
-                          ))}
+                          {getPaginationRange(currentPage, totalPages).map((pageNum, idx) =>
+                            typeof pageNum === "string" ? (
+                              <span
+                                key={`ellipsis-${idx}`}
+                                className="px-1.5 py-0.5 text-xs font-bold text-slate-400 dark:text-slate-500 select-none flex items-center justify-center"
+                              >
+                                ...
+                              </span>
+                            ) : (
+                              <Button
+                                key={`page-${pageNum}`}
+                                variant={pageNum === currentPage ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => setCurrentPage(pageNum)}
+                                className={cn(
+                                  "h-7 w-7 p-0 text-xs font-bold rounded-lg transition-all",
+                                  pageNum === currentPage
+                                    ? "bg-indigo-600 text-white hover:bg-indigo-700 shadow-xs"
+                                    : "border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
+                                )}
+                              >
+                                {pageNum}
+                              </Button>
+                            )
+                          )}
                         </div>
                         <Button
                           variant="outline"

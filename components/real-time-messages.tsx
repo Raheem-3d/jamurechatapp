@@ -705,7 +705,11 @@ export default function RealTimeMessages({
             <WifiOff className="h-3.5 w-3.5 text-amber-600" />
             <span>
               Offline mode - Last updated:{" "}
-              {new Date(lastRefresh).toLocaleTimeString()}
+              {new Date(lastRefresh).toLocaleTimeString([], {
+                hour: "numeric",
+                minute: "2-digit",
+                hour12: true,
+              })}
             </span>
           </div>
           <Button

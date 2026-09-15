@@ -67,7 +67,8 @@ export async function GET(req: Request) {
 
       // Duration & Timing calculation
       let durationHours = 0;
-      const deadlineVal = task.deadlineEnd || task.deadline || task.deadlineStart;
+      const deadlineVal =
+        task.deadlineEnd || task.deadline || task.deadlineStart;
       const deadlineDate = deadlineVal ? new Date(deadlineVal) : null;
       let completedEarly = false;
       let completedLate = false;
@@ -88,7 +89,10 @@ export async function GET(req: Request) {
 
         // Determine if task was completed before deadline / early
         if (deadlineDate) {
-          if (updatedDate.getTime() <= deadlineDate.getTime()) {
+          const deadlineEndOfDay = new Date(deadlineDate);
+          deadlineEndOfDay.setUTCHours(23, 59, 59, 999);
+
+          if (updatedDate.getTime() <= deadlineEndOfDay.getTime()) {
             completedEarly = true;
           } else {
             completedLate = true;
@@ -103,7 +107,13 @@ export async function GET(req: Request) {
         durationHours =
           (new Date().getTime() - createdDate.getTime()) / (1000 * 60 * 60);
 
-        if (deadlineDate && new Date().getTime() > deadlineDate.getTime()) {
+        const deadlineEndOfDay = deadlineDate ? new Date(deadlineDate) : null;
+        deadlineEndOfDay?.setUTCHours(23, 59, 59, 999);
+
+        if (
+          deadlineEndOfDay &&
+          new Date().getTime() > deadlineEndOfDay.getTime()
+        ) {
           isOverdue = true;
         }
       }

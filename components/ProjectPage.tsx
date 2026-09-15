@@ -94,6 +94,46 @@ const TaskFilter = ({
   );
 };
 
+function getPaginationRange(
+  currentPage: number,
+  totalPages: number,
+  maxDisplay: number = 10
+): (number | string)[] {
+  if (totalPages <= 1) {
+    return totalPages === 1 ? [1] : [];
+  }
+
+  // If total pages is within limit + buffer, show all
+  if (totalPages <= maxDisplay + 2) {
+    return Array.from({ length: totalPages }, (_, i) => i + 1);
+  }
+
+  // Near the start: show 1 to maxDisplay (1 to 10), ..., totalPages
+  const startThreshold = Math.ceil(maxDisplay * 0.7); // 7
+  if (currentPage <= startThreshold) {
+    const startRange = Array.from({ length: maxDisplay }, (_, i) => i + 1);
+    return [...startRange, "...", totalPages];
+  }
+
+  // Near the end: show 1, ..., then the last maxDisplay numbers
+  const endThreshold = totalPages - startThreshold;
+  if (currentPage >= endThreshold) {
+    const endRange = Array.from(
+      { length: maxDisplay },
+      (_, i) => totalPages - maxDisplay + 1 + i
+    );
+    return [1, "...", ...endRange];
+  }
+
+  // In the middle: show 1, ..., window around currentPage, ..., totalPages
+  const sideCount = Math.floor((maxDisplay - 4) / 2); // 3 on each side
+  const middleRange = Array.from(
+    { length: sideCount * 2 + 1 },
+    (_, i) => currentPage - sideCount + i
+  );
+  return [1, "...", ...middleRange, "...", totalPages];
+}
+
 export default function TasksPage() {
   const { data: session } = useSession();
   const [assignedTasks, setAssignedTasks] = useState<any[]>([]);
@@ -236,6 +276,87 @@ export default function TasksPage() {
     </div>
   );
 
+  const renderPagination = () => {
+    if (totalPages <= 1) return null;
+
+    const startItem = Math.min(
+      (currentPage - 1) * itemsPerPage + 1,
+      currentList.length,
+    );
+    const endItem = Math.min(currentPage * itemsPerPage, currentList.length);
+
+    return (
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 text-xs text-slate-500 font-medium">
+        <div>
+          Showing{" "}
+          <span className="font-semibold text-slate-700 dark:text-slate-200">
+            {startItem}
+          </span>{" "}
+          -{" "}
+          <span className="font-semibold text-slate-700 dark:text-slate-200">
+            {endItem}
+          </span>{" "}
+          of{" "}
+          <span className="font-semibold text-slate-700 dark:text-slate-200">
+            {currentList.length}
+          </span>{" "}
+          projects
+        </div>
+        <div className="flex items-center gap-1.5 flex-wrap justify-center">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={currentPage === 1}
+            onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+            className="h-7 text-xs font-semibold rounded-xl border-slate-200 dark:border-slate-700 px-2.5 transition-colors"
+          >
+            <ChevronLeft className="h-3.5 w-3.5 mr-1" />
+            Previous
+          </Button>
+          <div className="flex items-center gap-1">
+            {getPaginationRange(currentPage, totalPages).map((pageNum, idx) =>
+              typeof pageNum === "string" ? (
+                <span
+                  key={`ellipsis-${idx}`}
+                  className="px-1.5 py-0.5 text-xs font-bold text-slate-400 dark:text-slate-500 select-none flex items-center justify-center"
+                >
+                  ...
+                </span>
+              ) : (
+                <Button
+                  key={`page-${pageNum}`}
+                  variant={pageNum === currentPage ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setCurrentPage(pageNum)}
+                  className={cn(
+                    "h-7 w-7 p-0 text-xs font-bold rounded-lg transition-all",
+                    pageNum === currentPage
+                      ? "bg-indigo-600 text-white hover:bg-indigo-700 shadow-xs"
+                      : "border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800",
+                  )}
+                >
+                  {pageNum}
+                </Button>
+              ),
+            )}
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={currentPage === totalPages}
+            onClick={() =>
+              setCurrentPage((prev) => Math.min(prev + 1, totalPages))
+            }
+            className="h-7 text-xs font-semibold rounded-xl border-slate-200 dark:border-slate-700 px-2.5 transition-colors"
+          >
+            Next
+            <ChevronRight className="h-3.5 w-3.5 ml-1" />
+          </Button>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="w-full space-y-4">
       {/* Control Strip & Tab Switchers */}
@@ -371,67 +492,7 @@ export default function TasksPage() {
             </div>
 
             {/* Pagination Controls */}
-            {totalPages > 1 && (
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 text-xs text-slate-500 font-medium">
-                <div>
-                  Showing{" "}
-                  {Math.min(
-                    (currentPage - 1) * itemsPerPage + 1,
-                    currentList.length,
-                  )}{" "}
-                  - {Math.min(currentPage * itemsPerPage, currentList.length)}{" "}
-                  of {currentList.length} projects
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={currentPage === 1}
-                    onClick={() =>
-                      setCurrentPage((prev) => Math.max(prev - 1, 1))
-                    }
-                    className="h-7 text-xs font-semibold rounded-xl border-slate-200 dark:border-slate-700 px-2.5"
-                  >
-                    <ChevronLeft className="h-3.5 w-3.5 mr-1" />
-                    Previous
-                  </Button>
-                  <div className="flex items-center gap-1">
-                    {Array.from({ length: totalPages }, (_, i) => i + 1).map(
-                      (pageNum) => (
-                        <Button
-                          key={pageNum}
-                          variant={
-                            pageNum === currentPage ? "default" : "outline"
-                          }
-                          size="sm"
-                          onClick={() => setCurrentPage(pageNum)}
-                          className={cn(
-                            "h-7 w-7 p-0 text-xs font-bold rounded-lg",
-                            pageNum === currentPage
-                              ? "bg-indigo-600 text-white hover:bg-indigo-700"
-                              : "border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200",
-                          )}
-                        >
-                          {pageNum}
-                        </Button>
-                      ),
-                    )}
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={currentPage === totalPages}
-                    onClick={() =>
-                      setCurrentPage((prev) => Math.min(prev + 1, totalPages))
-                    }
-                    className="h-7 text-xs font-semibold rounded-xl border-slate-200 dark:border-slate-700 px-2.5"
-                  >
-                    Next
-                    <ChevronRight className="h-3.5 w-3.5 ml-1" />
-                  </Button>
-                </div>
-              </div>
-            )}
+            {renderPagination()}
           </div>
         )
       ) : activeTab === "created" ? (
@@ -467,67 +528,7 @@ export default function TasksPage() {
             </div>
 
             {/* Pagination Controls */}
-            {totalPages > 1 && (
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 text-xs text-slate-500 font-medium">
-                <div>
-                  Showing{" "}
-                  {Math.min(
-                    (currentPage - 1) * itemsPerPage + 1,
-                    currentList.length,
-                  )}{" "}
-                  - {Math.min(currentPage * itemsPerPage, currentList.length)}{" "}
-                  of {currentList.length} projects
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={currentPage === 1}
-                    onClick={() =>
-                      setCurrentPage((prev) => Math.max(prev - 1, 1))
-                    }
-                    className="h-7 text-xs font-semibold rounded-xl border-slate-200 dark:border-slate-700 px-2.5"
-                  >
-                    <ChevronLeft className="h-3.5 w-3.5 mr-1" />
-                    Previous
-                  </Button>
-                  <div className="flex items-center gap-1">
-                    {Array.from({ length: totalPages }, (_, i) => i + 1).map(
-                      (pageNum) => (
-                        <Button
-                          key={pageNum}
-                          variant={
-                            pageNum === currentPage ? "default" : "outline"
-                          }
-                          size="sm"
-                          onClick={() => setCurrentPage(pageNum)}
-                          className={cn(
-                            "h-7 w-7 p-0 text-xs font-bold rounded-lg",
-                            pageNum === currentPage
-                              ? "bg-indigo-600 text-white hover:bg-indigo-700"
-                              : "border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200",
-                          )}
-                        >
-                          {pageNum}
-                        </Button>
-                      ),
-                    )}
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={currentPage === totalPages}
-                    onClick={() =>
-                      setCurrentPage((prev) => Math.min(prev + 1, totalPages))
-                    }
-                    className="h-7 text-xs font-semibold rounded-xl border-slate-200 dark:border-slate-700 px-2.5"
-                  >
-                    Next
-                    <ChevronRight className="h-3.5 w-3.5 ml-1" />
-                  </Button>
-                </div>
-              </div>
-            )}
+            {renderPagination()}
           </div>
         )
       ) : (

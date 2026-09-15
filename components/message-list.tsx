@@ -232,63 +232,13 @@ const LastSeenIndicator = ({
   return null;
 };
 
-// const renderMessageWithLinks = (text: string) => {
-//   const urlRegex = /(https?:\/\/[^\s]+)/g;
-//   if (text.startsWith("@")) {
-//     const match = text.match(/^@(\w+)/);
-//     if (match) {
-//       const username = match.input;
-//       const rest = text.slice(match[0].length);
-//       return (
-//         <>
-//           <span className="text-blue-500 dark:text-blue-400 font-semibold">
-//             {username}
-//           </span>
-//           {/* <span>{rest}</span> */}
-//         </>
-//       );
-//     }
-//   }
-//   return text.split(urlRegex).map((part, index) => {
-//     if (part.match(urlRegex)) {
-//       const handleLinkClick = (e: React.MouseEvent) => {
-//         e.preventDefault();
-//         const electronAPI = (window as any).electronAPI;
-//         if (electronAPI?.openExternalLink) {
-//           electronAPI.openExternalLink(part);
-//         } else {
-//           // Fallback for non-Electron environment
-//           window.open(part, '_blank');
-//         }
-//       };
-//       return (
-//         <a
-//           key={index}
-//           href={part}
-//           onClick={handleLinkClick}
-//           className="text-blue-500 dark:text-blue-400 hover:underline flex items-center gap-1 cursor-pointer"
-//         >
-//           <LinkIcon className="h-3 w-3" />
-//           {part}
-//         </a>
-//       );
-//     }
-//     return <span key={index}>{part}</span>;
-//   });
-// };
 
 // ------------------ MAIN ------------------
 
 const renderMessageWithLinks = (text: string) => {
   if (typeof window === "undefined" || !text) return null;
 
-  // Regex patterns:
-  // 1. Quoted folder paths: "C:\path with spaces" or 'C:\path with spaces' or `file:///C:/path with spaces`
-  // 2. Web URLs (https?://...)
-  // 3. File URLs (file:///[^\n<>"'`]+)
-  // 4. Windows paths with spaces (C:\path\subfolder or C:/path/subfolder)
-  // 5. UNC network share paths (\\server\share with spaces)
-  // 6. User mentions (@username)
+
   const combinedRegex =
     /(["'\`](?:[a-zA-Z]:[\\/]|file:\/\/\/?|\\\\|\/\/)[^\n"'\`]+["'\`])|(https?:\/\/[^\s]+)|(file:\/\/\/[^\n<>"'\`]+)|([a-zA-Z]:[\\/](?:(?!\s{2,}|["'\`<>]|\s+(?:and|or|is|to|in|for|the|a|an)\s+|[.,;:!?](\s|$))[^\n<>"'\`])+)|(\\\\[^\n<>"'\`]+)|(\/\/[^\n<>"'\`]+)|(@\w+)/g;
 
@@ -320,7 +270,7 @@ const renderMessageWithLinks = (text: string) => {
 
     try {
       cleanPath = decodeURIComponent(cleanPath);
-    } catch {}
+    } catch { }
 
     const electronAPI = (window as any).electronAPI;
     if (electronAPI?.openPath) {
@@ -936,6 +886,45 @@ export default function MessageList({
     return Array.isArray(raw) ? raw : [];
   };
 
+  // Helper to safely parse any date format (ISO, MySQL string, timestamp, or Date)
+  const parseMessageDate = (rawDate: any): Date => {
+    if (!rawDate) return new Date();
+    if (rawDate instanceof Date) {
+      return isNaN(rawDate.getTime()) ? new Date() : rawDate;
+    }
+    if (typeof rawDate === "string") {
+      let str = rawDate.trim();
+      if (!str) return new Date();
+      // If already has timezone indicator (e.g., 'Z' or '+05:30' or '-04:00')
+      if (str.endsWith("Z") || /[+-]\d{2}:?\d{2}$/.test(str)) {
+        const parsed = new Date(str);
+        if (!isNaN(parsed.getTime())) return parsed;
+      }
+      // If format is "YYYY-MM-DD HH:mm:ss" or "YYYY-MM-DDTHH:mm:ss" without timezone,
+      // the database stores it in UTC, so append 'Z' to correctly parse in user's local timezone
+      if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(\.\d+)?$/.test(str)) {
+        const iso = str.replace(" ", "T") + "Z";
+        const parsed = new Date(iso);
+        if (!isNaN(parsed.getTime())) return parsed;
+      }
+      const parsed = new Date(str);
+      if (!isNaN(parsed.getTime())) return parsed;
+      const num = Number(str);
+      if (!isNaN(num) && num > 0) return new Date(num);
+    }
+    return new Date();
+  };
+
+  // 12-hour time format with AM/PM (e.g., "1:35 PM")
+  const formatMessageTime = (dateInput: any): string => {
+    try {
+      const date = parseMessageDate(dateInput);
+      return format(date, "h:mm a");
+    } catch {
+      return "";
+    }
+  };
+
   // Helper to get date label for messages (Today, Yesterday, or date)
   const getDateLabel = (date: Date): string => {
     if (isToday(date)) return "Today";
@@ -950,14 +939,8 @@ export default function MessageList({
   ): boolean => {
     if (!previousMessage) return true; // Always show date for first message
 
-    const currentDate =
-      typeof currentMessage.createdAt === "string"
-        ? new Date(currentMessage.createdAt)
-        : currentMessage.createdAt;
-    const previousDate =
-      typeof previousMessage.createdAt === "string"
-        ? new Date(previousMessage.createdAt)
-        : previousMessage.createdAt;
+    const currentDate = parseMessageDate(currentMessage.createdAt);
+    const previousDate = parseMessageDate(previousMessage?.createdAt);
 
     return !isSameDay(currentDate, previousDate);
   };
@@ -1126,8 +1109,8 @@ export default function MessageList({
         const orig = messages.find((m) => m.id === parsed!.messageId);
         const att = orig
           ? (attachmentsMap[orig.id] ?? orig.attachments ?? [])[
-              parsed.attachmentIndex ?? 0
-            ]
+          parsed.attachmentIndex ?? 0
+          ]
           : null;
 
         const preview = att ? (
@@ -1226,14 +1209,8 @@ export default function MessageList({
 
   const isMessageEdited = (message: Message) => {
     if (!message.updatedAt) return false;
-    const created =
-      typeof message.createdAt === "string"
-        ? new Date(message.createdAt)
-        : message.createdAt;
-    const updated =
-      typeof message.updatedAt === "string"
-        ? new Date(message.updatedAt)
-        : message.updatedAt;
+    const created = parseMessageDate(message.createdAt);
+    const updated = parseMessageDate(message.updatedAt);
     return updated.getTime() - created.getTime() > 1000;
   };
 
@@ -1501,8 +1478,7 @@ export default function MessageList({
     ) {
       const attachmentTexts = message.attachments.map(
         (att: any, index: number) =>
-          `Attachment ${index + 1}: ${att.fileName || "File"} (${
-            att.fileType || "Unknown type"
+          `Attachment ${index + 1}: ${att.fileName || "File"} (${att.fileType || "Unknown type"
           })`,
       );
       text = attachmentTexts.join("\n");
@@ -1510,9 +1486,8 @@ export default function MessageList({
 
     // If no text content but has fileUrl, create descriptive text
     if (!text && message.fileUrl) {
-      text = `File: ${message.fileName || "File"} (${
-        message.fileType || "Unknown type"
-      })`;
+      text = `File: ${message.fileName || "File"} (${message.fileType || "Unknown type"
+        })`;
     }
 
     if (!text.trim()) {
@@ -1804,10 +1779,7 @@ export default function MessageList({
             {messages.map((message, idx) => {
               const isCurrentUser = message?.senderId === currentUserId;
               const isOnline = !!onlineUsers?.includes(message.senderId);
-              const createdAt =
-                typeof message.createdAt === "string"
-                  ? new Date(message.createdAt)
-                  : message.createdAt;
+              const createdAt = parseMessageDate(message.createdAt);
               const senderName = message?.sender?.name || message?.sender?.email || "User";
               const senderImage = message?.sender?.image || "/placeholder.svg";
               const isPinned = !!pinnedMessages[message.id];
@@ -1856,14 +1828,12 @@ export default function MessageList({
 
                   <div
                     id={`msg-${message.id}`}
-                    className={`flex ${
-                      isCurrentUser ? "justify-end" : "justify-start"
-                    } group relative mb-[2px]`}
+                    className={`flex ${isCurrentUser ? "justify-end" : "justify-start"
+                      } group relative mb-[2px]`}
                   >
                     <div
-                      className={`flex ${
-                        isCurrentUser ? "flex-row-reverse" : "flex-row"
-                      } gap-2 max-w-[85%] sm:max-w-[75%] md:max-w-[65%] lg:max-w-[60%]`}
+                      className={`flex ${isCurrentUser ? "flex-row-reverse" : "flex-row"
+                        } gap-2 max-w-[85%] sm:max-w-[75%] md:max-w-[65%] lg:max-w-[60%]`}
                     >
                       {/* Avatar - WhatsApp style: 40px, only on first in group */}
                       {isFirstInGroup ? (
@@ -1903,20 +1873,20 @@ export default function MessageList({
                                 : "bg-white dark:bg-[#202C33] text-[#111B21] dark:text-[#E9EDEF] rounded-[7.5px] rounded-tl-[0px]",
                               // First in group gets full radius on own side
                               isFirstInGroup &&
-                                isCurrentUser &&
-                                "rounded-tr-[7.5px]",
+                              isCurrentUser &&
+                              "rounded-tr-[7.5px]",
                               isFirstInGroup &&
-                                !isCurrentUser &&
-                                "rounded-tl-[7.5px]",
+                              !isCurrentUser &&
+                              "rounded-tl-[7.5px]",
                               // Last in group gets tail effect
                               isLastInGroup &&
-                                isCurrentUser &&
-                                "rounded-br-[0px]",
+                              isCurrentUser &&
+                              "rounded-br-[0px]",
                               isLastInGroup &&
-                                !isCurrentUser &&
-                                "rounded-bl-[0px]",
+                              !isCurrentUser &&
+                              "rounded-bl-[0px]",
                               isPinned &&
-                                "border-l-4 border-l-[#FFD700] dark:border-l-[#FFD700]",
+                              "border-l-4 border-l-[#FFD700] dark:border-l-[#FFD700]",
                             )}
                             onDoubleClick={() => {
                               if (editingMessageId) return;
@@ -2036,9 +2006,9 @@ export default function MessageList({
                                         (att as any).reactions,
                                       )
                                         ? ((att as any).reactions as {
-                                            emoji: string;
-                                            userId: string;
-                                          }[])
+                                          emoji: string;
+                                          userId: string;
+                                        }[])
                                         : [];
                                       const byEmoji: Record<string, string[]> =
                                         {};
@@ -2155,8 +2125,8 @@ export default function MessageList({
                                               </div>
                                             </div>
                                           ) : att.fileType?.startsWith(
-                                              "video/",
-                                            ) ? (
+                                            "video/",
+                                          ) ? (
                                             <MessageVideoComponent
                                               videoUrl={att.fileUrl}
                                               fileName={
@@ -2281,8 +2251,8 @@ export default function MessageList({
                                                     active={
                                                       currentUserId
                                                         ? userIds.includes(
-                                                            currentUserId,
-                                                          )
+                                                          currentUserId,
+                                                        )
                                                         : false
                                                     }
                                                     onClick={() =>
@@ -2337,8 +2307,8 @@ export default function MessageList({
                                         </button>
                                       </div>
                                     ) : message.fileType?.startsWith(
-                                        "audio/",
-                                      ) ? (
+                                      "audio/",
+                                    ) ? (
                                       <div className="mt-1">
                                         <audio
                                           controls
@@ -2355,8 +2325,8 @@ export default function MessageList({
                                         )}
                                       </div>
                                     ) : message.fileType?.startsWith(
-                                        "video/",
-                                      ) ? (
+                                      "video/",
+                                    ) ? (
                                       <MessageVideoComponent
                                         videoUrl={message.fileUrl}
                                         fileName={
@@ -2557,11 +2527,8 @@ export default function MessageList({
                             <div
                               className={`flex items-center justify-end gap-1 mt-0`}
                             >
-                              <span className="text-[11px] text-[#666] dark:text-[#FFFFFF99] leading-none">
-                                {createdAt.toLocaleTimeString([], {
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                })}
+                              <span className="text-[11px] text-[#666] dark:text-[#FFFFFF99] leading-none whitespace-nowrap">
+                                {formatMessageTime(createdAt)}
                                 {/* {isMessageEdited(message) && " (edited)"} */}
                               </span>
                               {isCurrentUser && (

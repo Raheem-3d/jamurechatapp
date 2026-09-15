@@ -74,7 +74,12 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode
 }) {
-  const session = await getServerSession(authOptions)
+  let session = null
+  try {
+    session = await getServerSession(authOptions)
+  } catch (e) {
+    console.error("RootLayout getServerSession error:", e)
+  }
 
   return (
     <html lang="en" suppressHydrationWarning className="h-full overflow-hidden">
@@ -85,7 +90,7 @@ export default async function RootLayout({
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
       </head>
       <body className={fontSans.className} suppressHydrationWarning>
-        <SessionProvider session={session}>
+        <SessionProvider session={session ?? null}>
           <AuthProvider>
             <ThemeProvider
               attribute="class"

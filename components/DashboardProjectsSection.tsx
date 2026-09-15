@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import {
   Card,
@@ -11,9 +11,18 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Briefcase, Layers, Grid3X3, PlusCircle, ArrowRight } from "lucide-react";
+import {
+  Briefcase,
+  Layers,
+  Grid3X3,
+  PlusCircle,
+  ArrowRight,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 import TaskCard from "@/components/task-card";
 import { cn } from "@/lib/utils";
+import { getPaginationRange } from "@/lib/pagination";
 
 interface DashboardProjectsSectionProps {
   tasks: any[];
@@ -26,16 +35,24 @@ export function DashboardProjectsSection({
   userId,
   canCreateProjects = true,
 }: DashboardProjectsSectionProps) {
-  const [activeTab, setActiveTab] = useState<"assigned" | "created" | "all">("assigned");
+  const [activeTab, setActiveTab] = useState<"assigned" | "created" | "all">(
+    "assigned",
+  );
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 6;
 
   const assignedTasks = useMemo(() => {
     return tasks.filter((t) =>
-      t.assignments?.some((a: any) => a.userId === userId || a.user?.id === userId)
+      t.assignments?.some(
+        (a: any) => a.userId === userId || a.user?.id === userId,
+      ),
     );
   }, [tasks, userId]);
 
   const createdTasks = useMemo(() => {
-    return tasks.filter((t) => t.creatorId === userId || t.creator?.id === userId);
+    return tasks.filter(
+      (t) => t.creatorId === userId || t.creator?.id === userId,
+    );
   }, [tasks, userId]);
 
   const currentList = useMemo(() => {
@@ -43,6 +60,18 @@ export function DashboardProjectsSection({
     if (activeTab === "created") return createdTasks;
     return tasks;
   }, [activeTab, assignedTasks, createdTasks, tasks]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab]);
+
+  const totalPages = Math.ceil(currentList.length / itemsPerPage);
+  const paginatedProjects = useMemo(() => {
+    return currentList.slice(
+      (currentPage - 1) * itemsPerPage,
+      currentPage * itemsPerPage,
+    );
+  }, [currentList, currentPage, itemsPerPage]);
 
   return (
     <div className="space-y-4">
@@ -65,7 +94,10 @@ export function DashboardProjectsSection({
               size="sm"
               className="h-9 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl px-4 shadow-sm"
             >
-              <Link href="/dashboard/tasks/new" className="flex items-center gap-1.5">
+              <Link
+                href="/dashboard/tasks/new"
+                className="flex items-center gap-1.5"
+              >
                 <PlusCircle className="h-4 w-4" />
                 New Project
               </Link>
@@ -99,7 +131,7 @@ export function DashboardProjectsSection({
                   "px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-150 flex items-center gap-1.5",
                   activeTab === "assigned"
                     ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs"
-                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white",
                 )}
               >
                 <Briefcase className="h-3.5 w-3.5" />
@@ -119,7 +151,7 @@ export function DashboardProjectsSection({
                   "px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-150 flex items-center gap-1.5",
                   activeTab === "created"
                     ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs"
-                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white",
                 )}
               >
                 <Layers className="h-3.5 w-3.5" />
@@ -139,7 +171,7 @@ export function DashboardProjectsSection({
                   "px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-150 flex items-center gap-1.5",
                   activeTab === "all"
                     ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs"
-                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                    : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white",
                 )}
               >
                 <Grid3X3 className="h-3.5 w-3.5" />
@@ -157,15 +189,97 @@ export function DashboardProjectsSection({
 
         <CardContent className="p-5 sm:p-6">
           {currentList.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {currentList.map((task) => (
-                <TaskCard
-                  key={task.id}
-                  task={task}
-                  showActions={true}
-                  client={false}
-                />
-              ))}
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {paginatedProjects.map((task) => (
+                  <TaskCard
+                    key={task.id}
+                    task={task}
+                    showActions={true}
+                    client={false}
+                  />
+                ))}
+              </div>
+
+              {/* Pagination Controls */}
+              {totalPages > 1 && (
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 text-xs text-slate-500 font-medium">
+                  <div>
+                    Showing
+                    <span className="font-semibold text-slate-700 dark:text-slate-200">
+                      {Math.min(
+                        (currentPage - 1) * itemsPerPage + 1,
+                        currentList.length,
+                      )}
+                    </span>
+                    -
+                    <span className="font-semibold text-slate-700 dark:text-slate-200">
+                      {Math.min(currentPage * itemsPerPage, currentList.length)}
+                    </span>
+                    of
+                    <span className="font-semibold text-slate-700 dark:text-slate-200">
+                      {currentList.length}
+                    </span>
+                    projects
+                  </div>
+                  <div className="flex items-center gap-1.5 flex-wrap justify-center">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={currentPage === 1}
+                      onClick={() =>
+                        setCurrentPage((prev) => Math.max(prev - 1, 1))
+                      }
+                      className="h-7 text-xs font-semibold rounded-xl border-slate-200 dark:border-slate-700 px-2.5 transition-colors"
+                    >
+                      <ChevronLeft className="h-3.5 w-3.5 mr-1" />
+                      Previous
+                    </Button>
+                    <div className="flex items-center gap-1">
+                      {getPaginationRange(currentPage, totalPages).map(
+                        (pageNum, idx) =>
+                          typeof pageNum === "string" ? (
+                            <span
+                              key={`ellipsis-${idx}`}
+                              className="px-1.5 py-0.5 text-xs font-bold text-slate-400 dark:text-slate-500 select-none flex items-center justify-center"
+                            >
+                              ...
+                            </span>
+                          ) : (
+                            <Button
+                              key={`page-${pageNum}`}
+                              variant={
+                                pageNum === currentPage ? "default" : "outline"
+                              }
+                              size="sm"
+                              onClick={() => setCurrentPage(pageNum)}
+                              className={cn(
+                                "h-7 w-7 p-0 text-xs font-bold rounded-lg transition-all",
+                                pageNum === currentPage
+                                  ? "bg-indigo-600 text-white hover:bg-indigo-700 shadow-xs"
+                                  : "border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800",
+                              )}
+                            >
+                              {pageNum}
+                            </Button>
+                          ),
+                      )}
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={currentPage === totalPages}
+                      onClick={() =>
+                        setCurrentPage((prev) => Math.min(prev + 1, totalPages))
+                      }
+                      className="h-7 text-xs font-semibold rounded-xl border-slate-200 dark:border-slate-700 px-2.5 transition-colors"
+                    >
+                      Next
+                      <ChevronRight className="h-3.5 w-3.5 ml-1" />
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <div className="text-center py-12 space-y-4">
@@ -177,8 +291,8 @@ export function DashboardProjectsSection({
                   {activeTab === "assigned"
                     ? "No assigned projects found"
                     : activeTab === "created"
-                    ? "No projects created by you yet"
-                    : "No projects found"}
+                      ? "No projects created by you yet"
+                      : "No projects found"}
                 </p>
                 <p className="text-slate-400 dark:text-slate-500 text-xs mt-1">
                   Projects with task flows and records will appear here.
@@ -190,9 +304,7 @@ export function DashboardProjectsSection({
                   size="sm"
                   className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-5 text-xs font-bold"
                 >
-                  <Link href="/dashboard/tasks/new">
-                    Create Project
-                  </Link>
+                  <Link href="/dashboard/tasks/new">Create Project</Link>
                 </Button>
               )}
             </div>
