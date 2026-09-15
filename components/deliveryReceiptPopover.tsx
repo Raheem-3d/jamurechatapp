@@ -90,9 +90,9 @@ export default function DeliveryReceiptPopover({
       return date.toLocaleString("en-US", {
         month: "short",
         day: "numeric",
-        hour: "2-digit",
+        hour: "numeric",
         minute: "2-digit",
-        second: "2-digit",
+        hour12: true,
       });
     } catch {
       return isoString;

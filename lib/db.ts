@@ -373,6 +373,12 @@ function deserializeJsonFields(tableName: string, rows: any[]) {
         (col.startsWith("is") || col.endsWith("Admin") || col === "archived" || col === "completed" || col === "muted" || col === "sent")
       ) {
         row[col] = Boolean(val);
+      } else if (
+        typeof val === "string" &&
+        (col.endsWith("At") || col.endsWith("Date") || col === "deadline" || col === "deadlineStart" || col === "deadlineEnd") &&
+        /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(\.\d+)?$/.test(val)
+      ) {
+        row[col] = val.replace(" ", "T") + "Z";
       }
     }
 
@@ -453,6 +459,9 @@ function createModelDelegate(tableName: string) {
       if (args.include) {
         await hydrateRelations(tableName, [row], args.include);
       }
+      if ((args.select as any)?._count) {
+        await hydrateCount(tableName, [row], (args.select as any)._count);
+      }
       return row;
     },
 
@@ -468,6 +477,9 @@ function createModelDelegate(tableName: string) {
       deserializeJsonFields(tableName, [row]);
       if (args.include) {
         await hydrateRelations(tableName, [row], args.include);
+      }
+      if ((args.select as any)?._count) {
+        await hydrateCount(tableName, [row], (args.select as any)._count);
       }
       return row;
     },
@@ -498,6 +510,9 @@ function createModelDelegate(tableName: string) {
       deserializeJsonFields(tableName, rows);
       if (rows.length > 0 && args.include) {
         await hydrateRelations(tableName, rows, args.include);
+      }
+      if (rows.length > 0 && (args.select as any)?._count) {
+        await hydrateCount(tableName, rows, (args.select as any)._count);
       }
       return rows;
     },
@@ -1060,6 +1075,20 @@ async function hydrateRelations(tableName: string, rows: any[], includeObj: Reco
           r.organization = orgMap.get(r.organizationId) || null;
         });
       }
+    } else if (tableName === "organization" && (relKey === "users" || relKey === "user")) {
+      const orgIds = rows.map((r) => r.id);
+      if (orgIds.length > 0) {
+        const users = await getModelDelegate("user").findMany({ where: { organizationId: orgIds }, include: subInclude });
+        const userMap = new Map<string, any[]>();
+        users.forEach((u: any) => {
+          if (!userMap.has(u.organizationId)) userMap.set(u.organizationId, []);
+          userMap.get(u.organizationId)!.push(u);
+        });
+        rows.forEach((r) => {
+          r.users = userMap.get(r.id) || [];
+          r.user = r.users;
+        });
+      }
     } else if (relKey === "department") {
       const deptIds = Array.from(new Set(rows.map((r) => r.departmentId).filter(Boolean)));
       if (deptIds.length > 0) {
@@ -1113,6 +1142,146 @@ async function hydrateRelations(tableName: string, rows: any[], includeObj: Reco
       rows.forEach((r) => {
         r.subscription = subMap.get(r.id) || null;
       });
+    } else if (relKey === "task") {
+      const taskIds = Array.from(new Set(rows.map((r) => r.taskId || r.taskReferenceId).filter(Boolean)));
+      if (taskIds.length > 0) {
+        const tasks = await getModelDelegate("task").findMany({ where: { id: taskIds }, include: subInclude });
+        const taskMap = new Map(tasks.map((t: any) => [t.id, t]));
+        rows.forEach((r) => {
+          r.task = taskMap.get(r.taskId || r.taskReferenceId) || null;
+        });
+      }
+    } else if (relKey === "_count") {
+      await hydrateCount(tableName, rows, relConfig);
+    }
+  }
+}
+
+const KNOWN_DB_TABLES = new Set([
+  "activitylog", "announcement", "announcementdismissal", "automationlog",
+  "automationrule", "channel", "channelmember", "department", "emaillog",
+  "invitationtoken", "message", "notification", "organization", "orginvite",
+  "payment", "record", "reminder", "stage", "subscription", "task",
+  "taskactivity", "taskassignment", "taskclient", "taskcomment",
+  "taskinvitation", "tasktimelog", "user", "push_subscription", "tag"
+]);
+
+async function hydrateCount(tableName: string, rows: any[], relConfig: any) {
+  if (!rows || rows.length === 0 || !relConfig) return;
+
+  const countFieldsObj = typeof relConfig === "object" && relConfig.select ? relConfig.select : relConfig;
+  if (typeof countFieldsObj !== "object" || countFieldsObj === null) return;
+
+  const fields = Object.keys(countFieldsObj).filter((f) => countFieldsObj[f]);
+
+  for (const r of rows) {
+    if (!r._count) r._count = {};
+  }
+
+  const ids = rows.map((r) => r.id).filter(Boolean);
+  if (ids.length === 0) return;
+
+  const tbl = tableName.toLowerCase();
+
+  for (const field of fields) {
+    const fLower = field.toLowerCase();
+    let targetTable: string | null = null;
+    let foreignKey: string | null = null;
+
+    if (tbl === "channel") {
+      if (fLower === "messages" || fLower === "message") {
+        targetTable = "message";
+        foreignKey = "channelId";
+      } else if (fLower === "members" || fLower === "channelmember") {
+        targetTable = "channelmember";
+        foreignKey = "channelId";
+      }
+    } else if (tbl === "organization") {
+      if (fLower === "users" || fLower === "user") {
+        targetTable = "user";
+        foreignKey = "organizationId";
+      } else if (fLower === "task" || fLower === "tasks") {
+        targetTable = "task";
+        foreignKey = "organizationId";
+      } else if (fLower === "channel" || fLower === "channels") {
+        targetTable = "channel";
+        foreignKey = "organizationId";
+      } else if (fLower === "payment" || fLower === "payments") {
+        targetTable = "payment";
+        foreignKey = "organizationId";
+      } else if (fLower === "department" || fLower === "departments") {
+        targetTable = "department";
+        foreignKey = "organizationId";
+      }
+    } else if (tbl === "user") {
+      if (fLower === "createdtasks" || fLower === "task" || fLower === "tasks") {
+        targetTable = "task";
+        foreignKey = "creatorId";
+      } else if (fLower === "assignedtasks" || fLower === "taskassignment" || fLower === "assignments") {
+        targetTable = "taskassignment";
+        foreignKey = "userId";
+      } else if (
+        fLower === "sentmessages" ||
+        fLower === "messages" ||
+        fLower === "message" ||
+        fLower.includes("message_senderid") ||
+        fLower.includes("message_message_senderidtouser")
+      ) {
+        targetTable = "message";
+        foreignKey = "senderId";
+      } else if (fLower === "other_user" || fLower === "subordinates" || fLower === "reportees") {
+        targetTable = "user";
+        foreignKey = "managerId";
+      } else if (fLower === "channelmember" || fLower === "channels") {
+        targetTable = "channelmember";
+        foreignKey = "userId";
+      }
+    } else if (tbl === "task") {
+      if (fLower === "comments" || fLower === "taskcomment") {
+        targetTable = "taskcomment";
+        foreignKey = "taskId";
+      } else if (fLower === "assignments" || fLower === "assignees" || fLower === "taskassignment") {
+        targetTable = "taskassignment";
+        foreignKey = "taskId";
+      }
+    }
+
+    if (!targetTable || !foreignKey) {
+      targetTable = resolveRelationTableName(tbl, field);
+      if (targetTable) {
+        foreignKey = getForeignKeyName(tbl, targetTable);
+      }
+    }
+
+    if (targetTable && !KNOWN_DB_TABLES.has(targetTable.toLowerCase())) {
+      targetTable = null;
+    }
+
+    if (targetTable && foreignKey) {
+      try {
+        const placeholders = ids.map(() => "?").join(", ");
+        const sql = `SELECT \`${foreignKey}\` AS fkid, COUNT(*) AS cnt FROM \`${targetTable}\` WHERE \`${foreignKey}\` IN (${placeholders}) GROUP BY \`${foreignKey}\``;
+        const countRows = await rawQuery<{ fkid: any; cnt: any }>(sql, ids);
+        const countMap = new Map<string, number>();
+        for (const cr of countRows) {
+          countMap.set(String(cr.fkid), Number(cr.cnt) || 0);
+        }
+        for (const r of rows) {
+          r._count[field] = countMap.get(String(r.id)) || 0;
+        }
+      } catch (err) {
+        for (const r of rows) {
+          if (r._count[field] === undefined) {
+            r._count[field] = 0;
+          }
+        }
+      }
+    } else {
+      for (const r of rows) {
+        if (r._count[field] === undefined) {
+          r._count[field] = 0;
+        }
+      }
     }
   }
 }

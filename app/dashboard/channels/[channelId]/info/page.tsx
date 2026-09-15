@@ -52,14 +52,14 @@ export default async function ChannelInfoPage({ params }: { params: Promise<{ ch
 
 
   // Check if user is a member of the channel
-  const isMember = channel.members.some((member) => member.userId === session.user.id)
-  const isAdmin = channel.members.some((member) => member.userId === session.user.id && member.isAdmin)
-const currentMember = channel.members.find(
-  (member) => member.user.name === session.user?.name
-)
+  const members = Array.isArray(channel.members) ? channel.members : []
+  const isMember = members.some((member: any) => member.userId === session.user?.id)
+  const isAdmin = members.some((member: any) => member.userId === session.user?.id && member.isAdmin)
+  const currentMember = members.find(
+    (member: any) => member.userId === session.user?.id || member.user?.name === session.user?.name
+  )
 
-const userId = currentMember?.userId
-
+  const userId = currentMember?.userId || session.user?.id
 
   if (!isMember && !channel.isPublic) {
     // If not a member and channel is private, redirect
@@ -69,11 +69,11 @@ const userId = currentMember?.userId
   // Format channel data for the component
   const channelData = {
     ...channel,
-    createdAt: format(new Date(channel.createdAt), "PPP"),
-    updatedAt: format(new Date(channel.updatedAt), "PPP"),
-    messageCount: channel._count.messages,
+    createdAt: channel.createdAt ? format(new Date(channel.createdAt), "PPP") : "",
+    updatedAt: channel.updatedAt ? format(new Date(channel.updatedAt), "PPP") : "",
+    messageCount: channel._count?.messages ?? 0,
     currentUserId: userId,
-    currentUserName:session.user?.name,
+    currentUserName: session.user?.name,
     isCurrentUserAdmin: isAdmin || session.user?.role === "ORG_ADMIN",
   }
 

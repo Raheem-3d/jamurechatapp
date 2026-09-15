@@ -50,6 +50,7 @@ import {
 import { useToast } from "@/components/ui/use-toast";
 import { usePermissions } from "@/lib/rbac-utils";
 import { cn, formatDate } from "@/lib/utils";
+import { getPaginationRange } from "@/lib/pagination";
 import { TaskFlowAIAssistantModal } from "@/components/TaskFlowAIAssistantModal";
 import { QuickSubtaskModal } from "@/components/quick-subtask-modal";
 import { TasksMobile } from "@/components/tasks/TasksMobile";
@@ -603,26 +604,53 @@ export default function TasksPage() {
                     </div>
 
                     {totalAssignedPages > 1 && (
-                      <div className="flex items-center justify-between pt-4 mt-4 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-500">
+                      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 mt-4 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-500 font-medium">
                         <div>
                           Showing {(assignedPage - 1) * itemsPerPage + 1} - {Math.min(assignedPage * itemsPerPage, filteredAssignedTasks.length)} of {filteredAssignedTasks.length}
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1.5 flex-wrap justify-center">
                           <Button
                             variant="outline"
                             size="sm"
                             disabled={assignedPage === 1}
                             onClick={() => setAssignedPage((p) => Math.max(p - 1, 1))}
-                            className="rounded-xl"
+                            className="h-7 text-xs font-semibold rounded-xl border-slate-200 dark:border-slate-700 px-2.5"
                           >
                             <ChevronLeft className="h-3.5 w-3.5 mr-1" /> Previous
                           </Button>
+                          <div className="flex items-center gap-1">
+                            {getPaginationRange(assignedPage, totalAssignedPages).map((pageNum, idx) =>
+                              typeof pageNum === "string" ? (
+                                <span
+                                  key={`ellipsis-${idx}`}
+                                  className="px-1.5 py-0.5 text-xs font-bold text-slate-400 dark:text-slate-500 select-none"
+                                >
+                                  ...
+                                </span>
+                              ) : (
+                                <Button
+                                  key={`page-${pageNum}`}
+                                  variant={pageNum === assignedPage ? "default" : "outline"}
+                                  size="sm"
+                                  onClick={() => setAssignedPage(pageNum)}
+                                  className={cn(
+                                    "h-7 w-7 p-0 text-xs font-bold rounded-lg transition-all",
+                                    pageNum === assignedPage
+                                      ? "bg-indigo-600 text-white hover:bg-indigo-700 shadow-xs"
+                                      : "border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
+                                  )}
+                                >
+                                  {pageNum}
+                                </Button>
+                              )
+                            )}
+                          </div>
                           <Button
                             variant="outline"
                             size="sm"
                             disabled={assignedPage === totalAssignedPages}
                             onClick={() => setAssignedPage((p) => Math.min(p + 1, totalAssignedPages))}
-                            className="rounded-xl"
+                            className="h-7 text-xs font-semibold rounded-xl border-slate-200 dark:border-slate-700 px-2.5"
                           >
                             Next <ChevronRight className="h-3.5 w-3.5 ml-1" />
                           </Button>
@@ -665,11 +693,68 @@ export default function TasksPage() {
                     <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200">No projects created yet</h3>
                   </div>
                 ) : (
-                  <div className="grid gap-4 md:grid-cols-2">
-                    {paginatedCreatedTasks.map((task) => (
-                      <TaskCard key={task.id} task={task} />
-                    ))}
-                  </div>
+                  <>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      {paginatedCreatedTasks.map((task) => (
+                        <TaskCard key={task.id} task={task} />
+                      ))}
+                    </div>
+
+                    {totalCreatedPages > 1 && (
+                      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 mt-4 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-500 font-medium">
+                        <div>
+                          Showing {(createdPage - 1) * itemsPerPage + 1} - {Math.min(createdPage * itemsPerPage, filteredCreatedTasks.length)} of {filteredCreatedTasks.length}
+                        </div>
+                        <div className="flex items-center gap-1.5 flex-wrap justify-center">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={createdPage === 1}
+                            onClick={() => setCreatedPage((p) => Math.max(p - 1, 1))}
+                            className="h-7 text-xs font-semibold rounded-xl border-slate-200 dark:border-slate-700 px-2.5"
+                          >
+                            <ChevronLeft className="h-3.5 w-3.5 mr-1" /> Previous
+                          </Button>
+                          <div className="flex items-center gap-1">
+                            {getPaginationRange(createdPage, totalCreatedPages).map((pageNum, idx) =>
+                              typeof pageNum === "string" ? (
+                                <span
+                                  key={`ellipsis-${idx}`}
+                                  className="px-1.5 py-0.5 text-xs font-bold text-slate-400 dark:text-slate-500 select-none"
+                                >
+                                  ...
+                                </span>
+                              ) : (
+                                <Button
+                                  key={`page-${pageNum}`}
+                                  variant={pageNum === createdPage ? "default" : "outline"}
+                                  size="sm"
+                                  onClick={() => setCreatedPage(pageNum)}
+                                  className={cn(
+                                    "h-7 w-7 p-0 text-xs font-bold rounded-lg transition-all",
+                                    pageNum === createdPage
+                                      ? "bg-indigo-600 text-white hover:bg-indigo-700 shadow-xs"
+                                      : "border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
+                                  )}
+                                >
+                                  {pageNum}
+                                </Button>
+                              )
+                            )}
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={createdPage === totalCreatedPages}
+                            onClick={() => setCreatedPage((p) => Math.min(p + 1, totalCreatedPages))}
+                            className="h-7 text-xs font-semibold rounded-xl border-slate-200 dark:border-slate-700 px-2.5"
+                          >
+                            Next <ChevronRight className="h-3.5 w-3.5 ml-1" />
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
               </CardContent>
             </Card>

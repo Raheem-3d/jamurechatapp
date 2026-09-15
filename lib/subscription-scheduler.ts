@@ -40,25 +40,32 @@ class SubscriptionScheduler {
         include: { organization: { include: { users: true } } },
       })
 
-        for (const sub of trials) {
-          const schedule = getReminderScheduleUtc(sub.trialEnd)
-          // Choose an org admin user (fallback: first user) to send trial emails to
-          const adminUser = sub.organization?.users.find((u: any) => u.role === "ORG_ADMIN") || sub.organization?.users[0]
-          if (!adminUser) continue
+      for (const sub of trials) {
+        if (!sub.trialEnd) continue
+        const trialEndDate = sub.trialEnd instanceof Date ? sub.trialEnd : new Date(sub.trialEnd)
+        if (isNaN(trialEndDate.getTime())) continue
+
+        const schedule = getReminderScheduleUtc(trialEndDate)
+        // Choose an org admin user (fallback: first user) to send trial emails to
+        const orgUsers: any[] = Array.isArray(sub.organization?.users) ? sub.organization.users : []
+        const adminUser = orgUsers.find((u: any) => u.role === "ORG_ADMIN") || orgUsers[0]
+        if (!adminUser) continue
+
         // For each scheduled time, if it's due and not logged, send email and log
         for (const scheduledFor of schedule) {
-          if (scheduledFor.getTime() > nowUtc.getTime()) continue
+          const scheduledTime = scheduledFor instanceof Date ? scheduledFor : new Date(scheduledFor)
+          if (scheduledTime.getTime() > nowUtc.getTime()) continue
 
           const existing = await db.emailLog.findFirst({
             where: {
               userId: adminUser.id,
               type: "TRIAL_REMINDER",
-              scheduledFor,
+              scheduledFor: scheduledTime,
             },
           })
           if (existing?.sentAt) continue
 
-          const remainingMs = sub.trialEnd.getTime() - nowUtc.getTime()
+          const remainingMs = trialEndDate.getTime() - nowUtc.getTime()
           const remainingDays = Math.max(0, Math.ceil(remainingMs / (1000 * 60 * 60 * 24)))
 
           const subject = remainingDays > 0
@@ -84,13 +91,13 @@ class SubscriptionScheduler {
             logType: remainingDays > 0 ? "TRIAL_REMINDER" : "TRIAL_EXPIRED",
             userId: adminUser.id,
             subscriptionId: sub.id,
-            scheduledFor,
-            metadata: { trialEnd: sub.trialEnd.toISOString(), organizationId: sub.organizationId },
+            scheduledFor: scheduledTime,
+            metadata: { trialEnd: trialEndDate.toISOString(), organizationId: sub.organizationId },
           })
         }
 
         // If trial ended, mark as EXPIRED
-        if (sub.trialEnd.getTime() <= nowUtc.getTime() && sub.status === "TRIAL") {
+        if (trialEndDate.getTime() <= nowUtc.getTime() && sub.status === "TRIAL") {
           await db.subscription.update({
             where: { id: sub.id },
             data: { status: "EXPIRED" },
